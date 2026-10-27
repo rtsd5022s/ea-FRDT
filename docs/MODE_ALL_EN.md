@@ -216,3 +216,25 @@ x87 and FP128 are pure software integer math, slower than native formats. DPD ha
 8. Infinite loop `-l -1` must pair with `-t`, otherwise runs forever.
 9. Core pinning may fail in containers/VMs without permission, workers run unpinned.
 10. Quiet mode `-q` skips the monitor, prints summary directly after done.
+
+## Usage risks
+
+Concurrent mode maxes out all cores. Long-running has several real risks to know before you start.
+
+**System lag and slowdown**. Each worker is pinned and bumped to TIME_CRITICAL priority, leaving other system processes on the remaining cores. On an 8-core CPU running 8 workers, the system can barely do anything else; even mouse drag may drop frames. This isn't a bug, it's expected behavior from pinning + high priority. To keep system responsive, pin fewer cores: on a 4-core CPU use `-j 1-2`, leave two cores for the OS.
+
+**Thermals and throttling**. Sustained load pushes CPU temperature up, then it downclocks. Laptops especially; machines with weak cooling start throttling after a few minutes and speed drops. Desktop with good airflow is less affected. This is a stress test tool, designed to push CPU to the limit, don't expect it to run gently.
+
+**Power cost**. Sustained load draws way more power than idle: desktop 100W+, laptop also jumps to 65W+. Long runs show up on the electricity bill. Servers don't care, but laptops on battery will drain fast.
+
+**Extra risk with DPD**. DPD encoding is pure lookup + per-declet processing, CPU load 20-30x higher than BID. If DPD formats are added to concurrent mode, those workers eat cores harder, and other workers may slow from scheduling latency. The DPD warning isn't scaremongering, it really makes the system laggier.
+
+**Infinite loop risk**. `-l -1` without `-t` runs forever. Ctrl+C works, but if running over SSH and the connection drops, the process may become an orphan and keep eating CPU. Always pair with a timeout.
+
+**Watchdog and OOM**. Some systems have a watchdog; CPU pegged at 100% for too long may trigger a watchdog reboot. WorkerSlot is a few KB per worker, won't OOM, but monitor and thread stacks take a bit. Memory isn't the bottleneck, CPU is.
+
+**Measurement bias**. Pinning + high priority is for accurate measurement, but background processes (antivirus, Windows Update, sync drives) steal CPU in the background, so measured speed fluctuates. For clean measurement, turn off background services or run in a container.
+
+**Don't run in production**. This is a stress test / testing tool, not a production tool. Running it on a production server slows other workloads. Play around in test environments.
+
+**Data accuracy**. Concurrent mode: each worker independently runs the format chain, results should match single-thread mode. If step counts disagree, first check whether pinning failed (scheduling drift) or system interference. Pure software formats (x87/FP128) should match single-core under multi-core concurrency, because they're pure integer math with no shared state.
