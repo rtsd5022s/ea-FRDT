@@ -12,28 +12,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y g++
+        run: sudo apt-get update && sudo apt-get install -y g++ cmake
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: |
-          g++ -std=c++23 -O2 \
-            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp src/platform.cpp \
-            -o float_inf_walk -lpthread
+        run: cmake --build build -j
       - name: Smoke test
         run: |
-          ./float_inf_walk 0 -m f32 -t 5
-          ./float_inf_walk 0 -m fp16 -t 5
-          ./float_inf_walk 0 -m all --only fp32 -j 1 -t 5
+          ./build/float_inf_walk 0 -m f32 -t 5
+          ./build/float_inf_walk 0 -m fp16 -t 5
+          ./build/float_inf_walk 0 -m all --only fp32 -j 1 -t 5
 
   build-clang:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y clang
+        run: sudo apt-get update && sudo apt-get install -y clang cmake
+      - name: Configure
+        run: cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: |
-          clang++ -std=c++23 -O2 \
-            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp src/platform.cpp \
-            -o float_inf_walk -lpthread
+        run: cmake --build build -j
       - name: Smoke test
-        run: ./float_inf_walk 0 -m f32 -t 5
+        run: ./build/float_inf_walk 0 -m f32 -t 5
