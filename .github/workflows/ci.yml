@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y g++-12
+      - name: Build
+        run: |
+          g++-12 -std=c++23 -O2 -march=native \
+            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp \
+            -o float_inf_walk
+      - name: Quick smoke test
+        run: |
+          ./float_inf_walk 0 -m f32 -t 5
+          ./float_inf_walk 0 -m fp16 -t 5
+          ./float_inf_walk 0 -m dec32 -t 5
+          ./float_inf_walk 0 -m all --only fp32 -j 1 -t 5
+
+  build-clang:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y clang
+      - name: Build
+        run: |
+          clang++ -std=c++23 -O2 -march=native \
+            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp \
+            -o float_inf_walk
+      - name: Quick smoke test
+        run: ./float_inf_walk 0 -m f32 -t 5
