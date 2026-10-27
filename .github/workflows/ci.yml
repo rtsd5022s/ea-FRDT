@@ -16,8 +16,8 @@ jobs:
       - name: Build
         run: |
           g++ -std=c++23 -O2 \
-            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp \
-            -o float_inf_walk
+            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp src/platform.cpp \
+            -o float_inf_walk -lpthread
       - name: Smoke test
         run: |
           ./float_inf_walk 0 -m f32 -t 5
@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: |
           clang++ -std=c++23 -O2 \
-            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp \
-            -o float_inf_walk
+            -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp src/drive.cpp src/platform.cpp \
+            -o float_inf_walk -lpthread
       - name: Smoke test
         run: ./float_inf_walk 0 -m f32 -t 5
