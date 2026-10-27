@@ -1,0 +1,24 @@
+# 编译产物
+*.exe
+*.a
+*.o
+*.obj
+*.dll
+
+# 临时文件
+v.txt
+e.txt
+out.txt
+*.tmp
+
+# 备份目录
+backup/
+
+# IDE
+.vscode/
+.idea/
+*.user
+
+# OS
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,132 @@
+// drive.h — 核心步进驱动器接口
+#pragma once
+#include <chrono>
+#include <cstdio>
+#include <functional>
+#include <iostream>
+#include <string>
+#include <thread>
+#include "base_types.h"
+#include "lang.h"
+#include "format_util.h"
+
+namespace fw {
+
+extern const int CLEAR;
+
+void on_sigint(int);
+const char* step_name(StepMode sm);
+std::string step_factor_str(StepMode sm, double factor);
+const char* reason_name(RunResult::Reason r);
+
+// 模板驱动器（必须留在头文件）
+template <class S, class Next, class IsInf, class IsZero, class Render>
+void drive_core(S s, Next next, IsInf isInf, IsZero isZero, Render render,
+                std::int64_t delay_ms,
+                std::function<std::string(const S&)> extra = {},
+                RunResult* quiet = nullptr,
+                std::int64_t refresh_ms = 0) {
+    static const u128 SAFETY_LIMIT = ((u128)1 << 120);
+    constexpr size_t INPLACE_MAX = 110;
+    constexpr u128 SLOW_INTERVAL = 256;
+    u128 step = 0;
+    u128 last_slow = 0;
+    auto t0 = std::chrono::steady_clock::now();
+    auto last_print = t0;
+    RunResult::Reason exit_reason = RunResult::OVERFLOW;
+    auto finish_line = [&](const std::string& msg) {
+        if (quiet) return;
+        std::cout << '\r' << "\033[K" << msg << '\n' << std::flush;
+    };
+    auto slow_update = [&]() {
+        if (!quiet) return;
+        quiet->cur_elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        quiet->cur_value = render(s);
+        last_slow = step;
+    };
+    while (true) {
+        S nxt = next(s);
+        ++step;
+        if (isInf(nxt)) {
+            exit_reason = RunResult::OVERFLOW;
+            if (quiet) { quiet->steps = step; quiet->reason = RunResult::OVERFLOW; quiet->cur_value = render(s); }
+            break;
+        }
+        if (isZero(nxt)) {
+            exit_reason = RunResult::UNDERFLOW;
+            if (quiet) { quiet->steps = step; quiet->reason = RunResult::UNDERFLOW; quiet->cur_value = "0"; }
+            break;
+        }
+        if (!(nxt == s)) { s = nxt; }
+        else {
+            exit_reason = RunResult::IDENTITY;
+            if (quiet) { quiet->steps = step; quiet->reason = RunResult::IDENTITY; quiet->cur_value = render(s); }
+            break;
+        }
+        if (step >= SAFETY_LIMIT) {
+            exit_reason = RunResult::SAFETY;
+            if (quiet) { quiet->steps = step; quiet->reason = RunResult::SAFETY; }
+            break;
+        }
+        if (quiet) {
+            quiet->cur_steps = step;
+            if (step - last_slow >= SLOW_INTERVAL) {
+                slow_update();
+                if (g_timeout_sec.load() > 0) {
+                    double elapsed_s = quiet->cur_elapsed_ms / 1000.0;
+                    if (elapsed_s >= (double)g_timeout_sec.load()) {
+                        exit_reason = RunResult::TIMEOUT;
+                        quiet->steps = step; quiet->reason = RunResult::TIMEOUT; break;
+                    }
+                }
+            }
+            if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+            continue;
+        }
+        if (g_timeout_sec.load() > 0) {
+            double elapsed_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            if (elapsed_s >= (double)g_timeout_sec.load()) {
+                finish_line("[step " + to_string_u128(step) + "] timeout (" + std::to_string(g_timeout_sec.load()) + "s), stopping.");
+                return;
+            }
+        }
+        std::string line = render(s);
+        if (extra) line += " (" + extra(s) + ")";
+        std::string out = "[step " + to_string_u128(step) + "] x = " + line;
+        auto now = std::chrono::steady_clock::now();
+        bool due = (refresh_ms <= 0) ||
+                   std::chrono::duration_cast<std::chrono::milliseconds>(now - last_print).count() >= refresh_ms;
+        if (due) {
+            if (out.size() <= INPLACE_MAX) std::cout << '\r' << "\033[K" << out << std::flush;
+            else std::cout << '\r' << "\033[K" << out << '\n' << std::flush;
+            last_print = now;
+        }
+        if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
+    if (!quiet) {
+        auto t1 = std::chrono::steady_clock::now();
+        double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        finish_line("[step " + to_string_u128(step) + "] " + reason_name(exit_reason)
+                    + "  (" + std::to_string((int)elapsed_ms) + " ms)");
+    }
+    if (quiet) {
+        slow_update();
+        auto t1 = std::chrono::steady_clock::now();
+        quiet->elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        quiet->cur_steps = step;
+        quiet->cur_elapsed_ms = quiet->elapsed_ms;
+        quiet->done = true;
+    }
+}
+
+template <class S, class Next, class IsInf, class IsZero, class Disp>
+void drive(S s, Next next, IsInf isInf, IsZero isZero, Disp disp,
+           std::int64_t delay_ms, DispFmt df, int digits,
+           std::function<std::string(const S&)> extra = {}, RunResult* quiet = nullptr,
+           std::int64_t refresh_ms = 0) {
+    drive_core(s, next, isInf, isZero,
+               [&](const S& v) { return format_value(disp(v), df, digits); },
+               delay_ms, extra, quiet, refresh_ms);
+}
+
+} // namespace fw
