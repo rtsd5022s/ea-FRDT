@@ -141,7 +141,7 @@ inline void run_sim(const Fmt& f, std::int64_t delay_ms, StartKind kind, StepMod
 // ---------------------------------------------------------------------------
 template <class T>
 T nextafterT(T x, T y) {
-    if (std::isinf(x)) return x;
+    if (std::isinf(static_cast<double>(x))) return x;
     if (x == T(0)) {
         std::uint64_t raw = (y > T(0)) ? 1 : (std::uint64_t(1) << (sizeof(T)*8 - 1)) + 1;
         T r; std::memcpy(&r, &raw, sizeof(T));

@@ -230,9 +230,9 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
             "[!] DPD algorithm is computationally heavy, performance may drop 20-30x, "
             "higher precision even slower. Press y to continue, auto-cancel in 10s... "
         ) << clr::RST << std::flush;
-        auto t0 = std::chrono::steady_clock::now();
         bool confirmed = false;
 #ifdef _WIN32
+        auto t0 = std::chrono::steady_clock::now();
         while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count() < 10) {
             if (_kbhit()) {
                 int c = _getch();
@@ -290,7 +290,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
         int core_id = core_ids[w];
         RunParams p = params;           // 拷贝
         std::vector<FmtId> ch = chain;  // 拷贝
-        pool.emplace_back([&workers, w, core_id, p, ch, loop_count, refresh_ms, t0] {
+        pool.emplace_back([&workers, w, core_id, p, ch, loop_count, t0] {
             fw::plat::bind_thread_to_core(core_id);
             workers[w].sum_steps.assign(ch.size(), 0);
             int loops = 0;
