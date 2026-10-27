@@ -122,10 +122,10 @@ static void print_help() {
 
 int main(int argc, char** argv) {
 #ifdef _WIN32
-    timeBeginPeriod(1);
+    fw::plat::set_high_res_timer();
     SetConsoleOutputCP(65001);
     { HANDLE hO = GetStdHandle(STD_OUTPUT_HANDLE); DWORD m; if (GetConsoleMode(hO, &m)) SetConsoleMode(hO, m | ENABLE_VIRTUAL_TERMINAL_PROCESSING); }
-    struct PeriodGuard { ~PeriodGuard(){ timeEndPeriod(1); } } _pg;
+    struct PeriodGuard { ~PeriodGuard(){ fw::plat::reset_high_res_timer(); } } _pg;
 #endif
     std::signal(SIGINT, on_sigint);
     std::string mode = "f32";

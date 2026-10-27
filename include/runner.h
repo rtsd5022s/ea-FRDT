@@ -4,10 +4,9 @@
 #include "fp_formats.h"
 #include "decimal.h"
 #include "dpd.h"
+#include "platform.h"
 #include <ctime>
 #ifdef _WIN32
-#include <windows.h>
-#include <cpuid.h>
 #include <conio.h>
 #endif
 
@@ -259,40 +258,11 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
 
     // 打印 CPU 信息
     auto t0 = std::chrono::steady_clock::now();
-#ifdef _WIN32
-    char brand[49] = {0};
-    bool have_brand = false;
-    unsigned int eax, ebx, ecx, edx;
-    __cpuid(0x80000000, eax, ebx, ecx, edx);
-    if (eax >= 0x80000004) {
-        __cpuid(0x80000002, eax, ebx, ecx, edx);
-        std::memcpy(brand,      &eax, 4); std::memcpy(brand + 4,  &ebx, 4); std::memcpy(brand + 8,  &ecx, 4); std::memcpy(brand + 12, &edx, 4);
-        __cpuid(0x80000003, eax, ebx, ecx, edx);
-        std::memcpy(brand + 16, &eax, 4); std::memcpy(brand + 20, &ebx, 4); std::memcpy(brand + 24, &ecx, 4); std::memcpy(brand + 28, &edx, 4);
-        __cpuid(0x80000004, eax, ebx, ecx, edx);
-        std::memcpy(brand + 32, &eax, 4); std::memcpy(brand + 36, &ebx, 4); std::memcpy(brand + 40, &ecx, 4); std::memcpy(brand + 44, &edx, 4);
-        have_brand = true;
-    }
-    int phys_cores = 0;
-    DWORD len = 0;
-    GetLogicalProcessorInformation(nullptr, &len);
-    if (len > 0) {
-        auto* buf = (SYSTEM_LOGICAL_PROCESSOR_INFORMATION*)std::malloc(len);
-        if (buf) {
-            if (GetLogicalProcessorInformation(buf, &len))
-                for (DWORD i = 0; i < len / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION); ++i)
-                    if (buf[i].Relationship == RelationProcessorCore) ++phys_cores;
-            std::free(buf);
-        }
-    }
-#else
-    bool have_brand = false; int phys_cores = 0;
-#endif
-    unsigned hw_threads = std::thread::hardware_concurrency();
+    int hw_threads = fw::plat::logical_cores();
+    int phys_cores = fw::plat::physical_cores();
     std::cout << clr::CYN << tr("=== ALL 并发模式：每线程独立跑完整个格式链 ===", "=== ALL modes: each worker runs the full format chain independently ===") << clr::RST << "\n";
-    if (have_brand) std::cout << clr::GRY << "CPU: " << brand << clr::RST << "\n";
     std::cout << clr::GRY << tr("CPU 核心(逻辑)=", "CPU cores(logical)=") << hw_threads;
-    if (phys_cores > 0 && phys_cores != (int)hw_threads)
+    if (phys_cores > 0 && phys_cores != hw_threads)
         std::cout << tr(" (物理=", " (physical=") << phys_cores << ")";
     std::cout << clr::RST << "\n";
     std::cout << clr::GRY << step_factor_str(sm, factor)
@@ -321,10 +291,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
         RunParams p = params;           // 拷贝
         std::vector<FmtId> ch = chain;  // 拷贝
         pool.emplace_back([&workers, w, core_id, p, ch, loop_count, refresh_ms, t0] {
-#ifdef _WIN32
-            SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)(1ULL << (core_id - 1)));
-            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-#endif
+            fw::plat::bind_thread_to_core(core_id);
             workers[w].sum_steps.assign(ch.size(), 0);
             int loops = 0;
             bool infinite = (loop_count < 0);
