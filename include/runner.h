@@ -217,26 +217,40 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     }
     if (chain.empty()) { std::cerr << tr("错误：--only 未选中格式\n", "error: --only empty\n"); std::exit(2); }
 
-    // DPD performance warning confirmation
+    // Performance/long-run warning confirmation (DPD and/or dec128)
     bool has_dpd = false;
+    bool has_dec128 = false;
     for (auto id : chain) {
-        if (id == FmtId::DPD32 || id == FmtId::DPD64 || id == FmtId::DPD128) { has_dpd = true; break; }
+        if (id == FmtId::DPD32 || id == FmtId::DPD64 || id == FmtId::DPD128) has_dpd = true;
+        if (id == FmtId::Dec128) has_dec128 = true;
     }
-    if (has_dpd) {
+    if (has_dpd || has_dec128) {
+        if (has_dpd) {
+            std::cout << clr::YEL << tr(
+                "[!] DPD 警告\n"
+                "    DPD 是纯软件十进制数组运算：系数存为十进制数字 vector，逐位乘法+进位+舍入，\n"
+                "    三元组编解码走查表。无硬件十进制浮点单元（x86 无 BCD 指令，ARM 无 FDECVAL）。\n"
+                "    DPD 不能用硬件 FPU，低端 CPU 满载时间更长，风扇更吵，温度更高。\n"
+                "    包含格式：DPD32/DPD64/DPD128。\n"
+            ,
+                "[!] DPD warning\n"
+                "    DPD is pure software decimal-array arithmetic: coefficient stored as a decimal digit vector,\n"
+                "    per-digit multiply + carry + round, triplet codec via lookup table. No hardware decimal FPU\n"
+                "    (x86 has no BCD insns, ARM has no FDECVAL). DPD cannot use the hardware FPU,\n"
+                "    so weak CPUs stay loaded longer: louder fan, hotter chip.\n"
+                "    Includes: DPD32/DPD64/DPD128.\n"
+            );
+        }
+        if (has_dec128) {
+            std::cout << clr::YEL << tr(
+                "[!] dec128 走 714521 步（×1.02），每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。\n"
+            ,
+                "[!] dec128 runs 714521 steps (×1.02), each step uses UInt256 schoolbook big-integer multiply, takes a while. Without -t it runs to completion.\n"
+            );
+        }
         std::cout << clr::YEL << tr(
-            "[!] DPD 警告\n"
-            "    DPD 是纯软件十进制数组运算：系数存为十进制数字 vector，逐位乘法+进位+舍入，\n"
-            "    三元组编解码走查表。无硬件十进制浮点单元（x86 无 BCD 指令，ARM 无 FDECVAL）。\n"
-            "    实测 DPD128 比 BID Dec128 快约 3 倍（BID 走 UInt256 schoolbook 大整数乘法），\n"
-            "    但 DPD 不能用硬件 FPU，低端 CPU 满载时间更长，风扇更吵，温度更高。\n"
-            "    包含格式：DPD32/DPD64/DPD128。按 y 继续，10 秒内未操作自动取消... "
+            "    按 y 继续，10 秒内未操作自动取消... "
         ,
-            "[!] DPD warning\n"
-            "    DPD is pure software decimal-array arithmetic: coefficient stored as a decimal digit vector,\n"
-            "    per-digit multiply + carry + round, triplet codec via lookup table. No hardware decimal FPU\n"
-            "    (x86 has no BCD insns, ARM has no FDECVAL). Measured DPD128 is ~3x faster than BID Dec128\n"
-            "    (BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU,\n"
-            "    so weak CPUs stay loaded longer: louder fan, hotter chip. Includes: DPD32/DPD64/DPD128.\n"
             "    Press y to continue, auto-cancel in 10s... "
         ) << clr::RST << std::flush;
         bool confirmed = false;
@@ -251,7 +265,6 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
             std::this_thread::sleep_for(std::chrono::milliseconds(30));
         }
 #else
-        // POSIX: simple blocking read
         char c = 0;
         std::cin.read(&c, 1);
         if (c == 'y' || c == 'Y') confirmed = true;
@@ -261,19 +274,6 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
             std::exit(0);
         }
         std::cout << "\n";
-    }
-
-    // dec128 long-run warning (no confirmation needed)
-    bool has_dec128 = false;
-    for (auto id : chain) {
-        if (id == FmtId::Dec128) { has_dec128 = true; break; }
-    }
-    if (has_dec128) {
-        std::cout << clr::YEL << tr(
-            "[!] dec128 走 714521 步（×1.02），每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。\n"
-        ,
-            "[!] dec128 runs 714521 steps (×1.02), each step uses UInt256 schoolbook big-integer multiply, takes a while. Without -t it runs to completion.\n"
-        ) << clr::RST;
     }
 
     RunParams params{delay_ms, kind, sm, df, start_val, factor, digits};
