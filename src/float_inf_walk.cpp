@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
                 start_kind = StartKind::MaxFinite;
             } else {
                 try { start_val = parse_number(sv); }
-                catch (...) { std::cerr << tr("错误：无法解析起点 '", "error: cannot parse start '") << sv << tr("'\n", "'\n"); return 2; }
+                catch (...) { std::cerr << tr("错误：无法解析起点 '", "error: cannot parse start '") << sanitize(sv) << tr("'\n", "'\n"); return 2; }
                 if (std::isnan(start_val) || std::isinf(start_val)) { std::cerr << tr("错误：起点不能为 NaN/Inf\n", "error: start cannot be NaN/Inf\n"); return 2; }
             }
             continue;
@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
             continue;
         }
         try { delay_ms = std::stoll(a); has_delay = true; }
-        catch (...) { std::cerr << tr("错误：无法解析参数 '", "error: cannot parse argument '") << a << tr("'\n", "'\n"); return 2; }
+        catch (...) { std::cerr << tr("错误：无法解析参数 '", "error: cannot parse argument '") << sanitize(a) << tr("'\n", "'\n"); return 2; }
     }
 
     if (!has_delay) {

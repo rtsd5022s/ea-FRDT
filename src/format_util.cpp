@@ -1,5 +1,6 @@
 // format_util.cpp — Bit string and numeric formatting implementations
 #include <cmath>
+#include <stdexcept>
 #include "format_util.h"
 
 namespace fw {
@@ -61,6 +62,10 @@ std::string format_value(double v, DispFmt fmt, int digits) {
 double parse_number(const std::string& s) {
     if (s.size() >= 2 && (s.substr(0, 2) == "0x" || s.substr(0, 2) == "0X")) {
         const std::string hex = s.substr(2);
+        if (hex.size() > 16) throw std::invalid_argument("hex too long");
+        for (char c : hex) {
+            if (!std::isxdigit((unsigned char)c)) throw std::invalid_argument("bad hex char");
+        }
         std::uint64_t bits = std::stoull(hex, nullptr, 16);
         if (hex.size() <= 4) {
             std::uint16_t h = (std::uint16_t)bits;
@@ -74,7 +79,21 @@ double parse_number(const std::string& s) {
         double v; std::memcpy(&v, &bits, sizeof v);
         return v;
     }
+    if (s.size() > 128) throw std::invalid_argument("number too long");
     return std::stod(s);
+}
+
+std::string sanitize(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+        unsigned char uc = (unsigned char)c;
+        if (uc == 0x1B) continue;           // ESC
+        if (uc < 0x20) continue;              // C0 control
+        if (uc == 0x7F) continue;          // DEL
+        out += c;
+    }
+    return out;
 }
 
 } // namespace fw

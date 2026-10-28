@@ -12,5 +12,6 @@ std::string group_bits(const std::string& b, int expBits, int manBits);
 std::string group_dec_bits(const std::string& bits, int exp_cont, int coeff_bits);
 std::string format_value(double v, DispFmt fmt, int digits);
 double parse_number(const std::string& s);
+std::string sanitize(const std::string& s);  // strip control chars / ANSI escapes for safe output
 
 } // namespace fw
