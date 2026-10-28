@@ -19,9 +19,10 @@ jobs:
         run: cmake --build build -j
       - name: Smoke test
         run: |
-          ./build/float_inf_walk 0 -m f32 -t 5
+          ./build/float_inf_walk 0 -m fp32 -t 5
           ./build/float_inf_walk 0 -m fp16 -t 5
-          ./build/float_inf_walk 0 -m all --only fp32 -j 1 -t 5
+          ./build/float_inf_walk 0 -m dec32 -t 5 -q
+          ./build/float_inf_walk 0 -m all --only fp32,fp64,dec32 -j 1 -t 5 -q
 
   build-clang:
     runs-on: ubuntu-latest
@@ -34,4 +35,6 @@ jobs:
       - name: Build
         run: cmake --build build -j
       - name: Smoke test
-        run: ./build/float_inf_walk 0 -m f32 -t 5
+        run: |
+          ./build/float_inf_walk 0 -m fp32 -t 5 -q
+          ./build/float_inf_walk 0 -m dec64 -t 5 -q
