@@ -1,4 +1,4 @@
-// lang.cpp — 双语翻译实现
+// lang.cpp — Bilingual translation implementation
 #include "lang.h"
 
 namespace fw {

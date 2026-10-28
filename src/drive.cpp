@@ -1,4 +1,4 @@
-// drive.cpp — 驱动器非模板函数实现
+// drive.cpp — Non-template driver function implementations
 #include "drive.h"
 
 namespace fw {

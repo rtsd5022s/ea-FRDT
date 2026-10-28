@@ -1,11 +1,11 @@
-// fp_formats.h — 二进制浮点格式：自写位级(SVal) + 原生(NativeF) + x87 + fp128
+// fp_formats.h — Binary float formats: hand-rolled bit-level (SVal) + native (NativeF) + x87 + fp128
 #pragma once
 #include "common.h"
 
 namespace fw {
 
 // ---------------------------------------------------------------------------
-// 自写位级软件仿真：参数化 E(指数位) / M(尾数位) / bias
+// Hand-rolled bit-level software simulation: parameterized E (exponent bits) / M (mantissa bits) / bias
 // ---------------------------------------------------------------------------
 struct Fmt { int E, M, bias; const char* name; };
 
@@ -137,7 +137,7 @@ inline void run_sim(const Fmt& f, std::int64_t delay_ms, StartKind kind, StepMod
 }
 
 // ---------------------------------------------------------------------------
-// 原生类型驱动器
+// Native type driver
 // ---------------------------------------------------------------------------
 template <class T>
 T nextafterT(T x, T y) {
@@ -200,7 +200,7 @@ void run_native(const char* tag, std::int64_t delay_ms, StartKind kind, StepMode
 }
 
 // ---------------------------------------------------------------------------
-// x87 80位扩展精度 纯软件
+// x87 80-bit extended precision, pure software
 // ---------------------------------------------------------------------------
 struct X87 {
     bool sign = false;
@@ -322,7 +322,7 @@ inline void run_x87_soft(std::int64_t delay_ms, StartKind kind, StepMode sm, Dis
 }
 
 // ---------------------------------------------------------------------------
-// FP128 binary128 纯软件完整112位
+// FP128 binary128, pure software, full 112-bit mantissa
 // ---------------------------------------------------------------------------
 struct Q128 {
     bool sign = false;

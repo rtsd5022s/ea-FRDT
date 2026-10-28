@@ -1,4 +1,4 @@
-// format_util.cpp — 位串/数值格式化实现
+// format_util.cpp — Bit string and numeric formatting implementations
 #include <cmath>
 #include "format_util.h"
 

@@ -1,5 +1,5 @@
-// uint256.h — 纯自研 UInt256 大整数，Schoolbook 乘法
-// 纯 uint64_t 无符号运算，无 UB，O2/O3 下编译器自动生成 MUL/ADX 指令
+// uint256.h — Hand-rolled UInt256 big integer, schoolbook multiplication
+// Pure uint64_t unsigned arithmetic, no UB, compiler auto-generates MUL/ADX under O2/O3
 #pragma once
 #include <cstdint>
 
@@ -49,7 +49,7 @@ struct UInt256 {
         return r;
     }
 
-    // 除以 10，返回余数（原地修改 this）
+    // Divide by 10, return remainder (modifies this in place)
     // 2^64 / 10 = 0x1999999999999999, 2^64 % 10 = 6
     std::uint64_t div10() {
         std::uint64_t rem = 0;

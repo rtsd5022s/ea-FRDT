@@ -1,4 +1,4 @@
-// base_types.h — 基础枚举、u128、RunResult、全局状态
+// base_types.h — Core enums, u128 step counter, RunResult struct, global state
 #pragma once
 #include <algorithm>
 #include <atomic>

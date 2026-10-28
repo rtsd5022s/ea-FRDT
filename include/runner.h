@@ -1,4 +1,4 @@
-// runner.h — ALL 并发模式：worker 池 + 实时监视器 + 汇总
+// runner.h — ALL concurrent mode: worker pool + live monitor + summary
 #pragma once
 #include "common.h"
 #include "fp_formats.h"
@@ -12,7 +12,7 @@
 
 namespace fw {
 
-// 终端显示宽度（CJK 宽字符算 2 列）
+// Terminal display width (CJK wide chars count as 2 columns)
 inline int disp_width(const std::string& s) {
     int w = 0;
     for (size_t i = 0; i < s.size(); ) {
@@ -89,7 +89,7 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
     return out;
 }
 
-// 格式 ID（替代 std::function vector，避免 lambda 捕获链）
+// Format ID (replaces std::function vector, avoids lambda capture chain)
 enum class FmtId : int {
     FP4=0, FP6, FP8E4M3, FP8E5M2, FP16, BF16, TF32, FP32,
     Dec32, DPD32, FP64, Dec64, DPD64, X87, FP128, Dec128, DPD128,
@@ -140,7 +140,7 @@ inline FmtId fmt_canon(const std::string& in) {
     return FmtId::COUNT;
 }
 
-// 所有参数打包成 POD，worker 线程值拷贝，不引用 run_all 栈帧
+// All params packed into POD, worker thread value-copies, no reference to run_all stack frame
 struct RunParams {
     std::int64_t delay_ms;
     StartKind kind;
@@ -182,7 +182,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     int n = (int)core_ids.size();
     if (n < 1) n = 1;
 
-    // 默认全链（排除 DPD32/64/128，需 --only 手动指定），或按 --only 过滤
+    // Default full chain (excludes DPD32/64/128, require --only to add), or filtered by --only
     std::vector<FmtId> chain;
     if (only_csv.empty()) {
         for (int i = 0; i < (int)FmtId::COUNT; ++i) {
@@ -217,7 +217,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     }
     if (chain.empty()) { std::cerr << tr("错误：--only 未选中格式\n", "error: --only empty\n"); std::exit(2); }
 
-    // DPD 性能警告确认
+    // DPD performance warning confirmation
     bool has_dpd = false;
     for (auto id : chain) {
         if (id == FmtId::DPD32 || id == FmtId::DPD64 || id == FmtId::DPD128) { has_dpd = true; break; }
@@ -242,7 +242,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
             std::this_thread::sleep_for(std::chrono::milliseconds(30));
         }
 #else
-        // POSIX: 简单阻塞读
+        // POSIX: simple blocking read
         char c = 0;
         std::cin.read(&c, 1);
         if (c == 'y' || c == 'Y') confirmed = true;
@@ -256,7 +256,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
 
     RunParams params{delay_ms, kind, sm, df, start_val, factor, digits};
 
-    // 打印 CPU 信息
+    // Print CPU info
     auto t0 = std::chrono::steady_clock::now();
     int hw_threads = fw::plat::logical_cores();
     int phys_cores = fw::plat::physical_cores();
@@ -270,7 +270,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
               << tr(", 线程=", ", workers=") << n
               << tr(", 格式数=", ", chain=") << chain.size() << clr::RST << "\n";
 
-    // 每 worker 独立状态，值拷贝参数，不引用栈上 vector
+    // Per-worker independent state, value-copied params, no reference to stack vector
     struct alignas(64) WorkerSlot {
         RunResult cur;
         std::vector<RunResult> done;
@@ -283,13 +283,13 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     std::vector<WorkerSlot> workers(n);
     std::atomic<bool> stop_mon{false};
 
-    // worker 入口：参数全部值拷贝
+    // Worker entry point: all params value-copied
     std::vector<std::thread> pool;
     pool.reserve(n);
     for (int w = 0; w < n; ++w) {
         int core_id = core_ids[w];
-        RunParams p = params;           // 拷贝
-        std::vector<FmtId> ch = chain;  // 拷贝
+        RunParams p = params;           // copy
+        std::vector<FmtId> ch = chain;  // copy
         pool.emplace_back([&workers, w, core_id, p, ch, loop_count, t0] {
             fw::plat::bind_thread_to_core(core_id);
             workers[w].sum_steps.assign(ch.size(), 0);
@@ -298,7 +298,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
             while (infinite || loops < loop_count) {
                 ++loops;
                 workers[w].loop_done = loops;
-                // 全局超时检查（跨格式/跨循环）
+                // Global timeout check (across formats / across loops)
                 if (g_timeout_sec.load() > 0) {
                     double elapsed_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
                     if (elapsed_s >= (double)g_timeout_sec.load()) break;
@@ -316,7 +316,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
         });
     }
 
-    // 监视器
+    // Monitor
     std::thread mon([&workers, n, &stop_mon, refresh_ms, quiet, loop_count, core_ids, t0] {
         int last_lines = 0;
         std::int64_t mon_ms = refresh_ms > 0 ? refresh_ms : 200;
@@ -376,7 +376,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     double wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     std::cout << '\n';
 
-    // 汇总表
+    // Summary table
     for (int w = 0; w < n; ++w) {
         std::cout << clr::CYN << tr("--- worker ", "--- worker ") << core_ids[w] << tr(" ---", " ---") << clr::RST << "\n";
         std::cout << clr::BLU;

@@ -1,4 +1,4 @@
-// dpd.h — IEEE 754 DPD 十进制浮点（独立于 BID 路线）
+// dpd.h — IEEE 754 DPD decimal float (independent from BID path)
 #pragma once
 #include "common.h"
 #include <cstring>
@@ -6,15 +6,15 @@
 namespace fw {
 
 // ---------------------------------------------------------------------------
-// DPD 三元组编解码：3 个 BCD 数字 (0-999) ↔ 10 bit DPD
+// DPD triplet codec: 3 BCD digits (0-999) <-> 10-bit DPD
 // ---------------------------------------------------------------------------
 
-// 编码：d2 d1 d0 各 0-9（BCD），返回 10 bit DPD
-// bit9=0: case0(全<8) 9bit data
-// bit9=1, bit8bit7=00: w=1(d0>=8)
-// bit9=1, bit8bit7=01: w=2(d1>=8)
-// bit9=1, bit8bit7=10: w=3/5/6/7(用bit6bit5子码)
-// bit9=1, bit8bit7=11: w=4(d2>=8)
+// Encode: d2 d1 d0 each 0-9 (BCD), return 10-bit DPD
+// bit9=0: case0 (all <8) 9-bit data
+// bit9=1, bit8bit7=00: w=1 (d0>=8)
+// bit9=1, bit8bit7=01: w=2 (d1>=8)
+// bit9=1, bit8bit7=10: w=3/5/6/7 (using bit6bit5 sub-code)
+// bit9=1, bit8bit7=11: w=4 (d2>=8)
 inline unsigned dpd_encode3(unsigned d2, unsigned d1, unsigned d0) {
     unsigned a3=d2>>3, a2=(d2>>2)&1, a1=(d2>>1)&1, a0=d2&1;
     unsigned b3=d1>>3, b2=(d1>>2)&1, b1=(d1>>1)&1, b0=d1&1;
@@ -41,7 +41,7 @@ inline unsigned dpd_encode3(unsigned d2, unsigned d1, unsigned d0) {
     return 0;
 }
 
-// 解码：10 bit DPD → 3 个 BCD 数字 (0-9)
+// Decode: 10-bit DPD -> 3 BCD digits (0-9)
 inline void dpd_decode3(unsigned dpd, unsigned& d2, unsigned& d1, unsigned& d0) {
     if (!(dpd & 0x200u)) {
         // case 0: 0 a2a1a0 b2b1b0 c2c1c0
@@ -79,7 +79,7 @@ inline void dpd_decode3(unsigned dpd, unsigned& d2, unsigned& d1, unsigned& d0) 
 }
 
 // ---------------------------------------------------------------------------
-// DPD 位布局：dec32(32) / dec64(64) / dec128(128)
+// DPD bit layout: dec32(32) / dec64(64) / dec128(128)
 // ---------------------------------------------------------------------------
 // dec32: 1 sign + 5 comb + 6 exp_cont + 20 coeff = 32
 // dec64: 1 sign + 5 comb + 8 exp_cont + 50 coeff = 64
@@ -98,16 +98,16 @@ inline DpdFmt dpd_fmt64()  { return {8,  50,  16,  398, "DPD64"}; }
 inline DpdFmt dpd_fmt128() { return {12, 110, 34, 6176, "DPD128"}; }
 
 // ---------------------------------------------------------------------------
-// DPD 十进制数：系数以 DPD 编码存储（可变长度位数组）
+// DPD decimal number: coefficient stored as DPD-encoded variable-length digit array
 // ---------------------------------------------------------------------------
 struct DpdNum {
     bool neg = false;
     bool inf = false;
     int exp10 = 0;
-    std::vector<int> digits;  // 十进制数字数组，高位在前，如 {1,0,2} 表示系数 102
+    std::vector<int> digits;  // Decimal digit array, most-significant first, e.g. {1,0,2} means coeff 102
 };
 
-// 纯整数：十进制数组乘小整数（0-999），返回新数组
+// Pure integer: multiply decimal digit array by small integer (0-999), return new array
 inline std::vector<int> dec_arr_mul(const std::vector<int>& a, int m) {
     std::vector<int> r;
     int carry = 0;
@@ -123,16 +123,16 @@ inline std::vector<int> dec_arr_mul(const std::vector<int>& a, int m) {
     return std::vector<int>(r.begin() + p, r.end());
 }
 
-// 纯整数：十进制数组除以 10^k（右移k位），round-half-up，返回舍入后数组+是否进位
+// Pure integer: divide decimal digit array by 10^k (right shift k digits), round-half-up, return rounded array + carry flag
 inline std::vector<int> dec_arr_div10k(const std::vector<int>& a, int k, bool& carry_out) {
     carry_out = false;
     int keep = (int)a.size() - k;
     if (keep <= 0) return {0};
-    // 看被去掉的最高位决定舍入
-    int round_digit = a[keep];  // 被去掉部分的最高位
+    // Use the most significant removed digit to decide rounding
+    int round_digit = a[keep];  // Most significant digit of the removed part
     std::vector<int> r(a.begin(), a.begin() + keep);
     if (round_digit >= 5) {
-        // 加 1
+        // Add 1
         int i = (int)r.size() - 1;
         while (i >= 0 && r[i] == 9) { r[i] = 0; --i; }
         if (i < 0) { r.insert(r.begin(), 1); carry_out = true; }
@@ -141,7 +141,7 @@ inline std::vector<int> dec_arr_div10k(const std::vector<int>& a, int k, bool& c
     return r;
 }
 
-// 纯整数乘法：系数 × factor（factor 解析为分数 num/den）
+// Pure integer multiply: coeff x factor (factor parsed as fraction num/den)
 inline DpdNum dpd_mul(const DpdNum& a, double factor, const DpdFmt& f) {
     DpdNum r;
     if (a.inf) { r.inf = true; return r; }
@@ -149,22 +149,22 @@ inline DpdNum dpd_mul(const DpdNum& a, double factor, const DpdFmt& f) {
     r.exp10 = a.exp10;
     int maxd = f.digits;
 
-    // factor → num/den（6位精度）
+    // factor -> num/den (6-digit precision)
     int num = (int)std::round(factor * 1000000.0);
     int den = 1000000;
     while (den % 10 == 0 && num % 10 == 0) { num /= 10; den /= 10; }
 
-    // 系数乘 num
+    // Multiply coeff by num
     std::vector<int> v;
     if (num == 1) v = a.digits;
     else v = dec_arr_mul(a.digits, num);
 
-    // den=10^k → 指数减 k
+    // den=10^k -> exponent decreases by k
     int k = 0;
     { int tmp = den; while (tmp > 1) { tmp /= 10; ++k; } }
     r.exp10 -= k;
 
-    // 归一化：系数 > maxd 时右移
+    // Normalize: right shift when coeff exceeds maxd digits
     while ((int)v.size() > maxd) {
         bool c;
         v = dec_arr_div10k(v, 1, c);
@@ -173,15 +173,15 @@ inline DpdNum dpd_mul(const DpdNum& a, double factor, const DpdFmt& f) {
             bool c2; v = dec_arr_div10k(v, 1, c2); ++r.exp10;
         }
     }
-    // 去前导零
+    // Strip leading zeros
     size_t p = 0;
     while (p + 1 < v.size() && v[p] == 0) ++p;
     v = std::vector<int>(v.begin() + p, v.end());
     r.digits = v;
 
-    // IEEE 754-2008: 溢出条件 = 最高位 exponent = exp10 + digits-1 > Emax
+    // IEEE 754-2008: overflow condition = top exponent = exp10 + digits-1 > Emax
     // dec32: Emax=96; dec64: Emax=384; dec128: Emax=6144
-    // 下溢条件 = exp10 < emin (1-Emax): dec32=-95, dec64=-383, dec128=-6143
+    // underflow condition = exp10 < emin (1-Emax): dec32=-95, dec64=-383, dec128=-6143
     int emax = (f.digits == 7) ? 96 : (f.digits == 16) ? 384 : 6144;
     int emin = (f.digits == 7) ? -95 : (f.digits == 16) ? -383 : -6143;
     int top_exp = r.exp10 + (int)r.digits.size() - 1;
@@ -190,19 +190,19 @@ inline DpdNum dpd_mul(const DpdNum& a, double factor, const DpdFmt& f) {
     return r;
 }
 
-// 从 double 创建 DpdNum
+// Construct DpdNum from double
 inline DpdNum dpd_from_double(double v, const DpdFmt& f) {
     DpdNum r;
     if (!std::isfinite(v)) { r.inf = true; return r; }
     if (v < 0) { r.neg = true; v = -v; }
     if (v == 0.0) { r.digits = {0}; return r; }
-    // 转整数字符串再拆成数组
+    // Convert to integer string then split into digit array
     char buf[64];
     std::snprintf(buf, sizeof(buf), "%.0f", v);
     std::string s = buf;
     for (char c : s) if (c >= '0' && c <= '9') r.digits.push_back(c - '0');
     if (r.digits.empty()) r.digits = {0};
-    // 归一化到 fmt.digits 位：coeff 左补0到maxd位，调整 exp10
+    // Normalize to fmt.digits: left-pad coeff with zeros to maxd digits, adjust exp10
     int maxd = f.digits;
     while ((int)r.digits.size() < maxd) {
         r.digits.push_back(0);
@@ -211,7 +211,7 @@ inline DpdNum dpd_from_double(double v, const DpdFmt& f) {
     return r;
 }
 
-// 转显示字符串
+// Convert to display string
 inline std::string dpd_to_string(const DpdNum& n, DispFmt df, int digits) {
     if (n.inf) return "inf";
     if (n.digits.empty() || (n.digits.size()==1 && n.digits[0]==0)) return "0";
@@ -250,8 +250,8 @@ inline std::string dpd_to_string(const DpdNum& n, DispFmt df, int digits) {
 }
 
 // ---------------------------------------------------------------------------
-// DPD 位布局打包：S(1) G(5) E(exp_bits) T(coeff_bits)
-// combo 编码和 BID 一致（msw<=7: expMSB+msw3bit; msw>=8: 11+expMSB+bit）
+// DPD bit layout pack: S(1) G(5) E(exp_bits) T(coeff_bits)
+// combo encoding same as BID (msw<=7: expMSB+msw3bit; msw>=8: 11+expMSB+bit)
 // ---------------------------------------------------------------------------
 inline std::string dpd_combo(int msw, int expMSB) {
     if (msw <= 7)
@@ -320,7 +320,7 @@ inline std::string dpd_pack_bin(const DpdNum& n, const DpdFmt& fmt) {
 }
 
 // ---------------------------------------------------------------------------
-// 运行入口：与 run_dec 签名一致，挂到 runner.h 的 FmtId 后面
+// Run entry point: signature matches run_dec, wired to FmtId in runner.h
 // ---------------------------------------------------------------------------
 inline void run_dpd(const DpdFmt& fmt, std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
                     double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
@@ -351,7 +351,7 @@ inline void run_dpd(const DpdFmt& fmt, std::int64_t delay_ms, StartKind kind, St
         std::printf("  [DPD-SELFCHECK] OK\n");
     }
 
-    // DPD ULP 步进：ADD_ULP = 最低位+1
+    // DPD ULP step: ADD_ULP = least significant digit +1
     auto dpd_addulp = [&](DpdNum v) -> DpdNum {
         DpdNum r = v;
         int i = (int)r.digits.size() - 1;

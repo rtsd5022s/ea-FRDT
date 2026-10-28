@@ -1,4 +1,4 @@
-// drive.h — 核心步进驱动器接口
+// drive.h — Core stepping driver template interface
 #pragma once
 #include <chrono>
 #include <cstdio>
@@ -19,7 +19,7 @@ const char* step_name(StepMode sm);
 std::string step_factor_str(StepMode sm, double factor);
 const char* reason_name(RunResult::Reason r);
 
-// 模板驱动器（必须留在头文件）
+// Template driver (must stay in header for explicit instantiation)
 template <class S, class Next, class IsInf, class IsZero, class Render>
 void drive_core(S s, Next next, IsInf isInf, IsZero isZero, Render render,
                 std::int64_t delay_ms,

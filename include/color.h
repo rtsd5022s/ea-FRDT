@@ -1,4 +1,4 @@
-// color.h — ANSI 颜色
+// color.h — ANSI terminal color escape sequences
 #pragma once
 
 namespace fw::clr {

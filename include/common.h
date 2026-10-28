@@ -1,4 +1,4 @@
-// common.h — 聚合入口：按需 include 各模块
+// common.h — Aggregated include entry: pulls in all modules as needed
 #pragma once
 #include <algorithm>
 #include <atomic>

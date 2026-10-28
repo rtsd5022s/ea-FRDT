@@ -54,7 +54,7 @@ void set_high_res_timer() {}
 void reset_high_res_timer() {}
 
 int logical_cores() { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
-int physical_cores() { return 0; } // 不精确，留 0 跳过
+int physical_cores() { return 0; } // Not precise on Linux, return 0 to skip display
 
 } // namespace fw::plat
 #endif

@@ -1,4 +1,4 @@
-// decimal.h — 十进制浮点：BID编解码 + DecNum(dec32/64) + BigDec(dec128)
+// decimal.h — Decimal float: BID codec + DecNum (dec32/64) + BigDec (dec128)
 #pragma once
 #include "common.h"
 #include "uint256.h"
@@ -6,7 +6,7 @@
 namespace fw {
 
 // ---------------------------------------------------------------------------
-// BID 编码层（DPD 已禁用，仅 BID）
+// BID encoding layer (DPD disabled, BID only)
 // ---------------------------------------------------------------------------
 enum class BidEnc { BID, DPD };
 
@@ -148,7 +148,7 @@ inline bool bid_selfcheck(int sign, int exp10, const std::string& coeffDec, cons
 }
 
 // ---------------------------------------------------------------------------
-// DecNum dec32/dec64 内部十进制算术
+// DecNum dec32/dec64 internal decimal arithmetic
 // ---------------------------------------------------------------------------
 struct DecNum {
     bool neg = false;
@@ -312,7 +312,7 @@ inline void run_dec(const DecFmt& fmt, std::int64_t delay_ms, StartKind kind, St
 }
 
 // ---------------------------------------------------------------------------
-// BigDec dec128 大整数
+// BigDec dec128 big integer
 // ---------------------------------------------------------------------------
 constexpr int DEC128_SIG = 34;
 constexpr int DEC128_EMAX = 6144;

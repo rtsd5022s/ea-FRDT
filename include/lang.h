@@ -1,4 +1,4 @@
-// lang.h — 双语翻译接口
+// lang.h — Bilingual translation interface (zh/en)
 #pragma once
 #include <string>
 

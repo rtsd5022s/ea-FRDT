@@ -1,9 +1,10 @@
-// float_inf_walk.cpp — 溢出行走：从 1.0 逐级增长到溢出 +inf
+// float_inf_walk.cpp — Overflow walk: grow from 1.0 step-by-step until overflow to +inf
 #include "common.h"
 #include "fp_formats.h"
 #include "decimal.h"
 #include "runner.h"
 #ifdef _WIN32
+#include <windows.h>
 #include <conio.h>
 #include <io.h>
 #include <cstdio>
@@ -231,7 +232,7 @@ int main(int argc, char** argv) {
             if (i + 1 >= argc) { std::cerr << tr("错误：--loop 需要一个值\n", "error: --loop requires a value\n"); return 2; }
             try { loop_count = std::stoi(argv[++i]); }
             catch (...) { std::cerr << tr("错误：--loop 应为整数\n", "error: --loop must be an integer\n"); return 2; }
-        if (loop_count == 0) loop_count = 1;  // 0=关闭，等同1
+        if (loop_count == 0) loop_count = 1;  // 0=disabled, equivalent to 1
         if (loop_count < -1) { std::cerr << tr("错误：--loop 不支持 ", "error: --loop does not support ") << loop_count << tr("\n", "\n"); return 2; }
         if (loop_count > 1000000) { std::cerr << tr("错误：--loop 过大（上限 1000000）\n", "error: --loop too large (max 1000000)\n"); return 2; }
             continue;
@@ -273,12 +274,12 @@ int main(int argc, char** argv) {
     if (!std::isfinite(factor)) { std::cerr << tr("错误：倍率必须为有限正数\n", "error: factor must be finite positive\n"); return 2; }
     if (!std::isnan(start_val) && !std::isfinite(start_val)) { std::cerr << tr("错误：起点必须为有限数值\n", "error: start must be a finite number\n"); return 2; }
 
-    // DoS 防御：无限循环无超时提醒
+    // DoS guard: infinite loop without timeout warning
     if (loop_count == -1 && g_timeout_sec.load() == 0) {
         std::cerr << clr::YEL << tr("警告：无限循环（-l -1）且无超时（-t 0），可能导致 CPU 占用 100%\n",
                                     "warn: infinite loop (-l -1) with no timeout (-t 0), may cause 100% CPU\n") << clr::RST;
     }
-    // DoS 防御：倍率极小值导致步数爆炸
+    // DoS guard: extreme small multiplier causing step explosion
     if (factor > 0.0 && factor < 1e-10) {
         std::cerr << clr::YEL << tr("警告：倍率极小（", "warn: factor very small (") << factor
                   << tr("），步数可能爆炸，请确认\n", "), steps may explode, please confirm\n") << clr::RST;

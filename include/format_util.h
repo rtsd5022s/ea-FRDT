@@ -1,4 +1,4 @@
-// format_util.h — 位串/数值格式化接口
+// format_util.h — Bit string and numeric formatting helpers
 #pragma once
 #include <cstdint>
 #include <string>
