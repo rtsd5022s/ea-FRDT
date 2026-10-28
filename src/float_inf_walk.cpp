@@ -140,10 +140,55 @@ int main(int argc, char** argv) {
             case RunResult::TIMEOUT:   rn = "timeout"; break;
             case RunResult::NOT_A_NUMBER: rn = "nan"; break;
         }
-        std::printf("{\"format\":\"%s\",\"steps\":%s,\"elapsed_ms\":%.3f,\"reason\":\"%s\"}\n",
-                    g_result.name.empty() ? (g_fmt_name.empty() ? "unknown" : g_fmt_name.c_str()) : g_result.name.c_str(),
-                    to_string_u128(g_result.steps).c_str(),
-                    g_result.elapsed_ms, rn);
+        const char* sm = "x1.02";
+        if (g_json_step_mode == 1) sm = "mululp";
+        else if (g_json_step_mode == 2) sm = "addulp";
+        double rate = g_result.elapsed_ms > 0.0 ? (double)g_result.steps / (g_result.elapsed_ms / 1000.0) : 0.0;
+        auto now = std::time(nullptr);
+        std::printf(
+            "{"
+            "\"tool\":\"ea-FRDT\","
+            "\"version\":\"1.0\","
+            "\"format\":\"%s\","
+            "\"steps\":%s,"
+            "\"elapsed_ms\":%.3f,"
+            "\"elapsed_s\":%.6f,"
+            "\"steps_per_sec\":%.1f,"
+            "\"reason\":\"%s\","
+            "\"final_value\":\"%s\","
+            "\"params\":{"
+              "\"start\":%.17g,"
+              "\"factor\":%.17g,"
+              "\"step_mode\":\"%s\","
+              "\"digits\":%d,"
+              "\"delay_ms\":%lld,"
+              "\"timeout_s\":%d,"
+              "\"loop\":%d"
+            "},"
+            "\"system\":{"
+              "\"hardware_threads\":%u,"
+              "\"compiler\":\"clang\","
+              "\"cpp_std\":23"
+            "},"
+            "\"timestamp\":%ld"
+            "}\n",
+            g_result.name.empty() ? g_fmt_name.c_str() : g_result.name.c_str(),
+            to_string_u128(g_result.steps).c_str(),
+            g_result.elapsed_ms,
+            g_result.elapsed_ms / 1000.0,
+            rate,
+            rn,
+            g_result.cur_value.empty() ? "" : g_result.cur_value.c_str(),
+            g_json_start,
+            g_json_factor,
+            sm,
+            g_json_digits,
+            (long long)g_json_delay_ms,
+            g_timeout_sec.load(),
+            g_json_loop,
+            std::thread::hardware_concurrency(),
+            (long)now
+        );
     });
     std::string mode = "f32";
     std::int64_t delay_ms = 0;
@@ -291,6 +336,13 @@ int main(int argc, char** argv) {
     if (factor < 0.0) { std::cerr << tr("错误：倍率必须为正数\n", "error: factor must be positive\n"); return 2; }
     if (!std::isfinite(factor)) { std::cerr << tr("错误：倍率必须为有限正数\n", "error: factor must be finite positive\n"); return 2; }
     if (!std::isnan(start_val) && !std::isfinite(start_val)) { std::cerr << tr("错误：起点必须为有限数值\n", "error: start must be a finite number\n"); return 2; }
+
+    g_json_factor = factor;
+    g_json_start = std::isnan(start_val) ? 1.0 : start_val;
+    g_json_step_mode = (int)step_mode;
+    g_json_digits = digits;
+    g_json_delay_ms = delay_ms;
+    g_json_loop = loop_count;
 
     // DoS guard: infinite loop without timeout warning
     if (loop_count == -1 && g_timeout_sec.load() == 0) {

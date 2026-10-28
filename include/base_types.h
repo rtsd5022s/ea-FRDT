@@ -38,5 +38,12 @@ inline std::atomic<int> g_timeout_sec{0};
 inline bool g_json = false;
 inline RunResult g_result;
 inline std::string g_fmt_name;
+inline double g_json_factor = 1.02;
+inline double g_json_start = 1.0;
+inline int g_json_step_mode = 0;
+inline int g_json_digits = 6;
+inline int64_t g_json_delay_ms = 0;
+inline int g_json_loop = 1;
+inline int g_json_workers = 1;
 
 } // namespace fw
