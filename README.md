@@ -240,3 +240,5 @@ LICENSE    MIT, copyright rtsd5022s
 ## License
 
 MIT. See `LICENSE`.
+
+<sub>The algorithm may misbehave occasionally.</sub>

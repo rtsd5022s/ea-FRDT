@@ -240,3 +240,5 @@ LICENSE    MIT，版权人 rtsd5022s
 ## 许可证
 
 MIT。见 `LICENSE`。
+
+<sub>算法可能会开小差。</sub>
