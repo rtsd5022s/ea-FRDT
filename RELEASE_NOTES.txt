@@ -1,15 +1,15 @@
-ea-FRDT 1.0-deta2
+ea-FRDT 1.0-deta3
 
 English:
-- NaN boundary check: nan->nan exit reason on native float/double paths.
-- Input hardening: hex strings limited to 32 chars (128-bit), non-hex rejected.
-- ANSI/control-char sanitize on all user input echoed in error messages.
-- Docs updated: README/FAQ bilingual, exit reasons, safety section.
+- Rebuilt with clang64 (Clang 23, thin LTO): 0.81 MB static binary.
+- Help screen retitled: "Silicon-level Devil Hardware Stress Test".
+- README restructured: English/Chinese doc links separated, Limitations + Disclaimer added.
+- Issue/PR templates added for open-source readiness.
 
 中文：
-- NaN 边界检查：native float/double 路径 nan->nan 退出。
-- 输入加固：hex 限 32 字符（128 位），非十六进制拒绝。
-- 错误消息用户输入经 sanitize() 过滤，防 ANSI 注入。
-- 文档更新：README/FAQ 双语、退出原因、安全章节。
+- 用 clang64（Clang 23, thin LTO）重新编译：0.81 MB 静态二进制。
+- 帮助界面改名："面向硅片魔鬼高压硬件测试"。
+- README 重构：中英文文档链接分组，加局限性和免责声明。
+- 添加 Issue/PR 模板，准备开源。
 
-Limitations: beta, may have undiscovered edge bugs. Algorithm may misbehave.
+<sub><sub><sub><sub>Limitations: beta, may have undiscovered edge bugs. The algorithm may misbehave. This is an extreme stress tool; long full-load runs may cause thermal throttling, fan noise, or system instability. You run this at your own risk.</sub></sub></sub></sub>
