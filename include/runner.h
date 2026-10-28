@@ -74,7 +74,7 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
                 out.push_back(std::stoi(tok));
             }
         } catch (...) {
-            std::cerr << tr("错误：--jobs 无法解析 '", "error: --jobs cannot parse '") << tok
+            std::cerr << tr("错误：--jobs 无法解析 '", "error: --jobs cannot parse '") << sanitize(tok)
                       << tr("'（支持单值/逗号列表/范围）\n", "' (single/comma/range)\n");
             std::exit(2);
         }
@@ -211,7 +211,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
             chain.push_back(id);
         }
         if (!errs.empty()) {
-            std::cerr << tr("错误：--only 未知格式: ", "error: --only unknown: ") << errs << "\n";
+            std::cerr << tr("错误：--only 未知格式: ", "error: --only unknown: ") << sanitize(errs) << "\n";
             std::exit(2);
         }
     }

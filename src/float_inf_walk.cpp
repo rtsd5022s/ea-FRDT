@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
             if (s == "x1.02" || s == "x102") step_mode = StepMode::X102;
             else if (s == "mululp") step_mode = StepMode::MUL_ULP;
             else if (s == "addulp") step_mode = StepMode::ADD_ULP;
-            else { std::cerr << tr("错误：未知步进 '", "error: unknown step '") << s << tr("'\n", "'\n"); return 2; }
+            else { std::cerr << tr("错误：未知步进 '", "error: unknown step '") << sanitize(s) << tr("'\n", "'\n"); return 2; }
             continue;
         }
         if (a == "-q" || a == "--quiet") { quiet = true; continue; }
@@ -314,6 +314,6 @@ int main(int argc, char** argv) {
     }
     if (mode == "fp128") { run_q128_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, nullptr, refresh_ms); return 0; }
 
-    std::cerr << tr("错误：未知模式 '", "error: unknown mode '") << mode << tr("'（见 -h）\n", "' (see -h)\n");
+    std::cerr << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
     return 2;
 }
