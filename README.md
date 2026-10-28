@@ -6,16 +6,16 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 
 ## Documentation
 
-- **English**: this file (`README.md`), mirrored at `docs/README_EN.md`
-- **中文**: `docs/README_CN.md`
-- **Implementation (EN)**: `docs/IMPLEMENTATION_EN.md` — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
-- **实现 (中文)**: `docs/IMPLEMENTATION_CN.md`
-- **UInt256 internals (EN)**: `docs/UINT256_EN.md` — hand-rolled big-integer design, schoolbook multiply, div10 short division
-- **UInt256 技术原理 (中文)**: `docs/UINT256_CN.md`
-- **Working principles**: `docs/WORKING_EN.md` / `docs/WORKING_CN.md`
-- **Single-thread mode**: `docs/MODE_SINGLE_EN.md` / `docs/MODE_SINGLE_CN.md`
-- **Concurrent mode**: `docs/MODE_ALL_EN.md` / `docs/MODE_ALL_CN.md`
-- **Risks**: `docs/RISKS_EN.md` / `docs/RISKS_CN.md`
+- **English**: this file (`README.md`), mirrored at [`docs/README_EN.md`](docs/README_EN.md)
+- **中文**: [`docs/README_CN.md`](docs/README_CN.md)
+- **Implementation (EN)**: [`docs/IMPLEMENTATION_EN.md`](docs/IMPLEMENTATION_EN.md) — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
+- **实现 (中文)**: [`docs/IMPLEMENTATION_CN.md`](docs/IMPLEMENTATION_CN.md)
+- **UInt256 internals (EN)**: [`docs/UINT256_EN.md`](docs/UINT256_EN.md) — hand-rolled big-integer design, schoolbook multiply, div10 short division
+- **UInt256 技术原理 (中文)**: [`docs/UINT256_CN.md`](docs/UINT256_CN.md)
+- **Working principles**: [`docs/WORKING_EN.md`](docs/WORKING_EN.md) / [`docs/WORKING_CN.md`](docs/WORKING_CN.md)
+- **Single-thread mode**: [`docs/MODE_SINGLE_EN.md`](docs/MODE_SINGLE_EN.md) / [`docs/MODE_SINGLE_CN.md`](docs/MODE_SINGLE_CN.md)
+- **Concurrent mode**: [`docs/MODE_ALL_EN.md`](docs/MODE_ALL_EN.md) / [`docs/MODE_ALL_CN.md`](docs/MODE_ALL_CN.md)
+- **Risks**: [`docs/RISKS_EN.md`](docs/RISKS_EN.md) / [`docs/RISKS_CN.md`](docs/RISKS_CN.md)
 
 ## Why this exists
 
