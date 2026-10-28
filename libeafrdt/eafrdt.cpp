@@ -356,11 +356,26 @@ static BigDec bid128_from_double(double v) {
     if (av == 0.0) return r;
     int e = (int)std::floor(std::log10(av));
     double m = av / std::pow(10.0, e);
-    // m in [1,10), convert to 34-digit integer
-    // For walk purposes, approximate: start coeff = 1 (just like 1.0)
-    r.coeff = UInt256(1);
-    r.exp10 = e;
-    (void)m;
+    // m in [1,10). coeff = round(m * 10^33) -> 34-digit integer.
+    double cd = m * 1e33;
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.0f", cd);
+    UInt256 c;
+    for (char* p = buf; *p; ++p) {
+        // c *= 10
+        std::uint64_t carry = 0;
+        for (int i = 0; i < 4; ++i) {
+            std::uint64_t lo, hi;
+            UInt256::mul64(c.w[i], 10, lo, hi);
+            lo += carry;
+            if (lo < carry) hi++;
+            c.w[i] = lo;
+            carry = hi;
+        }
+        c.w[0] += (std::uint64_t)(*p - '0');
+    }
+    r.coeff = c;
+    r.exp10 = e - 33;
     return r;
 }
 
@@ -368,19 +383,19 @@ static BigDec bid128_mul(const BigDec& a, const BigDec& b) {
     BigDec r;
     if (a.inf || b.inf) { r.inf = true; return r; }
     r.neg = a.neg ^ b.neg;
-    // coeff * coeff: a.coeff is UInt256, b.coeff is UInt256
-    // For walk from 1.0 * 1.02: both coeffs are small, use mul128 on low words
+    // Each coeff is ~113-bit (34 decimal digits). Product ~226-bit, fits in UInt256.
     r.coeff = UInt256::mul128(a.coeff.w[0], a.coeff.w[1], b.coeff.w[0], b.coeff.w[1]);
     r.exp10 = a.exp10 + b.exp10;
-    // Normalize: if coeff >= 10^34, divide by 10
-    // 10^34 ~ 2^112. If w[3] or w[2] bits above 112 are set, normalize.
-    while (r.coeff.w[3] || r.coeff.w[2] & (0xFFFFFFFFFFFFFFFFULL << 48) ||
-           (r.coeff.w[2] == 0 && r.coeff.w[1] >= (1ULL<<48))) {
-        r.coeff.div10();
+    // Normalize: while coeff >= 10^34 (i.e. w[2] or w[3] set, since 10^34 ~ 2^113), divide by 10.
+    while (r.coeff.w[3] || r.coeff.w[2]) {
+        std::uint64_t rem = r.coeff.div10();
+        if (rem > 5 || (rem == 5 && (r.coeff.w[0] & 1ULL))) {
+            r.coeff.w[0] += 1;
+            for (int i = 0; i < 3; ++i) if (r.coeff.w[i] == 0) r.coeff.w[i+1] += 1; else break;
+        }
         ++r.exp10;
     }
-    // Emax = 6144, emin = -6143
-    int top_exp = r.exp10 + 33; // approx 34 digits
+    int top_exp = r.exp10 + 33;
     if (top_exp > 6144) r.inf = true;
     if (r.exp10 < -6143) { r.coeff = UInt256(0); r.exp10 = 0; }
     return r;
