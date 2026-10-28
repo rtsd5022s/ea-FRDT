@@ -21,8 +21,17 @@ cmake --build build -j
 # Linux
 g++ -std=c++23 -O2 -Wall -Wextra -Iinclude src/*.cpp -o float_inf_walk -pthread
 
-# Windows (MSYS2 UCRT64)
-clang++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
+# Windows (MSYS2 clang64 — recommended, LLVM native)
+C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
+    -ffunction-sections -fdata-sections -Wl,--gc-sections \
+    -static -static-libgcc -static-libstdc++ \
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+
+# Windows (MSYS2 ucrt64 — GCC-based, Clang is compat-only)
+# Note: ucrt64 Clang uses GNU ld, does NOT support thin LTO.
+# Use clang64 for release builds.
+C:\msys64\ucrt64\bin\clang++.exe -std=c++23 -O2 \
+    -static -static-libgcc -static-libstdc++ \
     -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
 ```
 

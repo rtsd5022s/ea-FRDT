@@ -7,6 +7,8 @@
 > **Platform note:** Prebuilt binary is Windows x86_64 only. Linux/macOS build from source with GCC 13+ or Clang 16+. MSVC is not supported.
 >
 > **Compiler requirements:** C++23 (`<stdfloat>`, `if consteval`). Use Clang 17+ or GCC 13+. g++ 16.2.0 has a known ICE; fall back to Clang. CMake 3.28+.
+>
+> **MSYS2 prefix note:** On Windows, use the **clang64** environment (`C:\msys64\clang64\bin\clang++.exe`, LLVM native, lld linker, supports thin LTO). The **ucrt64** environment's Clang is GCC-compat only and uses GNU ld, which does not support thin LTO and produces larger binaries.
 
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 
