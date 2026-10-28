@@ -178,9 +178,14 @@ struct DpdNum {
 // ===========================================================================
 
 // Walk a parameterized binary format.
-// multiplier e.g. 1.02; returns step count to reach inf.
 long long walk_binary(const Fmt& f, double start, double multiplier,
                       double timeout_sec, int* reason_out);
+
+// Walk native float32 (hardware float).
+long long walk_f32(float start, float multiplier, double timeout_sec, int* reason_out);
+
+// Walk native float64 (hardware double).
+long long walk_f64(double start, double multiplier, double timeout_sec, int* reason_out);
 
 // Walk x87 80-bit.
 long long walk_x87(double start, double multiplier, double timeout_sec, int* reason_out);

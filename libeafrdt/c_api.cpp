@@ -16,8 +16,8 @@ long long eafrdt_walk(enum eafrdt_fmt fmt, double start, double mult,
     case EAFRDT_FP16:   n = walk_binary(fmt_fp16(),  start, mult, timeout_sec, &r); break;
     case EAFRDT_BF16:   n = walk_binary(fmt_bf16(),  start, mult, timeout_sec, &r); break;
     case EAFRDT_TF32:   n = walk_binary(fmt_tf32(),   start, mult, timeout_sec, &r); break;
-    case EAFRDT_F32:    n = walk_binary(fmt_f32(),    start, mult, timeout_sec, &r); break;
-    case EAFRDT_F64:    n = walk_binary(fmt_f64(),    start, mult, timeout_sec, &r); break;
+    case EAFRDT_F32:    n = walk_f32((float)start, (float)mult, timeout_sec, &r); break;
+    case EAFRDT_F64:    n = walk_f64(start, mult, timeout_sec, &r); break;
     case EAFRDT_X87:    n = walk_x87(start, mult, timeout_sec, &r); break;
     case EAFRDT_Q128:   n = walk_q128(start, mult, timeout_sec, &r); break;
     case EAFRDT_BID32:  n = walk_bid(bid_fmt32(), start, mult, timeout_sec, &r); break;

@@ -74,9 +74,37 @@ long long walk_binary(const Fmt& f, double start, double mult, double timeout_se
     return steps;
 }
 
-// ---------------------------------------------------------------------------
-// x87 80-bit
-// ---------------------------------------------------------------------------
+long long walk_f32(float start, float mult, double timeout_sec, int* reason) {
+    float cur = start;
+    auto t0 = std::chrono::steady_clock::now();
+    long long steps = 0;
+    while (std::isfinite(cur)) {
+        ++steps;
+        cur = cur * mult;
+        if (timeout_sec > 0) {
+            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
+        }
+    }
+    if (reason) *reason = std::isinf(cur) ? 0 : 1;
+    return steps;
+}
+
+long long walk_f64(double start, double mult, double timeout_sec, int* reason) {
+    double cur = start;
+    auto t0 = std::chrono::steady_clock::now();
+    long long steps = 0;
+    while (std::isfinite(cur)) {
+        ++steps;
+        cur = cur * mult;
+        if (timeout_sec > 0) {
+            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
+        }
+    }
+    if (reason) *reason = std::isinf(cur) ? 0 : 1;
+    return steps;
+}
 static X87 x87_encode(double v) {
     X87 r;
     if (v < 0) r.sign = true;
@@ -96,25 +124,18 @@ static X87 x87_mul(X87 a, X87 b) {
     if (a.inf || b.inf) { r.inf = true; return r; }
     r.sign = a.sign ^ b.sign;
     int exp = a.exp + b.exp;
-    // Use UInt256 mul128 instead of __int128
+    // 64x64 -> 128-bit product. w[0]=low64, w[1]=high64, w[2]=w[3]=0.
     UInt256 P = UInt256::mul128(a.man, 0, b.man, 0);
-    // P.w[0..3] = 128-bit product. We need P >= 2^127 check.
-    // 2^127 means w[1] has bit 63 set, or w[2]/w[3] nonzero.
-    bool big = P.w[3] || P.w[2] || (P.w[1] & (1ULL<<63));
-    if (big) {
-        // P >>= 1 across 128 bits
-        std::uint64_t carry = 0;
-        for (int i = 0; i < 4; ++i) {
-            std::uint64_t newcarry = (P.w[i] & 1ULL) << 63;
-            P.w[i] = (P.w[i] >> 1) | carry;
-            carry = newcarry;
-        }
+    // Renormalize: if P >= 2^127 (i.e. w[1] bit63 set), shift right by 1.
+    if (P.w[1] & (1ULL<<63)) {
+        std::uint64_t carry = P.w[1] & 1ULL;
+        P.w[1] >>= 1;
+        P.w[0] = (P.w[0] >> 1) | (carry << 63);
         ++exp;
     }
-    // man_raw = P >> 63 (top 65 bits of 128-bit P)
-    std::uint64_t man_raw = (P.w[1] >> 63) | (P.w[2] << 1);
-    if (P.w[3]) man_raw |= 0; // beyond 64 bits, shouldn't happen for 64x64
-    std::uint64_t rem = P.w[1] & ((1ULL<<63)-1);
+    // man_raw = P >> 63 (the 64-bit field starting at bit 63 of the 128-bit product)
+    std::uint64_t man_raw = (P.w[0] >> 63) | (P.w[1] << 1);
+    std::uint64_t rem = P.w[0] & ((1ULL<<63)-1);
     std::uint64_t half = 1ULL << 62;
     if (rem > half || (rem == half && (man_raw & 1ULL))) ++man_raw;
     if (man_raw == 0) { man_raw = 1ULL << 63; ++exp; }
@@ -175,27 +196,28 @@ static Q128 q128_mul(Q128 a, Q128 b) {
             bkt[i] = sum;
         }
     };
-    // Products:
-    // a.hi * b.hi  -> offset 96 bits (word 1.5)
-    // a.hi * b.lo  -> offset 48 bits
-    // a.lo * b.hi  -> offset 48 bits
-    // a.lo * b.lo  -> offset 0
+    // 112-bit mantissa = hi(64):lo(48). Product terms at bit offsets:
+    //   a.hi*b.hi at 96, a.hi*b.lo at 48, a.lo*b.hi at 48, a.lo*b.lo at 0
     std::uint64_t lo, hi;
+    // a.hi * b.hi, offset 96 = word1 shift32
     UInt256::mul64(a.hi, b.hi, lo, hi);
-    // add at bit offset 96 = word 1, shift 32
-    // Simplified: place lo at word1 (shift 32) and hi at word2
     bkt[1] |= lo << 32;
-    add64(2, (lo >> 32) + hi);
-
+    bkt[2] |= lo >> 32;
+    bkt[2] |= hi << 32;
+    add64(3, hi >> 32);
+    // a.hi * b.lo, offset 48 = word0 shift48
     UInt256::mul64(a.hi, b.lo, lo, hi);
-    // offset 48 = word 0, shift 48
     bkt[0] |= lo << 48;
-    add64(1, (lo >> 16) + hi);
-
+    bkt[1] |= lo >> 16;
+    bkt[1] |= hi << 48;
+    add64(2, hi >> 16);
+    // a.lo * b.hi, offset 48
     UInt256::mul64(a.lo, b.hi, lo, hi);
     bkt[0] |= lo << 48;
-    add64(1, (lo >> 16) + hi);
-
+    bkt[1] |= lo >> 16;
+    bkt[1] |= hi << 48;
+    add64(2, hi >> 16);
+    // a.lo * b.lo, offset 0
     UInt256::mul64(a.lo, b.lo, lo, hi);
     bkt[0] |= lo;
     add64(1, hi);
@@ -220,17 +242,18 @@ static Q128 q128_mul(Q128 a, Q128 b) {
         g0 |= (w+1 < 4) ? bkt[w+1] << (64-sh) : 0;
         g1 |= (w+2 < 4) ? bkt[w+2] << (64-sh) : 0;
     }
-    // R += roundbit && (sticky || LSB)
+    // R = g1<<64 | g0 (128-bit). After rounding, R holds the 112-bit mantissa.
+    // R bit 0..47 = lo, R bit 48..111 = hi.
     if (roundBit && (sticky || (g0 & 1))) {
-        // add 1 to 112-bit number g1:g0
         g0 += 1;
         if (g0 == 0) g1 += 1;
         if (g1 >= (1ULL << 48)) { g1 >>= 1; g0 |= (1ULL<<63); ++exp; }
     }
     if (exp > Q128_EMAX) { r.inf = true; return r; }
     if (exp < Q128_EMIN) { r.hi = 0; r.lo = 0; r.exp = 0; return r; }
-    r.hi = g1;  // top 64
+    // R = g1<<64 | g0. r.hi = R>>48, r.lo = R & (2^48-1)
     r.lo = g0 & ((1ULL<<48)-1);
+    r.hi = (g0 >> 48) | (g1 << 16);
     r.exp = exp;
     return r;
 }
