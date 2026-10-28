@@ -242,3 +242,5 @@ LICENSE    MIT，版权人 rtsd5022s
 MIT。见 `LICENSE`。
 
 <sub>算法可能会开小差。</sub>
+
+<sub><sub><sub><sub><sub><sub><sub><sub><sub><sub><sub>Extreme Architecture - Floating-point Rigorous Devil Test</sub></sub></sub></sub></sub></sub></sub></sub></sub></sub></sub>

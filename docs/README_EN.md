@@ -242,3 +242,5 @@ LICENSE    MIT, copyright rtsd5022s
 MIT. See `LICENSE`.
 
 <sub>The algorithm may misbehave occasionally.</sub>
+
+<sub><sub><sub><sub><sub><sub><sub><sub><sub><sub><sub>Extreme Architecture - Floating-point Rigorous Devil Test</sub></sub></sub></sub></sub></sub></sub></sub></sub></sub></sub>
