@@ -171,13 +171,16 @@ Last row is total: total steps, total wall clock, average speed.
 If the format chain includes DPD32/DPD64/DPD128, a yellow warning shows before start:
 
 ```
-[!] DPD algorithm is computationally heavy, performance may drop 20-30x,
-higher precision even slower. Press y to continue, auto-cancel in 10s...
+[!] DPD is pure software decimal-array arithmetic, no hardware acceleration;
+speed vs BID UInt256 varies, but per-digit multiply + lookup overhead keeps the CPU
+loaded longer on weak machines. Press y to continue, auto-cancel in 10s...
 ```
 
 Press y to continue, auto-cancels if no key within 10 seconds. Windows uses `_kbhit`/`_getch` non-blocking keyboard check, Linux uses `std::cin.read` blocking read.
 
 `-m all` doesn't include DPD formats by default; specify manually with `--only dpd32,dpd64`.
+
+Measured: DPD128 is about 3x faster than BID Dec128 (because BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
 ## Format chain order
 
@@ -227,7 +230,7 @@ Concurrent mode maxes out all cores. Long-running has several real risks to know
 
 **Power cost**. Sustained load draws way more power than idle: desktop 100W+, laptop also jumps to 65W+. Long runs show up on the electricity bill. Servers don't care, but laptops on battery will drain fast.
 
-**Extra risk with DPD**. DPD encoding is pure lookup + per-declet processing, CPU load 20-30x higher than BID. If DPD formats are added to concurrent mode, those workers eat cores harder, and other workers may slow from scheduling latency. The DPD warning isn't scaremongering, it really makes the system laggier.
+**Extra risk with DPD**. DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup. Speed vs BID UInt256 varies (measured DPD128 is faster than BID Dec128), but DPD cannot use the hardware FPU. If DPD formats are added to concurrent mode, that worker stays loaded longer, and other workers may see scheduling jitter. The DPD warning isn't scaremongering; it really does keep the system laggier.
 
 **Infinite loop risk**. `-l -1` without `-t` runs forever. Ctrl+C works, but if running over SSH and the connection drops, the process may become an orphan and keep eating CPU. Always pair with a timeout.
 

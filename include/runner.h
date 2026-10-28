@@ -224,11 +224,12 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     }
     if (has_dpd) {
         std::cout << clr::YEL << tr(
-            "[!] DPD 算法复杂度很高，性能可能降低20-30倍，更高精度速度慢数倍，低端机谨慎\n"
-            "    按 y 继续，10秒内未操作将自动取消... "
+            "[!] DPD 是纯软件十进制数组运算，无硬件加速；与 BID UInt256 大整数互有快慢，\n"
+            "    但逐位乘法+查表开销大，低端机满载时间会更长。按 y 继续，10秒内未操作将自动取消... "
         ,
-            "[!] DPD algorithm is computationally heavy, performance may drop 20-30x, "
-            "higher precision even slower. Press y to continue, auto-cancel in 10s... "
+            "[!] DPD is pure software decimal-array arithmetic, no hardware acceleration; "
+            "speed vs BID UInt256 varies, but per-digit multiply + lookup overhead keeps the CPU "
+            "loaded longer on weak machines. Press y to continue, auto-cancel in 10s... "
         ) << clr::RST << std::flush;
         bool confirmed = false;
 #ifdef _WIN32
@@ -361,7 +362,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
                 std::cout << "\n";
                 ++active;
             }
-            std::cout << "\033[K" << clr::YEL << "TOTAL: " << (std::uint64_t)total_rate << " steps/s" << clr::RST << "\n";
+            std::cout << "\033[K" << clr::YEL << "LIVE: " << (std::uint64_t)total_rate << " steps/s (current segment)" << clr::RST << "\n";
             if (active == 0) std::cout << "\033[K(all workers done)\n";
             for (int i = active + 1; i < last_lines; ++i) std::cout << "\033[K\n";
             last_lines = active > 0 ? active + 1 : 2;

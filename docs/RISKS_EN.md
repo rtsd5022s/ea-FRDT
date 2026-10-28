@@ -70,9 +70,9 @@ If you run this tool on a shared server, you saturate the CPU and other users' p
 
 ## 4. Extra Costs of DPD Formats
 
-DPD formats (dpd32/dpd64/dpd128) are 20-30x slower than BID. This is not "bad code"; it is algorithmic complexity: DPD does digit-by-digit multiplication, carry, and rounding on decimal arrays, plus DPD triplet codec lookups. Pure software integer arithmetic, no hardware acceleration.
+DPD formats (dpd32/dpd64/dpd128) are pure software decimal-array arithmetic: per-digit multiplication, carry, rounding, plus DPD triplet codec lookups. No hardware acceleration. Measured: DPD128 is about 3x faster than BID Dec128 (because BID uses UInt256 schoolbook big-integer multiply, which has high per-step overhead), but DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
-What does this mean? If you include DPD formats in `-m all`, that worker is an order of magnitude slower than the others. Other workers finish their format chain in seconds; the DPD worker takes minutes or tens of minutes. You think the tool hung, but it is faithfully computing DPD. Worse: the DPD worker occupies the CPU longer, meaning your machine stays loaded longer, and cooling, electricity, and noise costs all double.
+What does this mean? If you include DPD formats in `-m all`, that worker stays loaded longer than pure binary formats. Other workers finish their chain in seconds; the DPD worker takes longer. You think the tool hung, but it is faithfully computing DPD. Worse: the DPD worker occupies the CPU longer, meaning your machine stays loaded longer, and cooling, electricity, and noise costs all double.
 
 DPD prints a yellow warning before starting, waiting 10 seconds for `y`. This warning is not decoration; it is meant to make you think: are you sure you want the machine loaded for another half hour just for a DPD run?
 

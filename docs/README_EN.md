@@ -87,7 +87,7 @@ Formats are walked in this order in `-m all`:
 | Decimal BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal; dec128 uses a hand-rolled UInt256 big integer |
 | Decimal DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal; independent header, pure lookup-table and digit-array arithmetic |
 
-`-m all` by default excludes the three DPD formats because they are roughly 20–30x slower than BID. Add them explicitly with `--only dpd32,dpd64,dpd128` or by passing `-m dpd64` in single mode. When DPD formats are about to run, the tool prints a yellow warning and waits 10 seconds for `y` to continue; any other key or timeout cancels.
+`-m all` by default excludes the three DPD formats because they are pure software decimal-array arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128` or by passing `-m dpd64` in single mode. When DPD formats are about to run, the tool prints a yellow warning and waits 10 seconds for `y` to continue; any other key or timeout cancels. Measured: DPD128 is about 3x faster than BID Dec128 (BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
 ## Command-line reference
 
@@ -222,7 +222,7 @@ Concurrent mode is a stress test, not a gentle benchmark. Read this before runni
 
 - **System lag.** Workers are pinned and bumped to realtime priority. On an 8-core machine running 8 workers, the OS can barely schedule other processes. If you want to keep using the machine, pin fewer cores (`-j 1-2` on a 4-core CPU).
 - **Thermals.** Sustained 100% load triggers thermal throttling on laptops and weak coolers. The measured steps/sec will drop as temperature rises. This is expected.
-- **DPD is slower.** DPD arithmetic is 20–30x more expensive than BID. If you include DPD formats in `-m all`, those workers eat more CPU and other workers may see scheduling jitter.
+- **DPD stays loaded longer.** DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup, no hardware FPU. If you include DPD formats in `-m all`, that worker stays loaded longer and other workers may see scheduling jitter. Measured: DPD128 is about 3x faster than BID Dec128, but on weak CPUs DPD still takes longer wall-clock.
 - **Infinite loop needs a timeout.** `-l -1` without `-t` will run forever. Over SSH, a dropped connection can leave an orphan process burning CPU. Always pair them.
 - **Don't run in production.** This tool is for test machines. On a production server it will interfere with real workloads.
 
