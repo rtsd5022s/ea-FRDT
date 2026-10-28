@@ -14,16 +14,31 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 
 ## Documentation
 
-- **English**: this file (`README.md`), mirrored at [`docs/README_EN.md`](docs/README_EN.md)
-- **中文**: [`docs/README_CN.md`](docs/README_CN.md)
-- **Implementation (EN)**: [`docs/IMPLEMENTATION_EN.md`](docs/IMPLEMENTATION_EN.md) — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
-- **实现 (中文)**: [`docs/IMPLEMENTATION_CN.md`](docs/IMPLEMENTATION_CN.md)
-- **UInt256 internals (EN)**: [`docs/UINT256_EN.md`](docs/UINT256_EN.md) — hand-rolled big-integer design, schoolbook multiply, div10 short division
-- **UInt256 技术原理 (中文)**: [`docs/UINT256_CN.md`](docs/UINT256_CN.md)
-- **Working principles**: [`docs/WORKING_EN.md`](docs/WORKING_EN.md) / [`docs/WORKING_CN.md`](docs/WORKING_CN.md)
-- **Single-thread mode**: [`docs/MODE_SINGLE_EN.md`](docs/MODE_SINGLE_EN.md) / [`docs/MODE_SINGLE_CN.md`](docs/MODE_SINGLE_CN.md)
-- **Concurrent mode**: [`docs/MODE_ALL_EN.md`](docs/MODE_ALL_EN.md) / [`docs/MODE_ALL_CN.md`](docs/MODE_ALL_CN.md)
-- **Risks**: [`docs/RISKS_EN.md`](docs/RISKS_EN.md) / [`docs/RISKS_CN.md`](docs/RISKS_CN.md)
+### English
+
+- [README](docs/README_EN.md) — project overview, command-line flags, exit reasons
+- [Implementation](docs/IMPLEMENTATION_EN.md) — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
+- [UInt256 internals](docs/UINT256_EN.md) — hand-rolled big-integer design, schoolbook multiply, div10 short division
+- [Working principles](docs/WORKING_EN.md) — how the runner and state machine work
+- [Single-thread mode](docs/MODE_SINGLE_EN.md) — per-format walk, step modes, start values
+- [Concurrent mode](docs/MODE_ALL_EN.md) — worker pool, core pinning, summary table
+- [Risks](docs/RISKS_EN.md) — thermal, power, system-stability disclaimers
+- [Testing dishonesty](docs/TESTING_DISHONESTY_EN.md) — why industry benchmarks hide edge cases
+- [ISA boundaries](docs/ISA_BOUNDARIES_EN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm float support
+- [FAQ](docs/FAQ_EN.md) — common questions and edge cases
+
+### 中文
+
+- [README](docs/README_CN.md) — 项目概述、命令行参数、退出原因
+- [技术实现](docs/IMPLEMENTATION_CN.md) — 17 种格式、模块、并发模型、BID/DPD 路径完整技术概览
+- [UInt256 技术原理](docs/UINT256_CN.md) — 自研大整数设计、schoolbook 乘法、div10 短除法
+- [工作原理](docs/WORKING_CN.md) — runner 和状态机如何工作
+- [单线程模式](docs/MODE_SINGLE_CN.md) — 逐格式走路、步进模式、起点
+- [并发模式](docs/MODE_ALL_CN.md) — worker 池、绑核、汇总表
+- [使用风险](docs/RISKS_CN.md) — 散热、功耗、系统稳定性警告
+- [测试行业遮羞布](docs/TESTING_DISHONESTY_CN.md) — 为什么行业基准测试隐藏边界情况
+- [指令集架构边界](docs/ISA_BOUNDARIES_CN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm 浮点支持
+- [FAQ](docs/FAQ_CN.md) — 常见问题和边缘情况
 
 ## Why this exists
 
