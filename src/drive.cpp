@@ -39,6 +39,7 @@ const char* reason_name(RunResult::Reason r) {
         case RunResult::IDENTITY: return "identity(stopped)";
         case RunResult::SAFETY: return "safety-limit";
         case RunResult::TIMEOUT: return "timeout";
+        case RunResult::NOT_A_NUMBER: return "nan->nan";
     }
     return "?";
 }

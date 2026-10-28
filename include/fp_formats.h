@@ -132,6 +132,7 @@ inline void run_sim(const Fmt& f, std::int64_t delay_ms, StartKind kind, StepMod
           },
           [](SVal v) { return v.inf; },
           [](SVal v) { return !v.inf && v.man == 0 && v.exp == 0; },
+          [](SVal v) { return false; },  // SVal never produces NaN (inf flag covers overflow)
           [&](SVal v) { return to_double(v, f); },
           delay_ms, df, digits, sim_extra, quiet, refresh_ms);
 }
@@ -195,6 +196,7 @@ void run_native(const char* tag, std::int64_t delay_ms, StartKind kind, StepMode
           },
           [](T v) { return std::isinf((double)v); },
           [](T v) { return v == T(0); },
+          [](T v) { return std::isnan((double)v); },
           [](T v) { return (double)v; },
           delay_ms, df, digits, nat_extra, quiet, refresh_ms);
 }
@@ -317,6 +319,7 @@ inline void run_x87_soft(std::int64_t delay_ms, StartKind kind, StepMode sm, Dis
           },
           [](X87 v) { return v.inf; },
           [](X87 v) { return !v.inf && v.man == 0 && v.exp == 0; },
+          [](X87 v) { return false; },  // X87 never produces NaN
           [&](const X87& v) { return x87_format(v, df, digits); },
           delay_ms, x87_extra, quiet, refresh_ms);
 }
@@ -474,6 +477,7 @@ inline void run_q128_soft(std::int64_t delay_ms, StartKind kind, StepMode sm, Di
           },
           [](Q128 v) { return v.inf; },
           [](Q128 v) { return !v.inf && v.hi == 0 && v.lo == 0 && v.exp == 0; },
+          [](Q128 v) { return false; },  // Q128 never produces NaN
           [&](const Q128& v) { return q128_format(v, df, digits); },
           delay_ms, q_extra, quiet, refresh_ms);
 }

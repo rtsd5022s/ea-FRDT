@@ -20,8 +20,8 @@ std::string step_factor_str(StepMode sm, double factor);
 const char* reason_name(RunResult::Reason r);
 
 // Template driver (must stay in header for explicit instantiation)
-template <class S, class Next, class IsInf, class IsZero, class Render>
-void drive_core(S s, Next next, IsInf isInf, IsZero isZero, Render render,
+template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Render>
+void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render render,
                 std::int64_t delay_ms,
                 std::function<std::string(const S&)> extra = {},
                 RunResult* quiet = nullptr,
@@ -55,6 +55,11 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, Render render,
         if (isZero(nxt)) {
             exit_reason = RunResult::UNDERFLOW;
             if (quiet) { quiet->steps = step; quiet->reason = RunResult::UNDERFLOW; quiet->cur_value = "0"; }
+            break;
+        }
+        if (isNaN(nxt)) {
+            exit_reason = RunResult::NOT_A_NUMBER;
+            if (quiet) { quiet->steps = step; quiet->reason = RunResult::NOT_A_NUMBER; quiet->cur_value = render(s); }
             break;
         }
         if (!(nxt == s)) { s = nxt; }
@@ -119,12 +124,12 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, Render render,
     }
 }
 
-template <class S, class Next, class IsInf, class IsZero, class Disp>
-void drive(S s, Next next, IsInf isInf, IsZero isZero, Disp disp,
+template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Disp>
+void drive(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Disp disp,
            std::int64_t delay_ms, DispFmt df, int digits,
            std::function<std::string(const S&)> extra = {}, RunResult* quiet = nullptr,
            std::int64_t refresh_ms = 0) {
-    drive_core(s, next, isInf, isZero,
+    drive_core(s, next, isInf, isZero, isNaN,
                [&](const S& v) { return format_value(disp(v), df, digits); },
                delay_ms, extra, quiet, refresh_ms);
 }

@@ -307,6 +307,7 @@ inline void run_dec(const DecFmt& fmt, std::int64_t delay_ms, StartKind kind, St
           },
           [](DecNum v) { return v.inf; },
           [](DecNum v) { return v.coeff == 0; },
+          [](DecNum v) { return false; },  // DecNum never produces NaN
           [&](const DecNum& v) { return dec_fmt_text(std::to_string(v.coeff), v.exp10, v.neg, df, digits); },
           delay_ms, dec_extra, quiet, refresh_ms);
 }
@@ -460,6 +461,7 @@ inline void run_dec128(std::int64_t delay_ms, StartKind kind, StepMode sm, DispF
           },
           [](BigDec v) { return v.inf; },
           [](BigDec v) { return v.coeff.empty() || v.coeff == "0"; },
+          [](BigDec v) { return false; },  // BigDec never produces NaN
           [&](const BigDec& v) { return dec_fmt_text(v.coeff, v.exp10, v.neg, df, digits); },
           delay_ms, big_extra, quiet, refresh_ms);
 }

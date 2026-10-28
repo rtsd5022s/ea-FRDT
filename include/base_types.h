@@ -25,7 +25,7 @@ inline std::string to_string_u128(u128 v) {
 
 struct RunResult {
     u128 steps = 0;
-    enum Reason { OVERFLOW, UNDERFLOW, IDENTITY, SAFETY, TIMEOUT } reason = OVERFLOW;
+    enum Reason { OVERFLOW, UNDERFLOW, IDENTITY, SAFETY, TIMEOUT, NOT_A_NUMBER } reason = OVERFLOW;
     double elapsed_ms = 0;
     std::string cur_value;
     u128 cur_steps = 0;
