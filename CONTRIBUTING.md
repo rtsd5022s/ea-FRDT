@@ -24,8 +24,11 @@ g++ -std=c++23 -O2 -Wall -Wextra -Iinclude src/*.cpp -o float_inf_walk -pthread
 # Windows (MSYS2 clang64 — recommended, LLVM native)
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections \
-    -static -static-libgcc -static-libstdc++ \
+    -static \
     -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+
+# Note: clang64 uses libc++/compiler-rt/lld. Do NOT add -static-libgcc
+# -static-libstdc++ (those are GCC flags that pull ucrt64 libraries).
 
 # Windows (MSYS2 ucrt64 — GCC-based, Clang is compat-only)
 # Note: ucrt64 Clang uses GNU ld, does NOT support thin LTO.

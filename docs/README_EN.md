@@ -93,9 +93,11 @@ g++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
 ```bash
 clang++ -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections \
-    -static -static-libgcc -static-libstdc++ \
+    -static \
     -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
 ```
+
+Note: clang64 uses its own libc++/compiler-rt/lld. Do not add `-static-libgcc -static-libstdc++` (those are GCC flags and will pull ucrt64 libraries).
 
 This produces a ~0.8 MB static binary. For microarchitecture-specific builds, add `-march=x86-64-v2` (2009 Nehalem+), `-march=x86-64-v3` (2013 Haswell+, enables BMI2), or `-march=native` (current CPU).
 
