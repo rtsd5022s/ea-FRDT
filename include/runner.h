@@ -224,12 +224,20 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     }
     if (has_dpd) {
         std::cout << clr::YEL << tr(
-            "[!] DPD 是纯软件十进制数组运算，无硬件加速；与 BID UInt256 大整数互有快慢，\n"
-            "    但逐位乘法+查表开销大，低端机满载时间会更长。按 y 继续，10秒内未操作将自动取消... "
+            "[!] DPD 警告\n"
+            "    DPD 是纯软件十进制数组运算：系数存为十进制数字 vector，逐位乘法+进位+舍入，\n"
+            "    三元组编解码走查表。无硬件十进制浮点单元（x86 无 BCD 指令，ARM 无 FDECVAL）。\n"
+            "    实测 DPD128 比 BID Dec128 快约 3 倍（BID 走 UInt256 schoolbook 大整数乘法），\n"
+            "    但 DPD 不能用硬件 FPU，低端 CPU 满载时间更长，风扇更吵，温度更高。\n"
+            "    包含格式：DPD32/DPD64/DPD128。按 y 继续，10 秒内未操作自动取消... "
         ,
-            "[!] DPD is pure software decimal-array arithmetic, no hardware acceleration; "
-            "speed vs BID UInt256 varies, but per-digit multiply + lookup overhead keeps the CPU "
-            "loaded longer on weak machines. Press y to continue, auto-cancel in 10s... "
+            "[!] DPD warning\n"
+            "    DPD is pure software decimal-array arithmetic: coefficient stored as a decimal digit vector,\n"
+            "    per-digit multiply + carry + round, triplet codec via lookup table. No hardware decimal FPU\n"
+            "    (x86 has no BCD insns, ARM has no FDECVAL). Measured DPD128 is ~3x faster than BID Dec128\n"
+            "    (BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU,\n"
+            "    so weak CPUs stay loaded longer: louder fan, hotter chip. Includes: DPD32/DPD64/DPD128.\n"
+            "    Press y to continue, auto-cancel in 10s... "
         ) << clr::RST << std::flush;
         bool confirmed = false;
 #ifdef _WIN32
