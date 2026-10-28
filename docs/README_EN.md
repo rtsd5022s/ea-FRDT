@@ -27,6 +27,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 - [Risks](docs/RISKS_EN.md) — thermal, power, system-stability disclaimers
 - [Testing dishonesty](docs/TESTING_DISHONESTY_EN.md) — why industry benchmarks hide edge cases
 - [ISA boundaries](docs/ISA_BOUNDARIES_EN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm float support
+- [Origin story](docs/ORIGIN_EN.md) — how ea-FRDT grew from a 20-line script to a 17-format stress tool
 - [FAQ](docs/FAQ_EN.md) — common questions and edge cases
 
 ### 中文
@@ -40,6 +41,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 - [使用风险](docs/RISKS_CN.md) — 散热、功耗、系统稳定性警告
 - [测试行业遮羞布](docs/TESTING_DISHONESTY_CN.md) — 为什么行业基准测试隐藏边界情况
 - [指令集架构边界](docs/ISA_BOUNDARIES_CN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm 浮点支持
+- [项目诞生记](docs/ORIGIN_CN.md) — ea-FRDT 如何从二十行脚本长成 17 格式压测工具
 - [FAQ](docs/FAQ_CN.md) — 常见问题和边缘情况
 
 ## Why this exists
@@ -270,7 +272,7 @@ Concurrent mode, live monitor (refreshed every 1 s):
 === ALL modes: each worker runs the full format chain ===
 CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
 CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=10ms, workers=4, chain=13
+step=multiplied, x1.02, delay=10ms, workers=4, chain=17
 [w1] FP32:  2.30e+12   4143006 steps/s   1.241s   loop=1
 [w2] FP64:  5.10e+40   3891204 steps/s   1.241s   loop=1
 [w3] Dec64: 2.30e+363  1203300 steps/s   1.241s   loop=1
