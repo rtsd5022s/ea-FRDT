@@ -5,6 +5,8 @@
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](CMakeLists.txt)
 
 > **Platform note:** Prebuilt binary is Windows x86_64 only. Linux/macOS build from source with GCC 13+ or Clang 16+. MSVC is not supported.
+>
+> **Compiler requirements:** C++23 (`<stdfloat>`, `if consteval`). Use Clang 17+ or GCC 13+. g++ 16.2.0 has a known ICE; fall back to Clang. CMake 3.28+.
 
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 
@@ -180,6 +182,19 @@ At the end of a walk, the tool prints one of:
 - `timeout` — the `-t` timer fired.
 - `cancelled` — the DPD warning confirmation timed out or was declined.
 - `sigint` — Ctrl+C received.
+
+## Limitations (known compromises)
+
+- x87 and FP128 software emulation still use compiler `__int128` for 128-bit intermediate arithmetic; a pure UInt256 path exists but is not the default.
+- DPD32/DPD64/DPD128 are excluded from `-m all` by default because their decimal complexity is 20-30x slower; they require explicit `-m dpd32` etc.
+- No MSVC support. The codebase uses GCC/Clang-specific attributes and `__int128`.
+- g++ 16.2.0 has a known internal compiler error on this codebase; use Clang 16+ or g++ 13/14.
+- No GPU offload.
+- No WebAssembly target yet.
+
+## Disclaimer
+
+This is an extreme microarchitecture stress tool. Running it with `-l -1` and no `-t` (blocked by the safety check, but bypassable with a timeout) will fully saturate every CPU core. Long full-load runs may cause thermal throttling, fan noise, hardware wear, or system instability. Ensure adequate cooling. You run this at your own risk.
 
 ## Architecture
 
