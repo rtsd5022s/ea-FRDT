@@ -62,7 +62,7 @@ std::string format_value(double v, DispFmt fmt, int digits) {
 double parse_number(const std::string& s) {
     if (s.size() >= 2 && (s.substr(0, 2) == "0x" || s.substr(0, 2) == "0X")) {
         const std::string hex = s.substr(2);
-        if (hex.size() > 16) throw std::invalid_argument("hex too long");
+        if (hex.size() > 32) throw std::invalid_argument("hex too long");
         for (char c : hex) {
             if (!std::isxdigit((unsigned char)c)) throw std::invalid_argument("bad hex char");
         }
