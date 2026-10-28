@@ -1,42 +1,75 @@
 # ea-FRDT 1.0-deta1
 
-ea-FRDT（Extreme Architecture - Floating-point Rigorous Devil Test）首个公开测试版。这是一个 C++23 命令行浮点压测工具，从一个浮点值出发，按固定步长反复步进（乘系数、乘相对 ULP、加绝对 ULP），直到格式溢出到无穷、下溢到零、撞到安全上限或超时。
+## English
 
-## 这个版本包含什么
+ea-FRDT (Extreme Architecture - Floating-point Rigorous Devil Test) is the first public beta release. It is a C++23 command-line floating-point stress tool that walks a floating-point value upward or downward by a fixed step (multiply by a factor, multiply by 1+1 ULP, or add 1 ULP) until the format overflows to infinity, underflows to zero, hits a safety limit, or times out.
 
-17 种浮点格式全覆盖：FP4、FP6、FP8 E4M3、FP8 E5M2、FP16、BF16、TF32、FP32、Dec32[BID]、DPD32、FP64、Dec64[BID]、DPD64、x87（80 位纯软件）、FP128（112 位纯软件）、Dec128[BID]（自写 UInt256 大整数乘法）、DPD128。
+### What is in this release
 
-五种步进模式：默认乘 1.02、乘 1+1ULP、加 1ULP、从 max-finite 递减、从 min-normal 递增。
+- **17 float formats**: FP4, FP6, FP8 E4M3, FP8 E5M2, FP16, BF16, TF32, FP32, Dec32[BID], DPD32, FP64, Dec64[BID], DPD64, x87 (80-bit pure software), FP128 (112-bit pure software), Dec128[BID] (hand-rolled UInt256 big-integer multiply), DPD128.
+- **5 stepping modes**: multiply by 1.02 (default), multiply by 1+1 ULP, add 1 ULP, descend from max-finite, ascend from min-normal.
+- **Concurrent mode** (`-m all`): each worker is pinned to a CPU core and independently runs the full format chain. `alignas(64)` cache-line padding eliminates false sharing. Windows uses `SetThreadAffinityMask`.
+- **Safety guards**: infinite loop requires a timeout, factor near 1 is rejected, invalid input exits hard, DPD/dec128 prints a yellow warning requiring y confirmation, Ctrl+C is bilingual.
+- **Bilingual UI** (`--lang zh` / `--lang en`): all messages, warnings, and errors are available in Chinese and English.
+- **Zero third-party dependencies**: no libquadmath, Boost, or Eigen. x87 and FP128 are pure software integer simulation. Dec128 uses hand-rolled UInt256 schoolbook multiplication instead of `__int128`.
 
-并发模式：`-m all` 每个 worker 绑核独立跑完整套格式链，`alignas(64)` 缓存行隔离消除伪共享，Windows 用 `SetThreadAffinityMask` 绑核，监视器每秒刷新，汇总表按 worker/格式列出步数和退出原因。
+### Platform
 
-安全防护：无限循环必须配超时、factor 太接近 1 拒绝、非法输入硬退出、DPD/dec128 启动前黄色警告按 y 确认、Ctrl+C 双语提示。
+Windows x86_64 only (UCRT64 statically linked, no runtime DLL required). Linux and macOS can build from source (CI verifies GCC and Clang on Ubuntu).
 
-双语界面：`--lang zh` / `--lang en`，所有文本（含警告、错误、Ctrl+C 提示）都分中英文。
-
-无第三方依赖：不需要 libquadmath、Boost、Eigen。x87 和 FP128 是纯软件整数仿真，不依赖 `long double` 或 `__float128`。Dec128 用自写 UInt256 schoolbook 大整数乘法，不依赖 `__int128`。
-
-## 平台
-
-仅 Windows x86_64（UCRT64 静态链接，无需安装运行时 DLL）。Linux/macOS 可从源码编译（CI 在 Ubuntu 上验证 GCC 和 Clang）。
-
-## 快速开始
+### Quick start
 
 ```
-ea-FRDT.exe 0                          # FP32 从 1.0 乘 1.02 走到 inf
-ea-FRDT.exe 0 -m fp16 -a max-finite -k 0.5   # FP16 最大值递减到 0
-ea-FRDT.exe 0 -m all -j 1-4            # 4 个 worker 并发跑全部格式
-ea-FRDT.exe 0 -m dec128 -t 10 -q        # Dec128 10 秒超时静默模式
+ea-FRDT.exe 0                                # FP32 from 1.0, multiply by 1.02 to infinity
+ea-FRDT.exe 0 -m fp16 -a max-finite -k 0.5  # FP16 max-finite, halve to zero
+ea-FRDT.exe 0 -m all -j 1-4                 # 4 workers, full format chain
+ea-FRDT.exe 0 -m dec128 -t 10 -q            # Dec128, 10-second timeout, quiet mode
 ```
 
-完整参数见 `README.md`。
+### Limitations
 
-## 局限性
+- Tested only on Windows x86_64. Linux/macOS are CI-build-verified but not hardware-tested.
+- g++ 16.2.0 has a local internal compiler error; use Clang 18+.
+- DPD coefficient declet chaining is technical debt: it works but is not compact.
+- x87/FP128 pure software paths still use `__int128` for 128-bit auxiliary arithmetic, not fully replaced by UInt256.
+- OSS-Fuzz is not wired up; edge-case coverage relies on a manual test matrix.
+- Physical core count detection is not implemented on Linux.
+- This is a beta (deta) release. Undiscovered edge bugs may exist. The algorithm may go off the rails.
 
-- 仅在 Windows x86_64 上测试，Linux/macOS 未在目标硬件验证（CI 只做编译验证）。
-- g++ 16.2.0 本地有内部编译器错误（ICE），请用 Clang 18+ 编译。
-- DPD 路线的系数 declet 串联子单元是技术债，能跑但不够紧凑。
+---
+
+## 中文
+
+ea-FRDT（Extreme Architecture - 极端架构浮点严苛魔鬼压测）首个公开测试版。这是一个 C++23 命令行浮点压测工具，从一个浮点值出发，按固定步长（乘系数、乘 1+1 ULP、加 1 ULP）反复步进，直到格式溢出到无穷、下溢到零、撞到安全上限或超时。
+
+### 本版本包含
+
+- **17 种浮点格式**：FP4、FP6、FP8 E4M3、FP8 E5M2、FP16、BF16、TF32、FP32、Dec32[BID]、DPD32、FP64、Dec64[BID]、DPD64、x87（80 位纯软件）、FP128（112 位纯软件）、Dec128[BID]（自写 UInt256 大整数乘法）、DPD128。
+- **5 种步进模式**：乘 1.02（默认）、乘 1+1 ULP、加 1 ULP、从 max-finite 递减、从 min-normal 递增。
+- **并发模式**（`-m all`）：每个 worker 绑定 CPU 核心，独立跑完整套格式链。`alignas(64)` 缓存行隔离消除伪共享。Windows 使用 `SetThreadAffinityMask` 绑核。
+- **安全防护**：无限循环必须配超时，factor 太接近 1 拒绝，非法输入硬退出，DPD/dec128 启动前黄色警告需按 y 确认，Ctrl+C 双语提示。
+- **双语界面**（`--lang zh` / `--lang en`）：所有文本、警告、错误均分中英文。
+- **零第三方依赖**：不需要 libquadmath、Boost、Eigen。x87 和 FP128 是纯软件整数仿真。Dec128 用自写 UInt256 schoolbook 大整数乘法，不依赖 `__int128`。
+
+### 平台
+
+仅 Windows x86_64（UCRT64 静态链接，无需运行时 DLL）。Linux/macOS 可从源码编译（CI 在 Ubuntu 上验证 GCC 和 Clang）。
+
+### 快速开始
+
+```
+ea-FRDT.exe 0                                # FP32 从 1.0 乘 1.02 走到无穷
+ea-FRDT.exe 0 -m fp16 -a max-finite -k 0.5  # FP16 最大值减半到零
+ea-FRDT.exe 0 -m all -j 1-4                 # 4 个 worker 并发跑全部格式
+ea-FRDT.exe 0 -m dec128 -t 10 -q            # Dec128，10 秒超时，静默模式
+```
+
+### 局限性
+
+- 仅在 Windows x86_64 上测试，Linux/macOS 仅 CI 编译验证未在硬件上跑过。
+- g++ 16.2.0 本地有内部编译器错误，请用 Clang 18+。
+- DPD 系数 declet 串联子单元是技术债，能跑但不够紧凑。
 - x87/FP128 纯软件实现仍用 `__int128` 做 128 位辅助，未完全替换为 UInt256。
-- OSS-Fuzz 未接入，边界值覆盖靠人工测试矩阵。
-- 物理核心数检测在 Linux 上未实现。
-- 这个版本是 deta（测试）版，可能存在未发现的边界 bug。算法本身可能会开小差。
+- OSS-Fuzz 未接入，边界覆盖靠人工测试矩阵。
+- Linux 上物理核心数检测未实现。
+- 这是 deta 测试版，可能存在未发现的边界 bug。算法本身可能会开小差。
