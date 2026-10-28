@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](CMakeLists.txt)
 
+> **Platform note:** Prebuilt binary is Windows x86_64 only. Linux/macOS build from source with GCC 13+ or Clang 16+. MSVC is not supported.
+
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 
 This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, or add `1 ULP`), and prints the result at every step (or only at the end in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
