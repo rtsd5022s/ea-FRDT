@@ -161,6 +161,8 @@ The tool refuses to start if:
 - You request `-l -1` without `-t` (infinite loop with no timeout is a DoS).
 - You request a factor extremely close to 1 (step explosion — walking would take more than the 120-bit safety limit).
 - You pass an unknown format name, a non-numeric start, or a negative timeout.
+- You pass a raw hex string longer than 32 hex chars (128-bit max) or containing non-hex characters.
+- User-supplied strings echoed in error messages are sanitized (ANSI escape sequences and C0 control characters stripped) to prevent terminal injection.
 
 These are hard exits with a message on stderr, not silent failures.
 

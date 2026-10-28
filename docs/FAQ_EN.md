@@ -98,6 +98,9 @@ These are format fingerprints. Any correct implementation should match.
 ### Q: What happens on invalid input?
 **A: Hard exit with an error message on stderr and a non-zero exit code. No crash.**
 
+### Q: What about malicious hex strings or ANSI escape characters?
+**A: Rejected.** Raw hex strings are limited to 32 characters (128-bit max) and non-hex characters are rejected. User input echoed in error messages passes through `sanitize()` which strips ESC, C0 control characters, and DEL to prevent terminal injection.
+
 ## 6. Concurrent mode
 
 ### Q: What does `-m all` do?
