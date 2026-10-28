@@ -131,6 +131,7 @@ int main(int argc, char** argv) {
     std::signal(SIGINT, on_sigint);
     std::atexit([](){
         if (!g_json) return;
+        if (g_fmt_name == "all") return;  // run_all emits its own JSON summary
         const char* rn = "unknown";
         switch (g_result.reason) {
             case RunResult::OVERFLOW:  rn = "overflow"; break;

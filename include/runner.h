@@ -283,6 +283,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     auto t0 = std::chrono::steady_clock::now();
     int hw_threads = fw::plat::logical_cores();
     int phys_cores = fw::plat::physical_cores();
+    if (!g_json) {
     std::cout << clr::CYN << tr("=== ALL 并发模式：每线程独立跑完整个格式链 ===", "=== ALL modes: each worker runs the full format chain independently ===") << clr::RST << "\n";
     std::cout << clr::GRY << tr("CPU 核心(逻辑)=", "CPU cores(logical)=") << hw_threads;
     if (phys_cores > 0 && phys_cores != hw_threads)
@@ -292,6 +293,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
               << tr(", 限速=", ", delay=") << delay_ms << tr("ms (0=不限速)", "ms (0=unlimited)")
               << tr(", 线程=", ", workers=") << n
               << tr(", 格式数=", ", chain=") << chain.size() << clr::RST << "\n";
+    }
 
     // Per-worker independent state, value-copied params, no reference to stack vector
     struct alignas(64) WorkerSlot {
@@ -397,6 +399,42 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     mon.join();
     auto t1 = std::chrono::steady_clock::now();
     double wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    if (g_json) {
+        // JSON summary: suppress colored table, emit machine-readable JSON
+        std::printf("{\"tool\":\"ea-FRDT\",\"version\":\"1.0\",\"mode\":\"all\",\"wall_ms\":%.3f,", wall_ms);
+        u128 total_steps = 0;
+        for (int w = 0; w < n; ++w) total_steps += workers[w].total_steps;
+        double overall_rate = wall_ms > 0.0 ? (double)total_steps / (wall_ms / 1000.0) : 0.0;
+        std::printf("\"total_steps\":%s,\"overall_rate\":%.1f,\"workers\":[",
+                    to_string_u128(total_steps).c_str(), overall_rate);
+        for (int w = 0; w < n; ++w) {
+            if (w > 0) std::printf(",");
+            std::printf("{\"core\":%d,\"formats\":[", core_ids[w]);
+            for (std::size_t i = 0; i < workers[w].done.size(); ++i) {
+                if (i > 0) std::printf(",");
+                const auto& r = workers[w].done[i];
+                const char* rn = "unknown";
+                switch (r.reason) {
+                    case RunResult::OVERFLOW:  rn = "overflow"; break;
+                    case RunResult::UNDERFLOW: rn = "underflow"; break;
+                    case RunResult::IDENTITY:  rn = "identity"; break;
+                    case RunResult::SAFETY:    rn = "safety"; break;
+                    case RunResult::TIMEOUT:   rn = "timeout"; break;
+                    case RunResult::NOT_A_NUMBER: rn = "nan"; break;
+                }
+                std::printf("{\"name\":\"%s\",\"steps\":%s,\"elapsed_ms\":%.1f,\"reason\":\"%s\",\"sum_steps\":%s}",
+                            r.name.c_str(),
+                            to_string_u128(r.steps).c_str(),
+                            r.elapsed_ms, rn,
+                            to_string_u128(workers[w].sum_steps[i]).c_str());
+            }
+            std::printf("]}");
+        }
+        std::printf("]}\n");
+        return wall_ms;
+    }
+
     std::cout << '\n';
 
     // Summary table
