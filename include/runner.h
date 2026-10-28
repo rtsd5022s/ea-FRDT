@@ -263,6 +263,19 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
         std::cout << "\n";
     }
 
+    // dec128 long-run warning (no confirmation needed)
+    bool has_dec128 = false;
+    for (auto id : chain) {
+        if (id == FmtId::Dec128) { has_dec128 = true; break; }
+    }
+    if (has_dec128) {
+        std::cout << clr::YEL << tr(
+            "[!] dec128 走 714521 步（×1.02），每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。\n"
+        ,
+            "[!] dec128 runs 714521 steps (×1.02), each step uses UInt256 schoolbook big-integer multiply, takes a while. Without -t it runs to completion.\n"
+        ) << clr::RST;
+    }
+
     RunParams params{delay_ms, kind, sm, df, start_val, factor, digits};
 
     // Print CPU info
