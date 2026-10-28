@@ -2,7 +2,9 @@
 
 ## What is concurrent mode
 
-Concurrent mode runs multiple threads simultaneously, each thread independently running the full 17-format chain. Threads don't share state; each has its own current value, step count, and result list.
+Concurrent mode runs multiple threads simultaneously, each thread independently running the format chain. Threads don't share state; each has its own current value, step count, and result list.
+
+The default chain includes 13 formats, excluding DPD32/DPD64/DPD128 and Dec128(BID) (slow formats require `--only` to add).
 
 Add `-m all` to the command line:
 
@@ -184,13 +186,15 @@ DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
 ## Format chain order
 
-17 formats run in this order:
+Default 13 formats run in this order (DPD/Dec128 excluded):
 
 ```
 FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32
-→ Dec32 → DPD32 → FP64 → Dec64 → DPD64
-→ x87 → FP128 → Dec128 → DPD128
+→ Dec32 → FP64 → Dec64
+→ x87 → FP128
 ```
+
+Use `--only dpd32,dpd64,dpd128,dec128` to add slow formats.
 
 Small to large, small formats first. Each worker runs this full chain.
 
