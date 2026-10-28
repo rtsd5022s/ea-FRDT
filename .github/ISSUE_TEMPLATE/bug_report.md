@@ -7,6 +7,7 @@ labels: bug
 
 **Environment**
 - OS: (Windows / Linux / macOS)
+- CPU: (e.g. Intel i7-6700, AMD Ryzen 7 5800X)
 - Compiler: (g++ 13, clang++ 18, etc.)
 - Version: (tag or commit hash)
 

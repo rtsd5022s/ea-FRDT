@@ -15,8 +15,11 @@ err.txt
 err2.txt
 perr.txt
 smoke.txt
+check.txt
 gh.exe
 gh.zip
+build.ps1
+test_all.ps1
 
 # 备份目录
 backup/
