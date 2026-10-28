@@ -73,6 +73,14 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             if (quiet) { quiet->steps = step; quiet->reason = RunResult::SAFETY; }
             break;
         }
+        if (g_dump_file) {
+            std::size_t sz = sizeof(S);
+            std::fwrite(&s, 1, sz, g_dump_file);
+            if ((int)sz < g_dump_align) {
+                char pad[16] = {0};
+                std::fwrite(pad, 1, g_dump_align - sz, g_dump_file);
+            }
+        }
         if (quiet) {
             quiet->cur_steps = step;
             if (step - last_slow >= SLOW_INTERVAL) {

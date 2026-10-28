@@ -45,5 +45,9 @@ inline int g_json_digits = 6;
 inline int64_t g_json_delay_ms = 0;
 inline int g_json_loop = 1;
 inline int g_json_workers = 1;
+#include <cstdio>
+inline std::FILE* g_dump_file = nullptr;
+inline int g_dump_align = 8;  // 1/2/4/8/16 bytes per record
+inline void (*g_dump_cb)(const void* data, std::size_t len) = nullptr;
 
 } // namespace fw

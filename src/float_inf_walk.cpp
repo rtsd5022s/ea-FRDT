@@ -129,6 +129,7 @@ int main(int argc, char** argv) {
     struct PeriodGuard { ~PeriodGuard(){ fw::plat::reset_high_res_timer(); } } _pg;
 #endif
     std::signal(SIGINT, on_sigint);
+    std::atexit([](){ if (g_dump_file) { std::fclose(g_dump_file); g_dump_file = nullptr; } });
     std::atexit([](){
         if (!g_json) return;
         if (g_fmt_name == "all") return;  // run_all emits its own JSON summary
@@ -310,6 +311,21 @@ int main(int argc, char** argv) {
         }
         if (a == "-q" || a == "--quiet") { quiet = true; continue; }
         if (a == "--json") { g_json = true; quiet = true; continue; }
+        if (a == "--dump") {
+            if (i + 1 >= argc) { std::cerr << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
+            g_dump_file = std::fopen(argv[++i], "wb");
+            if (!g_dump_file) { std::cerr << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
+            quiet = true;
+            continue;
+        }
+        if (a == "--dump-align") {
+            if (i + 1 >= argc) { std::cerr << tr("错误：--dump-align 需要 1/2/4/8/16\n", "error: --dump-align requires 1/2/4/8/16\n"); return 2; }
+            g_dump_align = std::stoi(argv[++i]);
+            if (g_dump_align != 1 && g_dump_align != 2 && g_dump_align != 4 && g_dump_align != 8 && g_dump_align != 16) {
+                std::cerr << tr("错误：--dump-align 仅支持 1/2/4/8/16\n", "error: --dump-align only supports 1/2/4/8/16\n"); return 2;
+            }
+            continue;
+        }
         if (a == "-lang" || a == "--lang" || a == "--language") {
             if (i + 1 >= argc) { std::cerr << "usage: -lang zh|en\n"; return 2; }
             std::string l = argv[++i];
@@ -363,27 +379,27 @@ int main(int argc, char** argv) {
         run_all(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, jobs_list, only_csv, refresh_ms, loop_count, quiet);
         return 0;
     }
-    if (mode == "f16" || mode == "fp16")            { run_native<NativeF16>("FP16", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "f32" || mode == "fp32")            { run_native<NativeF32>("FP32", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "f64" || mode == "fp64")            { run_native<NativeF64>("FP64", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "x87")                              { run_x87_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp4")        { run_sim({2, 1, 1, "FP4(E2M1)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp6")        { run_sim({3, 2, 3, "FP6(E3M2)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp8" || mode == "fp8-e4m3") { run_sim({4, 3, 7, "FP8(E4M3)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp8-e5m2")   { run_sim({5, 2, 15, "FP8(E5M2)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "bf16")       { run_sim({8, 7, 127, "BF16(E8M7)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "tf32")       { run_sim({8, 10, 127, "TF32(E8M10)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "f16" || mode == "fp16")            { run_native<NativeF16>("FP16", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "f32" || mode == "fp32")            { run_native<NativeF32>("FP32", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "f64" || mode == "fp64")            { run_native<NativeF64>("FP64", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "x87")                              { run_x87_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "fp4")        { run_sim({2, 1, 1, "FP4(E2M1)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "fp6")        { run_sim({3, 2, 3, "FP6(E3M2)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "fp8" || mode == "fp8-e4m3") { run_sim({4, 3, 7, "FP8(E4M3)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "fp8-e5m2")   { run_sim({5, 2, 15, "FP8(E5M2)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "bf16")       { run_sim({8, 7, 127, "BF16(E8M7)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "tf32")       { run_sim({8, 10, 127, "TF32(E8M10)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
     {
         static const DecFmt f32d{7, 96, "Decimal32"};
         static const DecFmt f64d{16, 384, "Decimal64"};
-        if (mode == "dec32" || mode == "decimal32") { run_dec(f32d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dec64" || mode == "decimal64") { run_dec(f64d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dec128" || mode == "decimal128") { run_dec128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dpd32" || mode == "dpd-dec32") { run_dpd(dpd_fmt32(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dpd64" || mode == "dpd-dec64") { run_dpd(dpd_fmt64(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dpd128" || mode == "dpd-dec128") { run_dpd(dpd_fmt128(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
+        if (mode == "dec32" || mode == "decimal32") { run_dec(f32d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+        if (mode == "dec64" || mode == "decimal64") { run_dec(f64d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+        if (mode == "dec128" || mode == "decimal128") { run_dec128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+        if (mode == "dpd32" || mode == "dpd-dec32") { run_dpd(dpd_fmt32(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+        if (mode == "dpd64" || mode == "dpd-dec64") { run_dpd(dpd_fmt64(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+        if (mode == "dpd128" || mode == "dpd-dec128") { run_dpd(dpd_fmt128(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
     }
-    if (mode == "fp128") { run_q128_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json ? &g_result : nullptr), refresh_ms); return 0; }
+    if (mode == "fp128") { run_q128_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
 
     std::cerr << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
     return 2;
