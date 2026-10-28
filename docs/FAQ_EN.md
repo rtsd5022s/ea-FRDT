@@ -25,8 +25,10 @@ This document lists every behavior exactly to prevent contradictions between doc
 ## 2. Formats and step counts
 
 ### Q: Which formats are supported?
-**A: 17, in the `-m all` chain order:**
-FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec32(BID) → DPD32 → FP64 → Dec64(BID) → DPD64 → x87 → FP128 → Dec128(BID) → DPD128.
+**A: 17 total. Default `-m all` includes 13:**
+FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec32(BID) → FP64 → Dec64(BID) → x87 → FP128.
+
+**Excluded by default (add with `--only`):** DPD32, DPD64, DPD128, Dec128(BID).
 
 ### Q: What are the reference step counts (from 1.0 times 1.02 to overflow)?
 **A: On i7-6700:**
@@ -38,8 +40,8 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 - Dec128: 714521 steps
 These are format fingerprints. Any correct implementation should match.
 
-### Q: Are DPD formats included in the default `-m all` chain?
-**A: No, by default.** The three DPD formats (dpd32/dpd64/dpd128) are excluded from the default chain because they are pure software decimal-array arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128`, or run them single-mode with `-m dpd64`.
+### Q: Are DPD and Dec128 included in the default `-m all` chain?
+**A: No, by default.** The three DPD formats (dpd32/dpd64/dpd128) and Dec128(BID) are excluded from the default chain because they are pure software decimal arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128,dec128`, or run them single-mode with `-m dpd64`.
 
 ### Q: What is the difference between BID and DPD?
 **A: BID stores the coefficient as a binary integer, using binary multiplication plus division by 10^n. DPD stores the coefficient as a decimal digit string, using per-digit decimal multiplication plus carry propagation. They encode differently and follow different arithmetic paths, but both follow IEEE 754-2008.**

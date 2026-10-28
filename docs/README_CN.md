@@ -1,6 +1,6 @@
 # ea-FRDT
 
-**ea-FRDT**（Floating-point Rigorous Devil Test，浮点严苛魔鬼测试）是一个用 C++23 写的命令行工具，它让一个浮点数一步步往上走（或往下走），直到溢出、下溢或者撞到安全上限。支持 17 种浮点格式，覆盖二进制和十进制，含自写位级仿真，以及多线程压测模式——每个 worker 绑核后独立跑完整套格式链。
+**ea-FRDT**（Floating-point Rigorous Devil Test，面向硅片魔鬼高压硬件测试）是一个用 C++23 写的命令行工具，它让一个浮点数一步步往上走（或往下走），直到溢出、下溢或者撞到安全上限。支持 17 种浮点格式，覆盖二进制和十进制，含自写位级仿真，以及多线程压测模式——每个 worker 绑核后独立跑格式链（默认 13 种，DPD 三格式和 Dec128 需 `--only` 手动添加）。
 
 这不是一个报 GFLOPS 的基准测试。它是一个行走工具：从一个值出发，按固定步长（乘系数、乘 `1+1 ULP`、或加 `1 ULP`）走，每步打印结果（静默模式下最后才打印），直到格式再也表示不了这个数。目的是看清：一个格式到底在第几步、以什么十六进制位型、经过多少次运算后崩掉。
 
@@ -50,7 +50,16 @@ g++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
     -Iinclude src/*.cpp -lwinmm -o float_inf_walk.exe
 ```
 
-Clang 一样用，把 `g++` 换成 `clang++`。
+推荐构建（clang64，最小体积）：
+
+```bash
+C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
+    -ffunction-sections -fdata-sections -Wl,--gc-sections \
+    -static \
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+```
+
+注意：clang64 用自带的 libc++/compiler-rt/lld，不要加 `-static-libgcc -static-libstdc++`（那是 GCC 的 flag，会引入 ucrt64 库）。ucrt64 的 Clang 只是兼容层，用 GNU ld，不支持 thin LTO，产物更大。
 
 ### CI 构建矩阵
 
@@ -87,7 +96,7 @@ GitHub Actions（`.github/workflows/ci.yml`）在 Ubuntu 上用 GCC 和 Clang �
 | 十进制 BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal；dec128 用自写 UInt256 大整数 |
 | 十进制 DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal；独立头文件，纯查表和十进制数组运算 |
 
-`-m all` 默认排除三个 DPD 格式，因为它们是纯软件十进制数组运算，无硬件加速。要用就显式 `--only dpd32,dpd64,dpd128`，或者单格式模式 `-m dpd64`。DPD 或 `dec128` 启动前会弹黄色警告，等 10 秒按 `y` 才继续；按其他键或超时就取消。DPD 不能用硬件浮点单元，低端 CPU 满载时间更长。`dec128` 每步走自写 UInt256 schoolbook 大整数乘法，走到溢出要花一阵。
+`-m all` 默认排除 DPD32/DPD64/DPD128 和 Dec128(BID)，因为它们是纯软件十进制运算，无硬件加速。要用就显式 `--only dpd32,dpd64,dpd128,dec128`，或者单格式模式 `-m dpd64`。DPD 或 `dec128` 启动前会弹黄色警告，等 10 秒按 `y` 才继续；按其他键或超时就取消。DPD 不能用硬件浮点单元，低端 CPU 满载时间更长。`dec128` 每步走自写 UInt256 schoolbook 大整数乘法，走到溢出要 12 秒。
 
 ## 命令行参数
 
@@ -208,7 +217,7 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
 === ALL modes: each worker runs the full format chain ===
 CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
 CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=10ms, workers=4, chain=17
+step=multiplied, x1.02, delay=10ms, workers=4, chain=13
 [w1] FP32:  2.30e+12   4143006 steps/s   1.241s   loop=1
 [w2] FP64:  5.10e+40   3891204 steps/s   1.241s   loop=1
 [w3] Dec64: 2.30e+363  1203300 steps/s   1.241s   loop=1
