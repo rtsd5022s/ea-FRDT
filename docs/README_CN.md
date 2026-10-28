@@ -153,6 +153,7 @@ GitHub Actions（`.github/workflows/ci.yml`）在 Ubuntu 上用 GCC 和 Clang �
 
 - `overflow->inf` — 下一步就 infinity。
 - `underflow->0` — 下一步就 0（subnormal 走到 0）。
+- `nan->nan` — 下一步变成 NaN（仅 native float/double 路径可能；自写整数格式不产生 NaN）。
 - `identity(stopped)` — 下一步等于当前值（无进展，比如 `1.0 * 1.0`）。
 - `safety-limit` — 撞到内建 2^120 步数计数器，防跑飞。
 - `timeout` — `-t` 超时到了。
