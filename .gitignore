@@ -10,6 +10,13 @@ v.txt
 e.txt
 out.txt
 *.tmp
+compile_err.txt
+err.txt
+err2.txt
+perr.txt
+smoke.txt
+gh.exe
+gh.zip
 
 # 备份目录
 backup/
