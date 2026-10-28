@@ -138,6 +138,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 **A: 以下之一：**
 - `overflow->inf`：下一步溢出到无穷
 - `underflow->0`：下一步下溢到零
+- `nan->nan`：下一步变成 NaN（仅 native float/double 路径可能；自写整数格式不产生 NaN）
 - `identity(stopped)`：无进展（如 1.0 × 1.0）
 - `safety-limit`：撞 2^120 步数上限
 - `timeout`：`-t` 超时

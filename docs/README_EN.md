@@ -1,8 +1,25 @@
 # ea-FRDT
 
+[![CI](https://github.com/rtsd5022s/ea-FRDT/actions/workflows/ci.yml/badge.svg)](https://github.com/rtsd5022s/ea-FRDT/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](CMakeLists.txt)
+
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 
 This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, or add `1 ULP`), and prints the result at every step (or only at the end in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
+
+## Documentation
+
+- **English**: this file (`README.md`), mirrored at [`docs/README_EN.md`](docs/README_EN.md)
+- **中文**: [`docs/README_CN.md`](docs/README_CN.md)
+- **Implementation (EN)**: [`docs/IMPLEMENTATION_EN.md`](docs/IMPLEMENTATION_EN.md) — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
+- **实现 (中文)**: [`docs/IMPLEMENTATION_CN.md`](docs/IMPLEMENTATION_CN.md)
+- **UInt256 internals (EN)**: [`docs/UINT256_EN.md`](docs/UINT256_EN.md) — hand-rolled big-integer design, schoolbook multiply, div10 short division
+- **UInt256 技术原理 (中文)**: [`docs/UINT256_CN.md`](docs/UINT256_CN.md)
+- **Working principles**: [`docs/WORKING_EN.md`](docs/WORKING_EN.md) / [`docs/WORKING_CN.md`](docs/WORKING_CN.md)
+- **Single-thread mode**: [`docs/MODE_SINGLE_EN.md`](docs/MODE_SINGLE_EN.md) / [`docs/MODE_SINGLE_CN.md`](docs/MODE_SINGLE_CN.md)
+- **Concurrent mode**: [`docs/MODE_ALL_EN.md`](docs/MODE_ALL_EN.md) / [`docs/MODE_ALL_CN.md`](docs/MODE_ALL_CN.md)
+- **Risks**: [`docs/RISKS_EN.md`](docs/RISKS_EN.md) / [`docs/RISKS_CN.md`](docs/RISKS_CN.md)
 
 ## Why this exists
 
@@ -153,6 +170,7 @@ At the end of a walk, the tool prints one of:
 
 - `overflow->inf` — the next step would be infinity.
 - `underflow->0` — the next step would be zero (subnormal walked to zero).
+- `nan->nan` — the next step would be not-a-number (only reachable on native float/double paths; hand-rolled integer formats never produce NaN).
 - `identity(stopped)` — the next step equals the current value (no progress, e.g. `1.0 * 1.0`).
 - `safety-limit` — hit the built-in 2^120 step counter, protects against runaway loops.
 - `timeout` — the `-t` timer fired.

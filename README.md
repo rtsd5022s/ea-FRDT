@@ -170,6 +170,7 @@ At the end of a walk, the tool prints one of:
 
 - `overflow->inf` — the next step would be infinity.
 - `underflow->0` — the next step would be zero (subnormal walked to zero).
+- `nan->nan` — the next step would be not-a-number (only reachable on native float/double paths; hand-rolled integer formats never produce NaN).
 - `identity(stopped)` — the next step equals the current value (no progress, e.g. `1.0 * 1.0`).
 - `safety-limit` — hit the built-in 2^120 step counter, protects against runaway loops.
 - `timeout` — the `-t` timer fired.

@@ -138,6 +138,7 @@ These are format fingerprints. Any correct implementation should match.
 **A: One of:**
 - `overflow->inf`: next step would be infinity
 - `underflow->0`: next step would be zero
+- `nan->nan`: next step would be not-a-number (only reachable on native float/double paths; hand-rolled integer formats never produce NaN)
 - `identity(stopped)`: no progress (e.g. 1.0 × 1.0)
 - `safety-limit`: hit the 2^120 step cap
 - `timeout`: `-t` timer fired
