@@ -182,12 +182,13 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     int n = (int)core_ids.size();
     if (n < 1) n = 1;
 
-    // Default full chain (excludes DPD32/64/128, require --only to add), or filtered by --only
+    // Default full chain (excludes DPD32/64/128 and Dec128, require --only to add)
     std::vector<FmtId> chain;
     if (only_csv.empty()) {
         for (int i = 0; i < (int)FmtId::COUNT; ++i) {
             FmtId id = (FmtId)i;
             if (id == FmtId::DPD32 || id == FmtId::DPD64 || id == FmtId::DPD128) continue;
+            if (id == FmtId::Dec128) continue;
             chain.push_back(id);
         }
     } else {
