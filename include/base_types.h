@@ -35,5 +35,8 @@ struct RunResult {
 };
 
 inline std::atomic<int> g_timeout_sec{0};
+inline bool g_json = false;
+inline RunResult g_result;
+inline std::string g_fmt_name;
 
 } // namespace fw
