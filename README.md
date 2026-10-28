@@ -86,7 +86,16 @@ g++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
     -Iinclude src/*.cpp -lwinmm -o float_inf_walk.exe
 ```
 
-Clang works the same way; replace `g++` with `clang++`.
+**Recommended build (Clang 17+, smallest binary):**
+
+```bash
+clang++ -std=c++23 -Oz -flto=thin \
+    -ffunction-sections -fdata-sections -Wl,--gc-sections \
+    -static -static-libgcc -static-libstdc++ \
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+```
+
+This produces a ~0.8 MB static binary. For microarchitecture-specific builds, add `-march=x86-64-v2` (2009 Nehalem+), `-march=x86-64-v3` (2013 Haswell+, enables BMI2), or `-march=native` (current CPU).
 
 ### Build matrix in CI
 
