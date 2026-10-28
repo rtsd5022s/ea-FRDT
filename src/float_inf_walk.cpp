@@ -308,7 +308,7 @@ int main(int argc, char** argv) {
         if (mode == "dec32" || mode == "decimal32") { run_dec(f32d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, nullptr, refresh_ms); return 0; }
         if (mode == "dec64" || mode == "decimal64") { run_dec(f64d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, nullptr, refresh_ms); return 0; }
         if (mode == "dec128" || mode == "decimal128") {
-            std::cerr << "\033[33m[!] dec128 走 714521 步（×1.02），每步 UInt256 schoolbook 大整数乘法，实测约 2.6 秒。无 -t 时会跑满全程。\033[0m\n" << std::flush;
+            std::cerr << "\033[33m[!] dec128 走 714521 步（×1.02），每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。\033[0m\n" << std::flush;
             run_dec128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, nullptr, refresh_ms); return 0;
         }
         if (mode == "dpd32" || mode == "dpd-dec32") { run_dpd(dpd_fmt32(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, nullptr, refresh_ms); return 0; }
