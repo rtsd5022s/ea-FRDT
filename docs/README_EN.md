@@ -270,7 +270,7 @@ Concurrent mode, live monitor (refreshed every 1 s):
 === ALL modes: each worker runs the full format chain ===
 CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
 CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=10ms, workers=4, chain=17
+step=multiplied, x1.02, delay=10ms, workers=4, chain=13
 [w1] FP32:  2.30e+12   4143006 steps/s   1.241s   loop=1
 [w2] FP64:  5.10e+40   3891204 steps/s   1.241s   loop=1
 [w3] Dec64: 2.30e+363  1203300 steps/s   1.241s   loop=1

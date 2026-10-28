@@ -122,7 +122,7 @@ Divide-by-10 is used for decimal digit counting: divide from the top down, the r
 
 ## 6. Multi-threaded Concurrent Mode
 
-Single mode exits after one format. `-m all` is a different beast: it spawns N worker threads, each of which independently runs the full 17-format chain.
+Single mode exits after one format. `-m all` is a different beast: it spawns N worker threads, each of which independently runs the default 13-format chain (DPD and Dec128 excluded, add with `--only`).
 
 ### 6.1 WorkerSlot
 

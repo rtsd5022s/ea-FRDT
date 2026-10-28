@@ -232,7 +232,7 @@ x87 和 FP128 是纯软件整数运算，比原生格式慢。DPD 有查表开�
 
 `--only` 参数指定格式子集，逗号分隔。比如 `--only fp32,fp64` 只跑 FP32 和 FP64。
 
-这在快速测试时有用：不想跑完整 17 格式链，只测几个格式。
+这在快速测试时有用：不想跑完整 13 格式链，只测几个格式。
 
 ## 性能扩展
 
@@ -253,7 +253,7 @@ x87 和 FP128 是纯软件整数运算，比原生格式慢。DPD 有查表开�
 === ALL modes: each worker runs the full format chain ===
 CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
 CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=0ms, workers=4, chain=17
+step=multiplied, x1.02, delay=0ms, workers=4, chain=13
 ```
 
 内容包括：CPU 型号、逻辑核心数、物理核心数、倍率、限速、worker 数、格式数。
@@ -307,7 +307,7 @@ float_inf_walk 0 -m all -q > summary.txt
 
 ## 注意事项
 
-1. `-m all` 每个 worker 都跑全套 17 格式，不是分配不同格式给不同 worker。
+1. `-m all` 每个 worker 都跑全套 13 格式，不是分配不同格式给不同 worker。
 2. `-j` 编号从 1 开始，硬上限是逻辑核心数。
 3. DPD 格式不在 `-m all` 默认链里，要手动加。
 4. `alignas(64)` 是为了消除伪共享，去掉会导致多核缓存乒乓变慢。

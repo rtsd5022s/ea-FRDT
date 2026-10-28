@@ -64,7 +64,7 @@ ea-FRDT's `-k 0.5` halves from max-finite, walking through the subnormal range t
 
 Most scoring software is single-threaded, or at most opens four threads to measure parallel efficiency. It does not show what happens when eight threads saturate eight cores at once: how the OS scheduler reacts, how cache contends, how memory bandwidth saturates.
 
-ea-FRDT's concurrent mode (`-m all`) pins each worker to a physical core, and each worker independently walks the full 17-format chain. `alignas(64)` pads the worker state to one cache line, eliminating false sharing. You can see that when eight workers run simultaneously, each worker reports the exact same step count (because arithmetic is deterministic), but steps per second drop due to cache contention. You can see that on Windows, `SetThreadAffinityMask` keeps workers from drifting across cores. You can see whether Ctrl+C is correctly captured under multi-threading.
+ea-FRDT's concurrent mode (`-m all`) pins each worker to a physical core, and each worker independently walks the default 13-format chain (DPD and Dec128 excluded, add with `--only`). `alignas(64)` pads the worker state to one cache line, eliminating false sharing. You can see that when eight workers run simultaneously, each worker reports the exact same step count (because arithmetic is deterministic), but steps per second drop due to cache contention. You can see that on Windows, `SetThreadAffinityMask` keeps workers from drifting across cores. You can see whether Ctrl+C is correctly captured under multi-threading.
 
 None of this appears in traditional scoring software.
 
