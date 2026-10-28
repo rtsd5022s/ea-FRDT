@@ -87,7 +87,7 @@ GitHub Actions（`.github/workflows/ci.yml`）在 Ubuntu 上用 GCC 和 Clang �
 | 十进制 BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal；dec128 用自写 UInt256 大整数 |
 | 十进制 DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal；独立头文件，纯查表和十进制数组运算 |
 
-`-m all` 默认排除三个 DPD 格式，因为它们是纯软件十进制数组运算，无硬件加速。要用就显式 `--only dpd32,dpd64,dpd128`，或者单格式模式 `-m dpd64`。DPD 启动前会弹黄色警告，等 10 秒按 `y` 才继续；按其他键或超时就取消。实测 DPD128 比 BID Dec128 快约 3 倍（BID 走 UInt256 schoolbook 大整数乘法），但 DPD 不能用硬件浮点单元，低端 CPU 满载时间更长。
+`-m all` 默认排除三个 DPD 格式，因为它们是纯软件十进制数组运算，无硬件加速。要用就显式 `--only dpd32,dpd64,dpd128`，或者单格式模式 `-m dpd64`。DPD 或 `dec128` 启动前会弹黄色警告，等 10 秒按 `y` 才继续；按其他键或超时就取消。DPD 不能用硬件浮点单元，低端 CPU 满载时间更长。`dec128` 每步走自写 UInt256 schoolbook 大整数乘法，走到溢出要花一阵。
 
 ## 命令行参数
 
@@ -205,14 +205,15 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
 === ALL modes: each worker runs the full format chain ===
 CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
 CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=0ms, workers=4, chain=17
-[w1] FP32:  2.30e+12   4143006 steps/s   1.2s / 1.2s   loop=1/4
-[w2] FP64:  5.10e+40   3891204 steps/s   1.2s / 1.2s   loop=1/4
-[w3] Dec64: 2.30e+363  1203300 steps/s   1.2s / 1.2s   loop=1/4
-[w4] x87:   1.10e+200  520300 steps/s    1.2s / 1.2s   loop=1/4
+step=multiplied, x1.02, delay=10ms, workers=4, chain=17
+[w1] FP32:  2.30e+12   4143006 steps/s   1.241s   loop=1
+[w2] FP64:  5.10e+40   3891204 steps/s   1.241s   loop=1
+[w3] Dec64: 2.30e+363  1203300 steps/s   1.241s   loop=1
+[w4] x87:   1.10e+200  520300 steps/s    1.241s   loop=1
+LIVE: 9.76M steps/s (current segment)
 ```
 
-每个 worker 一行：worker id、当前格式、当前值、步数/秒、已用/预期时长、循环计数。时间显示是逐层的（Y/M/D/H/M/S），时长涨上去自动加层。
+每个 worker 一行：worker id、当前格式、当前值、步数/秒、已用时长、循环计数（单遍时不显示 loop=）。时间显示是逐层的（Y/M/D/H/M/S/ms），时长涨上去所有层都显示，不是只显示最高两层。`LIVE` 行汇总所有 worker 当前段的总吞吐。
 
 所有 worker 走完（或超时）后，打汇总表：每 worker 每格式步数，以及全局总吞吐。
 
@@ -222,7 +223,7 @@ step=multiplied, x1.02, delay=0ms, workers=4, chain=17
 
 - **系统卡顿**。worker 绑核且提到实时优先级。8 核机器跑 8 个 worker，操作系统基本调度不动别的进程。想边用机器边跑，就少绑几个核（4 核 CPU 用 `-j 1-2`）。
 - **散热**。长时间 100% 负载会让笔记本和弱散热机箱降频。测出来的 steps/sec 会随温度掉。这是预期行为。
-- **DPD 满载时间更长**。DPD 是纯软件十进制数组运算，逐位乘法+查表，不能用硬件浮点单元。`-m all` 里带 DPD，那个 worker 满载时间更长，其他 worker 可能看到调度抖动。实测 DPD128 比 BID Dec128 快约 3 倍，但低端 CPU 上 DPD 仍然更费时间。
+- **DPD 满载时间更长**。DPD 是纯软件十进制数组运算，逐位乘法+查表，不能用硬件浮点单元。`-m all` 里带 DPD，那个 worker 满载时间更长，其他 worker 可能看到调度抖动。
 - **无限循环必须配超时**。`-l -1` 不配 `-t` 会永远跑。SSH 断了留个孤儿进程烧 CPU。永远一起配。
 - **别在生产跑**。这是测试机工具。生产服务器上跑会干扰业务。
 

@@ -180,7 +180,7 @@ Press y to continue, auto-cancels if no key within 10 seconds. Windows uses `_kb
 
 `-m all` doesn't include DPD formats by default; specify manually with `--only dpd32,dpd64`.
 
-Measured: DPD128 is about 3x faster than BID Dec128 (because BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
+DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
 ## Format chain order
 
@@ -230,7 +230,7 @@ Concurrent mode maxes out all cores. Long-running has several real risks to know
 
 **Power cost**. Sustained load draws way more power than idle: desktop 100W+, laptop also jumps to 65W+. Long runs show up on the electricity bill. Servers don't care, but laptops on battery will drain fast.
 
-**Extra risk with DPD**. DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup. Speed vs BID UInt256 varies (measured DPD128 is faster than BID Dec128), but DPD cannot use the hardware FPU. If DPD formats are added to concurrent mode, that worker stays loaded longer, and other workers may see scheduling jitter. The DPD warning isn't scaremongering; it really does keep the system laggier.
+**Extra risk with DPD**. DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup. Speed vs BID UInt256 varies, but DPD cannot use the hardware FPU. If DPD formats are added to concurrent mode, that worker stays loaded longer, and other workers may see scheduling jitter. The DPD warning isn't scaremongering; it really does keep the system laggier.
 
 **Infinite loop risk**. `-l -1` without `-t` runs forever. Ctrl+C works, but if running over SSH and the connection drops, the process may become an orphan and keep eating CPU. Always pair with a timeout.
 

@@ -98,7 +98,7 @@ The DPD codec functions live in `dpd.h`. Encoding: three BCD digits d2 d1 d0 (4 
 
 The `DpdNum` struct stores a decimal digit array (`std::vector<int>`), not a packed bit pattern. Multiplication works directly on the decimal array: multiply by a small integer (0-999), carry from low to high. Dividing by 10^k is right-shifting k digits; round-half-up looks at the most significant dropped digit.
 
-DPD bit layout packing and unpacking is done separately: at runtime arithmetic uses the decimal array, and only when printing hex/bin does it pack into 32/64/128 bits. This design makes arithmetic simple, but packing has overhead. Measured: DPD128 is about 3x faster than BID Dec128 (BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
+DPD bit layout packing and unpacking is done separately: at runtime arithmetic uses the decimal array, and only when printing hex/bin does it pack into 32/64/128 bits. This design makes arithmetic simple, but packing has overhead. DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
 ### 4.3 IEEE 754 boundary values
 

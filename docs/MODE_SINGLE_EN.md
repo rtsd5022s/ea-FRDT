@@ -175,7 +175,7 @@ Single-thread mode runs one format at a time. To see results for multiple format
 
 Single-thread mode has no thread overhead, no locks, no cache-line alignment. Pure computation. The bottleneck is the float arithmetic itself.
 
-x87 and FP128 are pure software integer math, slower than native FP64. DPD formats have lookup tables and declet processing, slower than BID.
+x87 and FP128 are pure software integer math, slower than native FP64. DPD formats use lookup tables and per-digit decimal arithmetic, with no hardware FPU acceleration.
 
 ## Exit reasons
 

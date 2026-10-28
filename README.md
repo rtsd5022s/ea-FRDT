@@ -87,7 +87,7 @@ Formats are walked in this order in `-m all`:
 | Decimal BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal; dec128 uses a hand-rolled UInt256 big integer |
 | Decimal DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal; independent header, pure lookup-table and digit-array arithmetic |
 
-`-m all` by default excludes the three DPD formats because they are pure software decimal-array arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128` or by passing `-m dpd64` in single mode. When DPD formats are about to run, the tool prints a yellow warning and waits 10 seconds for `y` to continue; any other key or timeout cancels. Measured: DPD128 is about 3x faster than BID Dec128 (BID uses UInt256 schoolbook big-integer multiply), but DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
+`-m all` by default excludes the three DPD formats because they are pure software decimal-array arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128` or by passing `-m dpd64` in single mode. When DPD formats or `dec128` are about to run, the tool prints a yellow warning and waits 10 seconds for `y` to continue; any other key or timeout cancels. DPD cannot use the hardware FPU, so weak CPUs stay loaded longer. `dec128` uses a hand-rolled UInt256 schoolbook big-integer multiply at every step and takes a while to reach overflow.
 
 ## Command-line reference
 
@@ -205,14 +205,15 @@ Concurrent mode, live monitor (refreshed every 1 s):
 === ALL modes: each worker runs the full format chain ===
 CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
 CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=0ms, workers=4, chain=17
-[w1] FP32:  2.30e+12   4143006 steps/s   1.2s / 1.2s   loop=1/4
-[w2] FP64:  5.10e+40   3891204 steps/s   1.2s / 1.2s   loop=1/4
-[w3] Dec64: 2.30e+363  1203300 steps/s   1.2s / 1.2s   loop=1/4
-[w4] x87:   1.10e+200  520300 steps/s    1.2s / 1.2s   loop=1/4
+step=multiplied, x1.02, delay=10ms, workers=4, chain=17
+[w1] FP32:  2.30e+12   4143006 steps/s   1.241s   loop=1
+[w2] FP64:  5.10e+40   3891204 steps/s   1.241s   loop=1
+[w3] Dec64: 2.30e+363  1203300 steps/s   1.241s   loop=1
+[w4] x87:   1.10e+200  520300 steps/s    1.241s   loop=1
+LIVE: 9.76M steps/s (current segment)
 ```
 
-The monitor line per worker shows: worker id, current format, current value, steps/sec, elapsed/total time, and loop counter. Time displays are layered (Y/M/D/H/M/S) as duration grows.
+The monitor line per worker shows: worker id, current format, current value, steps/sec, elapsed time, and loop counter (omitted when loop count is 1). Time displays are layered (Y/M/D/H/M/S/ms) as duration grows, all layers shown, not just the top one. `LIVE` reports aggregate throughput across workers for the current segment.
 
 After all workers finish (or timeout fires), a summary table prints per-worker, per-format step counts, and a global total throughput.
 
@@ -222,7 +223,7 @@ Concurrent mode is a stress test, not a gentle benchmark. Read this before runni
 
 - **System lag.** Workers are pinned and bumped to realtime priority. On an 8-core machine running 8 workers, the OS can barely schedule other processes. If you want to keep using the machine, pin fewer cores (`-j 1-2` on a 4-core CPU).
 - **Thermals.** Sustained 100% load triggers thermal throttling on laptops and weak coolers. The measured steps/sec will drop as temperature rises. This is expected.
-- **DPD stays loaded longer.** DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup, no hardware FPU. If you include DPD formats in `-m all`, that worker stays loaded longer and other workers may see scheduling jitter. Measured: DPD128 is about 3x faster than BID Dec128, but on weak CPUs DPD still takes longer wall-clock.
+- **DPD stays loaded longer.** DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup, no hardware FPU. If you include DPD formats in `-m all`, that worker stays loaded longer and other workers may see scheduling jitter.
 - **Infinite loop needs a timeout.** `-l -1` without `-t` will run forever. Over SSH, a dropped connection can leave an orphan process burning CPU. Always pair them.
 - **Don't run in production.** This tool is for test machines. On a production server it will interfere with real workloads.
 
