@@ -4,6 +4,19 @@
 
 This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, or add `1 ULP`), and prints the result at every step (or only at the end in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
 
+## Documentation
+
+- **English**: this file (`README.md`), mirrored at `docs/README_EN.md`
+- **中文**: `docs/README_CN.md`
+- **Implementation (EN)**: `docs/IMPLEMENTATION_EN.md` — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
+- **实现 (中文)**: `docs/IMPLEMENTATION_CN.md`
+- **UInt256 internals (EN)**: `docs/UINT256_EN.md` — hand-rolled big-integer design, schoolbook multiply, div10 short division
+- **UInt256 技术原理 (中文)**: `docs/UINT256_CN.md`
+- **Working principles**: `docs/WORKING_EN.md` / `docs/WORKING_CN.md`
+- **Single-thread mode**: `docs/MODE_SINGLE_EN.md` / `docs/MODE_SINGLE_CN.md`
+- **Concurrent mode**: `docs/MODE_ALL_EN.md` / `docs/MODE_ALL_CN.md`
+- **Risks**: `docs/RISKS_EN.md` / `docs/RISKS_CN.md`
+
 ## Why this exists
 
 Standard floating-point benchmarks (SPEC CPU, MLPerf, vendor math-library benchmarks) measure throughput on realistic workloads with well-behaved inputs. They do not answer the engineering questions that actually matter when you are verifying a compiler, debugging a microarchitecture, or auditing a decimal finance pipeline:
