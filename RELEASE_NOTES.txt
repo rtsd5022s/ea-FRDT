@@ -1,15 +1,17 @@
-ea-FRDT 1.0-deta3
+ea-FRDT v1.0
 
 English:
-- Rebuilt with clang64 (Clang 23, thin LTO): 0.81 MB static binary.
-- Help screen retitled: "Silicon-level Devil Hardware Stress Test".
-- README restructured: English/Chinese doc links separated, Limitations + Disclaimer added.
-- Issue/PR templates added for open-source readiness.
+- Initial stable release.
+- 17 floating-point formats: native (f16/f32/f64), hand-rolled bit-level (fp4/fp6/fp8-e4m3/fp8-e5m2/bf16/tf32), software (x87/80-bit, fp128), decimal (BID dec32/64/128, DPD dpd32/64/128).
+- Multi-threaded concurrent mode with core pinning, alignas(64) cache-line isolation.
+- Built with clang64 (Clang 23, thin LTO, gc-sections): 0.81 MB static Windows x86_64 binary.
+- Default -m all includes 13 formats; DPD and Dec128(BID) excluded by default, add with --only.
 
 中文：
-- 用 clang64（Clang 23, thin LTO）重新编译：0.81 MB 静态二进制。
-- 帮助界面改名："面向硅片魔鬼高压硬件测试"。
-- README 重构：中英文文档链接分组，加局限性和免责声明。
-- 添加 Issue/PR 模板，准备开源。
+- 首个稳定版。
+- 17 种浮点格式：原生（f16/f32/f64）、自写位级（fp4/fp6/fp8-e4m3/fp8-e5m2/bf16/tf32）、纯软件（x87/80位、fp128）、十进制（BID dec32/64/128、DPD dpd32/64/128）。
+- 多线程并发模式，绑核，alignas(64) 缓存行隔离。
+- clang64（Clang 23, thin LTO, gc-sections）编译：0.81 MB Windows x86_64 静态二进制。
+- 默认 -m all 包含 13 种格式；DPD 和 Dec128(BID) 默认排除，用 --only 添加。
 
-<sub><sub><sub><sub>Limitations: beta, may have undiscovered edge bugs. The algorithm may misbehave. This is an extreme stress tool; long full-load runs may cause thermal throttling, fan noise, or system instability. You run this at your own risk.</sub></sub></sub></sub>
+<sub><sub><sub><sub>Limitations: may have undiscovered edge bugs. The algorithm may misbehave. This is an extreme stress tool; long full-load runs may cause thermal throttling, fan noise, or system instability. You run this at your own risk.</sub></sub></sub></sub>
