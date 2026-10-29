@@ -61,7 +61,7 @@
 | `--quiet` | `-q` | 关 | 无值 | 静默模式：不打每步输出，最后只出汇总表。 |
 | `--json` | 无 | 关 | 无值 | 机器可读 JSON 输出。自动强制静默。每次运行输出一行 JSON（含 format/steps/elapsed_ms/steps_per_sec/reason/final_value/params/system/timestamp）。`-m all` 时输出 workers 数组。 |
 | `--dump <file>` | 无 | 关 | 文件路径 | 把每步的原始字节二进制序列化到指定文件。自动强制静默。 |
-| `--dump-align <n>` | 无 | `8` | `1` / `2` / `4` / `8` / `16` | `--dump` 记录对齐字节数。每步 sizeof(S) 字节后按 align 补零。 |
+| `--dump-packed` | 无 | 关 | 无值 | 紧凑记录宽度（tf32=3B 而非 4B）。 |
 | `--dump-endian <e>` | 无 | `little` | `little`（别名 `le`/`cpu`）/ `big`（别名 `be`） | `--dump` 字节序。默认跟随 x86 CPU 原生小端；`big` 写入前翻转字节序。 |
 | `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | 界面语言。错误消息、警告、汇总表都跟随。 |
 
@@ -108,7 +108,7 @@ ea-FRDT.exe 0 -m fp4 -g addulp               # 逐值枚举到 inf
 ea-FRDT.exe 0 -m all --only fp32,dec128 -j 1,3 -q
 ea-FRDT.exe 0 -m all -l 3 -t 10              # 循环 3 次，每次最多 10s
 ea-FRDT.exe 0 -m f32 --json                  # JSON 输出供脚本采集
-ea-FRDT.exe 0 -m f64 --dump walk.bin --dump-align 8
+ea-FRDT.exe 0 -m f64 --dump walk.bin
 ```
 
 ---

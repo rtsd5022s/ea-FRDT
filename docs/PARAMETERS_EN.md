@@ -108,7 +108,7 @@ ea-FRDT.exe 0 -m fp4 -g addulp               # enumerate to inf
 ea-FRDT.exe 0 -m all --only fp32,dec128 -j 1,3 -q
 ea-FRDT.exe 0 -m all -l 3 -t 10              # loop 3x, max 10s each
 ea-FRDT.exe 0 -m f32 --json                  # JSON for scripts
-ea-FRDT.exe 0 -m f64 --dump walk.bin --dump-align 8
+ea-FRDT.exe 0 -m f64 --dump walk.bin
 ```
 
 ---

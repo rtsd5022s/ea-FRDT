@@ -176,7 +176,7 @@ The first positional argument is the starting value as a string. Use `-a` for na
 | `-q` | Quiet mode: do not print per-step output; print only the final summary. |
 | `--json` | Machine-readable JSON output. No ANSI colors, no progress. One JSON object per run, suitable for benchmark scripts and data collection. |
 | `--dump <file>` | Binary-serialize every step's raw bytes to a file. Useful for offline analysis, bit-level replay, or diffing runs. |
-| `--dump-align <n>` | Record alignment for `--dump`: 1, 2, 4, 8, or 16 bytes. Default 8. |
+| `--dump-packed` | Compact record width (tf32=3B instead of 4B). |
 | `--dump-endian <e>` | Byte order for `--dump`: `little` (default, x86 native) or `big`. |
 | `--lang zh` | Chinese UI. `--lang en` for English (default). |
 

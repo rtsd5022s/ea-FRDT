@@ -134,7 +134,7 @@ GitHub Actions（`.github/workflows/ci.yml`）在 Ubuntu 上用 GCC 和 Clang �
 | `-q` | 静默：不打每步输出，最后只出汇总表。 |
 | `--json` | 机器可读 JSON 输出。无 ANSI 颜色、无进度刷新，每次运行输出一行 JSON，供评测脚本和数据采集使用。 |
 | `--dump <file>` | 把每步的原始字节二进制序列化到文件，供离线分析、位级回放或对比两次运行。 |
-| `--dump-align <n>` | `--dump` 记录对齐：1/2/4/8/16 字节。默认 8。 |
+| `--dump-packed` | 紧凑记录宽度（tf32=3B 而非 4B）。 |
 | `--dump-endian <e>` | `--dump` 字节序：`little`（默认，x86 原生）或 `big`。 |
 | `--lang zh` | 中文界面。`--lang en` 英文（默认）。 |
 
