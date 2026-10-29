@@ -435,9 +435,8 @@ int main(int argc, char** argv) {
         warns.push_back({2, tr("dec128 每步 UInt256 schoolbook 大整数乘法，性能比 DPD128 暴跌 2-3 倍以上。",
                                "dec128 each step uses UInt256 schoolbook big-integer multiply, performance drops 2-3x vs DPD128.")});
     }
-    if (!confirm_warnings(warns)) return 0;
-
     if (mode == "all") {
+        if (!confirm_warnings(warns)) return 0;
         if (!refresh_explicit) refresh_ms = 1000;
         int hw = (int)std::thread::hardware_concurrency();
         auto jobs_list = parse_jobs(jobs_spec, hw);
