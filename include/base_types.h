@@ -47,7 +47,6 @@ inline int g_json_loop = 1;
 inline int g_json_workers = 1;
 #include <cstdio>
 inline std::FILE* g_dump_file = nullptr;
-inline int g_dump_align = 8;  // 1/2/4/8/16 bytes per record
 inline int g_dump_endian = 0; // 0=little (native x86), 1=big
 inline long g_dump_bytes_written = 0;
 inline void (*g_dump_cb)(const void* data, std::size_t len) = nullptr;

@@ -121,6 +121,32 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
             return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, f.E, f.M);
         };
     }
+    // dump callback: write packed bit-pattern bytes (1/1/1/1/2/4 bytes)
+    int total_bits = 1 + f.E + f.M;
+    int rec_bytes = (total_bits + 7) / 8;
+    auto sim_dump = [&f, rec_bytes](const SVal& v) {
+        std::string b;
+        b += v.sign ? '1' : '0';
+        int eb = v.exp + f.bias;
+        for (int i = f.E - 1; i >= 0; --i) b += ((eb >> i) & 1) ? '1' : '0';
+        std::uint64_t m = v.man & ((1ULL << f.M) - 1);
+        for (int i = f.M - 1; i >= 0; --i) b += ((m >> i) & 1) ? '1' : '0';
+        char buf[4] = {0};
+        for (int i = 0; i < rec_bytes; ++i) {
+            int bits = 0;
+            for (int j = 0; j < 8; ++j) {
+                int idx = i*8 + j;
+                if (idx < (int)b.size()) bits = (bits << 1) | (b[idx] == '1' ? 1 : 0);
+                else bits <<= 1;
+            }
+            buf[i] = (char)bits;
+        }
+        if (g_dump_endian == 1) {
+            for (int i = 0; i < rec_bytes/2; ++i) std::swap(buf[i], buf[rec_bytes-1-i]);
+        }
+        std::fwrite(buf, 1, rec_bytes, g_dump_file);
+        g_dump_bytes_written += rec_bytes;
+    };
     drive(start,
           [&](SVal v) -> SVal {
               switch (sm) {
@@ -134,7 +160,8 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
           [](SVal v) { return !v.inf && v.man == 0 && v.exp == 0; },
           [](SVal v) { return false; },  // SVal never produces NaN (inf flag covers overflow)
           [&](SVal v) { return to_double(v, f); },
-          delay_ms, df, digits, sim_extra, quiet, refresh_ms);
+          delay_ms, df, digits, sim_extra, quiet, refresh_ms,
+          std::function<void(const SVal&)>(sim_dump));
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +335,24 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
             return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 64);
         };
     }
+    // dump callback: x87 80-bit = 10 bytes, padded to 16
+    auto x87_dump = [](const X87& v) {
+        std::string b = x87_bits(v);
+        char buf[16] = {0};
+        for (int i = 0; i < 10; ++i) {
+            int bits = 0;
+            for (int j = 0; j < 8; ++j) {
+                int idx = i*8 + j;
+                bits = (bits << 1) | (idx < (int)b.size() && b[idx] == '1' ? 1 : 0);
+            }
+            buf[i] = (char)bits;
+        }
+        if (g_dump_endian == 1) {
+            for (int i = 0; i < 5; ++i) std::swap(buf[i], buf[9-i]);
+        }
+        std::fwrite(buf, 1, 16, g_dump_file);
+        g_dump_bytes_written += 16;
+    };
     drive_core(start,
           [&](X87 v) -> X87 {
               switch (sm) {
@@ -321,7 +366,8 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
           [](X87 v) { return !v.inf && v.man == 0 && v.exp == 0; },
           [](X87 v) { return false; },  // X87 never produces NaN
           [&](const X87& v) { return x87_format(v, df, digits); },
-          delay_ms, x87_extra, quiet, refresh_ms);
+          delay_ms, x87_extra, quiet, refresh_ms,
+          std::function<void(const X87&)>(x87_dump));
 }
 
 // ---------------------------------------------------------------------------
@@ -466,6 +512,24 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
             return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 112);
         };
     }
+    // dump callback: fp128 128-bit = 16 bytes
+    auto q128_dump = [](const Q128& v) {
+        std::string b = q128_bits(v);
+        char buf[16] = {0};
+        for (int i = 0; i < 16; ++i) {
+            int bits = 0;
+            for (int j = 0; j < 8; ++j) {
+                int idx = i*8 + j;
+                bits = (bits << 1) | (idx < (int)b.size() && b[idx] == '1' ? 1 : 0);
+            }
+            buf[i] = (char)bits;
+        }
+        if (g_dump_endian == 1) {
+            for (int i = 0; i < 8; ++i) std::swap(buf[i], buf[15-i]);
+        }
+        std::fwrite(buf, 1, 16, g_dump_file);
+        g_dump_bytes_written += 16;
+    };
     drive_core(start,
           [&](Q128 v) -> Q128 {
               switch (sm) {
@@ -479,7 +543,8 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
           [](Q128 v) { return !v.inf && v.hi == 0 && v.lo == 0 && v.exp == 0; },
           [](Q128 v) { return false; },  // Q128 never produces NaN
           [&](const Q128& v) { return q128_format(v, df, digits); },
-          delay_ms, q_extra, quiet, refresh_ms);
+          delay_ms, q_extra, quiet, refresh_ms,
+          std::function<void(const Q128&)>(q128_dump));
 }
 
 } // namespace fw

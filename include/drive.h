@@ -87,11 +87,6 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
                     std::fwrite(&s, 1, sz, g_dump_file);
                 }
                 g_dump_bytes_written += sz;
-                if ((int)sz < g_dump_align) {
-                    char pad[16] = {0};
-                    std::fwrite(pad, 1, g_dump_align - sz, g_dump_file);
-                    g_dump_bytes_written += (g_dump_align - sz);
-                }
             }
         }
         if (quiet) {
@@ -149,10 +144,11 @@ template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Dis
 void drive(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Disp disp,
            double delay_ms, DispFmt df, int digits,
            std::function<std::string(const S&)> extra = {}, RunResult* quiet = nullptr,
-           std::int64_t refresh_ms = 0) {
+           std::int64_t refresh_ms = 0,
+           std::function<void(const S&)> dump_cb = nullptr) {
     drive_core(s, next, isInf, isZero, isNaN,
                [&](const S& v) { return format_value(disp(v), df, digits); },
-               delay_ms, extra, quiet, refresh_ms);
+               delay_ms, extra, quiet, refresh_ms, dump_cb);
 }
 
 } // namespace fw

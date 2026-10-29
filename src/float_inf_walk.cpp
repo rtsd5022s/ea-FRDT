@@ -82,7 +82,6 @@ static void print_help() {
 "  -q, --quiet        quiet: skip live monitor, print summary directly\n"
 "  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
 "  --dump <file>      binary serialize every step raw bytes to file\n"
-"  --dump-align <n>   record alignment: 1/2/4/8/16 (default 8)\n"
 "  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
 "  -lang <zh|en>      UI language (default zh)\n"
 "\n"
@@ -105,7 +104,7 @@ static void print_help() {
 "  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
 "  float_inf_walk.exe 0 -m all -l 3 -t 10        # loop 3x, max 10s each\n"
 "  float_inf_walk.exe 0 -m f32 --json            # JSON output for scripts\n"
-"  float_inf_walk.exe 0 -m f64 --dump walk.bin --dump-align 8\n";
+"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n";
     } else {
     std::cout <<
 "\033[36m╔══════════════════════════════════════════════════════════════╗\n"
@@ -140,7 +139,6 @@ static void print_help() {
 "  -q, --quiet        静默模式：不显示实时监视器，直接出汇总表\n"
 "  --json             机器可读 JSON 输出（无 ANSI，供评测脚本采集）\n"
 "  --dump <file>      二进制序列化每步原始字节到文件\n"
-"  --dump-align <n>   记录对齐：1/2/4/8/16（默认8）\n"
 "  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
 "  -lang <zh|en>      界面语言（默认 zh）\n"
 "\n"
@@ -163,7 +161,7 @@ static void print_help() {
 "  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
 "  float_inf_walk.exe 0 -m all -l 3 -t 10        # 循环3次，每次最多10s\n"
 "  float_inf_walk.exe 0 -m f32 --json            # JSON 输出供脚本采集\n"
-"  float_inf_walk.exe 0 -m f64 --dump walk.bin --dump-align 8\n";
+"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n";
     }
 }
 
@@ -366,14 +364,6 @@ int main(int argc, char** argv) {
             g_dump_file = std::fopen(argv[++i], "wb");
             if (!g_dump_file) { std::cerr << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
             quiet = true;
-            continue;
-        }
-        if (a == "--dump-align") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--dump-align 需要 1/2/4/8/16\n", "error: --dump-align requires 1/2/4/8/16\n"); return 2; }
-            g_dump_align = std::stoi(argv[++i]);
-            if (g_dump_align != 1 && g_dump_align != 2 && g_dump_align != 4 && g_dump_align != 8 && g_dump_align != 16) {
-                std::cerr << tr("错误：--dump-align 仅支持 1/2/4/8/16\n", "error: --dump-align only supports 1/2/4/8/16\n"); return 2;
-            }
             continue;
         }
         if (a == "--dump-endian") {
