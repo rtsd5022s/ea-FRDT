@@ -19,6 +19,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 ### English
 
 - [README](docs/README_EN.md) — project overview, command-line flags, exit reasons
+- [Parameter reference](docs/PARAMETERS_EN.md) — every CLI flag, default, valid range, verbatim from source
 - [Implementation](docs/IMPLEMENTATION_EN.md) — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
 - [UInt256 internals](docs/UINT256_EN.md) — hand-rolled big-integer design, schoolbook multiply, div10 short division
 - [Working principles](docs/WORKING_EN.md) — how the runner and state machine work
@@ -33,6 +34,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 ### 中文
 
 - [README](docs/README_CN.md) — 项目概述、命令行参数、退出原因
+- [参数完整参考](docs/PARAMETERS_CN.md) — 每个命令行参数、默认值、取值范围，一滴不差对照源码
 - [技术实现](docs/IMPLEMENTATION_CN.md) — 17 种格式、模块、并发模型、BID/DPD 路径完整技术概览
 - [UInt256 技术原理](docs/UINT256_CN.md) — 自研大整数设计、schoolbook 乘法、div10 短除法
 - [工作原理](docs/WORKING_CN.md) — runner 和状态机如何工作
