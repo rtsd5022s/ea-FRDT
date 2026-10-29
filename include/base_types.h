@@ -48,6 +48,7 @@ inline int g_json_workers = 1;
 #include <cstdio>
 inline std::FILE* g_dump_file = nullptr;
 inline int g_dump_endian = 0; // 0=little (native x86), 1=big
+inline int g_dump_pad = 0;    // 0=packed tight, 1=pad to natural width (e.g. tf32 4 bytes)
 inline long g_dump_bytes_written = 0;
 inline void (*g_dump_cb)(const void* data, std::size_t len) = nullptr;
 

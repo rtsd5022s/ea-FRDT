@@ -121,9 +121,17 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
             return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, f.E, f.M);
         };
     }
-    // dump callback: write packed bit-pattern bytes (1/1/1/1/2/4 bytes)
+    // dump callback: write packed bit-pattern bytes
     int total_bits = 1 + f.E + f.M;
     int rec_bytes = (total_bits + 7) / 8;
+    if (g_dump_pad) {
+        // round up to natural width: 1/2/4/8/16
+        if (rec_bytes <= 1) rec_bytes = 1;
+        else if (rec_bytes <= 2) rec_bytes = 2;
+        else if (rec_bytes <= 4) rec_bytes = 4;
+        else if (rec_bytes <= 8) rec_bytes = 8;
+        else rec_bytes = 16;
+    }
     auto sim_dump = [&f, rec_bytes](const SVal& v) {
         std::string b;
         b += v.sign ? '1' : '0';

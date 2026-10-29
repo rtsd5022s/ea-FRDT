@@ -83,6 +83,7 @@ static void print_help() {
 "  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
 "  --dump <file>      binary serialize every step raw bytes to file\n"
 "  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
+"  --dump-pad         disable packed: pad records to natural width (tf32=4B not 3B)\n"
 "  -lang <zh|en>      UI language (default zh)\n"
 "\n"
 "\033[33mConcurrency (-m all):\033[0m\n"
@@ -140,6 +141,7 @@ static void print_help() {
 "  --json             机器可读 JSON 输出（无 ANSI，供评测脚本采集）\n"
 "  --dump <file>      二进制序列化每步原始字节到文件\n"
 "  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
+"  --dump-pad         禁用紧凑：记录按自然宽度对齐（tf32写4字节而非3字节）\n"
 "  -lang <zh|en>      界面语言（默认 zh）\n"
 "\n"
 "\033[33m并发选项（-m all）:\033[0m\n"
@@ -374,6 +376,7 @@ int main(int argc, char** argv) {
             else { std::cerr << tr("错误：--dump-endian 仅支持 little/big\n", "error: --dump-endian only supports little/big\n"); return 2; }
             continue;
         }
+        if (a == "--dump-pad") { g_dump_pad = 1; continue; }
         if (a == "-lang" || a == "--lang" || a == "--language") {
             if (i + 1 >= argc) { std::cerr << "usage: -lang zh|en\n"; return 2; }
             std::string l = argv[++i];
