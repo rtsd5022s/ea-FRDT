@@ -388,9 +388,13 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
             int bw = (int)hex.size() / 2;
             char buf[16] = {0};
             for (int i = 0; i < bw; ++i) {
-                unsigned int byte;
-                std::sscanf(hex.c_str() + 2*i, "%2x", &byte);
-                buf[i] = (char)byte;
+                auto hexval = [](char c) -> int {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return 0;
+                };
+                buf[i] = (char)((hexval(hex[2*i]) << 4) | hexval(hex[2*i+1]));
             }
             if (g_dump_endian == 1) {
                 for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
