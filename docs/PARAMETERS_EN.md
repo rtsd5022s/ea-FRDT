@@ -68,7 +68,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 
 | Flag | Short | Default | Description |
 |---|---|---|---|
-| `--jobs <spec>` | `-j` | single worker (logical cores minus 1) | Worker/core spec. Single (`-j 4`), comma list (`-j 1,3,5`), range (`-j 1-4`), mixed (`-j 1,3-5`). Hard cap = `std::thread::hardware_concurrency()`. |
+| `--jobs <spec>` | `-j` | `all` (all logical cores) | Worker/core spec. Single (`-j 4`), comma list (`-j 1,3,5`), range (`-j 1-4`), mixed (`-j 1,3-5`). Hard cap = `std::thread::hardware_concurrency()`. |
 | `--only <list>` | `--modes` | all 17 (DPD/Dec128 excluded by default) | Comma-separated format subset, e.g. `--only fp32,fp64,dec64`. |
 | `--refresh <ms>` | `-r` | single mode `0` (every step); `-m all` defaults `1000` | Monitor refresh interval in ms. `0` = refresh every step. Negative clamped to `0`. |
 
