@@ -81,7 +81,7 @@ src/
 |---|---|---|
 | default | `-a default` | Start at 1.0 (or -1.0 if positional arg is negative) |
 | zero | `-a zero` | Start at 0 |
-| min-normal | `-a min-normal` | Start at smallest normal positive for the format |
+| min | `-a min` | Start at smallest subnormal positive for the format |
 | max-finite | `-a max-finite` | Start at largest finite positive for the format |
 | positional arg | number/sci-notation/`0x` bit pattern | Any start; negative walks toward -inf |
 

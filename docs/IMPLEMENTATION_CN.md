@@ -81,7 +81,7 @@ src/
 |---|---|---|
 | default | `-a default` | 从 1.0 起（位置参数为负时从 -1.0 起） |
 | zero | `-a zero` | 从 0 起 |
-| min-normal | `-a min-normal` | 从该格式最小正规格化正数起 |
+| min | `-a min` | 从该格式最小非规格化正数起 |
 | max-finite | `-a max-finite` | 从该格式最大有限正数起 |
 | 位置参数 | 数字/科学计数法/`0x` 位型 | 任意起点，负值走向 -inf |
 

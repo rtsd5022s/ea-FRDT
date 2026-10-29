@@ -12,7 +12,7 @@
 
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 
-This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, or add `1 ULP`), and prints the result at every step (or only at the end in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
+This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, add `1 ULP`, subtract `1 ULP`, or multiply by `1 - 1 ULP`), and prints the result at every step (or only at the end in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
 
 ## Documentation
 
@@ -153,6 +153,8 @@ The first positional argument is the starting value as a string. Use `-a` for na
 | `-k <factor>` | Multiply by `factor` each step. Default `1.02`. Factor `<1` walks downward (underflow). Factor `0` is rejected. |
 | `-g mululp` | Multiply by `1 + 1 ULP` each step (relative ULP step). |
 | `-g addulp` | Add `1 ULP` to the mantissa each step (absolute ULP step). |
+| `-g subulp` | Subtract `1 ULP` from the mantissa each step (descending). |
+| `-g mululp-down` | Multiply by `1 - 1 ULP` each step (descending relative). |
 
 ### Start value
 
@@ -160,7 +162,7 @@ The first positional argument is the starting value as a string. Use `-a` for na
 |---|---|
 | `-a default` | Start at `1.0` (or `-1.0` if the first argument is negative). |
 | `-a zero` | Start at `0`. |
-| `-a min-normal` | Start at the smallest normal positive number for the format. |
+| `-a min` | Start at the smallest subnormal positive number for the format. |
 | `-a max-finite` | Start at the largest finite positive number for the format. |
 | First argument | A number, scientific notation, or `0x` raw bit pattern. Negative values walk toward `-inf`. |
 

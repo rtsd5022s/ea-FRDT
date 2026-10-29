@@ -158,7 +158,7 @@ The first positional argument is the starting value as a string. Use `-a` for na
 |---|---|
 | `-a default` | Start at `1.0` (or `-1.0` if the first argument is negative). |
 | `-a zero` | Start at `0`. |
-| `-a min-normal` | Start at the smallest normal positive number for the format. |
+| `-a min` | Start at the smallest subnormal positive number for the format. |
 | `-a max-finite` | Start at the largest finite positive number for the format. |
 | First argument | A number, scientific notation, or `0x` raw bit pattern. Negative values walk toward `-inf`. |
 

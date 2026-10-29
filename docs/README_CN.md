@@ -116,7 +116,7 @@ GitHub Actions（`.github/workflows/ci.yml`）在 Ubuntu 上用 GCC 和 Clang �
 |---|---|
 | `-a default` | 从 `1.0` 起（第一个参数为负时从 `-1.0` 起）。 |
 | `-a zero` | 从 `0` 起。 |
-| `-a min-normal` | 从该格式最小正规格化正数起。 |
+| `-a min` | 从该格式最小非规格化正数起。 |
 | `-a max-finite` | 从该格式最大有限正数起。 |
 | 第一个参数 | 数字、科学计数法、或 `0x` 原始位型。负值走向 `-inf`。 |
 
