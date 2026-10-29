@@ -218,64 +218,7 @@ inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFm
     }
     if (chain.empty()) { std::cerr << tr("错误：--only 未选中格式\n", "error: --only empty\n"); std::exit(2); }
 
-    // Performance/long-run warning confirmation (DPD and/or dec128)
-    bool has_dpd = false;
-    bool has_dec128 = false;
-    for (auto id : chain) {
-        if (id == FmtId::DPD32 || id == FmtId::DPD64 || id == FmtId::DPD128) has_dpd = true;
-        if (id == FmtId::Dec128) has_dec128 = true;
-    }
-    if (has_dpd || has_dec128) {
-        if (has_dpd) {
-            std::cout << clr::YEL << tr(
-                "[!] DPD 警告\n"
-                "    DPD 是纯软件十进制数组运算：系数存为十进制数字 vector，逐位乘法+进位+舍入，\n"
-                "    三元组编解码走查表。无硬件十进制浮点单元（x86 无 BCD 指令，ARM 无 FDECVAL）。\n"
-                "    DPD 不能用硬件 FPU，低端 CPU 满载时间更长，风扇更吵，温度更高。\n"
-                "    包含格式：DPD32/DPD64/DPD128。\n"
-            ,
-                "[!] DPD warning\n"
-                "    DPD is pure software decimal-array arithmetic: coefficient stored as a decimal digit vector,\n"
-                "    per-digit multiply + carry + round, triplet codec via lookup table. No hardware decimal FPU\n"
-                "    (x86 has no BCD insns, ARM has no FDECVAL). DPD cannot use the hardware FPU,\n"
-                "    so weak CPUs stay loaded longer: louder fan, hotter chip.\n"
-                "    Includes: DPD32/DPD64/DPD128.\n"
-            );
-        }
-        if (has_dec128) {
-            std::cout << clr::YEL << tr(
-                "[!] dec128 每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。\n"
-            ,
-                "[!] dec128 each step uses UInt256 schoolbook big-integer multiply, takes a while. Without -t it runs to completion.\n"
-            );
-        }
-        std::cout << clr::YEL << tr(
-            "    按 y 继续，10 秒内未操作自动取消... "
-        ,
-            "    Press y to continue, auto-cancel in 10s... "
-        ) << clr::RST << std::flush;
-        bool confirmed = false;
-#ifdef _WIN32
-        auto t0 = std::chrono::steady_clock::now();
-        while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count() < 10) {
-            if (_kbhit()) {
-                int c = _getch();
-                if (c == 'y' || c == 'Y') confirmed = true;
-                break;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        }
-#else
-        char c = 0;
-        std::cin.read(&c, 1);
-        if (c == 'y' || c == 'Y') confirmed = true;
-#endif
-        if (!confirmed) {
-            std::cout << "\n" << tr("已取消。\n", "Cancelled.\n");
-            std::exit(0);
-        }
-        std::cout << "\n";
-    }
+    // Warnings are confirmed in main() before dispatch (unified confirm_warnings)
 
     RunParams params{delay_ms, kind, sm, df, start_val, factor, digits};
 

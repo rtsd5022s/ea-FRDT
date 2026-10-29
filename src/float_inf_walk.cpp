@@ -13,6 +13,36 @@
 
 using namespace fw;
 
+// Unified warning confirmation: collect all warnings, show once, press y to continue
+static bool confirm_warnings(std::vector<std::string>& warns) {
+    if (warns.empty()) return true;
+    std::cout << clr::YEL;
+    for (auto& w : warns) std::cout << "[!] " << w << "\n";
+    std::cout << tr("    按 y 继续，10 秒内未操作自动取消... ", "    Press y to continue, auto-cancel in 10s... ") << clr::RST << std::flush;
+    bool confirmed = false;
+#ifdef _WIN32
+    auto t0 = std::chrono::steady_clock::now();
+    while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count() < 10) {
+        if (_kbhit()) {
+            int c = _getch();
+            if (c == 'y' || c == 'Y') confirmed = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    }
+#else
+    char c = 0;
+    std::cin.read(&c, 1);
+    if (c == 'y' || c == 'Y') confirmed = true;
+#endif
+    if (!confirmed) {
+        std::cout << "\n" << tr("已取消。\n", "Cancelled.\n");
+        return false;
+    }
+    std::cout << "\n";
+    return true;
+}
+
 static void print_help() {
     if (g_lang == Lang::EN) {
     std::cout <<
@@ -371,16 +401,40 @@ int main(int argc, char** argv) {
     g_json_delay_ms = delay_ms;
     g_json_loop = loop_count;
 
-    // DoS guard: infinite loop without timeout warning
+    // Collect all warnings for unified confirmation
+    std::vector<std::string> warns;
     if (loop_count == -1 && g_timeout_sec.load() == 0) {
-        std::cerr << clr::YEL << tr("警告：无限循环（-l -1）且无超时（-t 0），可能导致 CPU 占用 100%\n",
-                                    "warn: infinite loop (-l -1) with no timeout (-t 0), may cause 100% CPU\n") << clr::RST;
+        warns.push_back(tr("警告：无限循环（-l -1）且无超时（-t 0），可能导致 CPU 占用 100%",
+                           "warn: infinite loop (-l -1) with no timeout (-t 0), may cause 100% CPU"));
     }
-    // DoS guard: extreme small multiplier causing step explosion
     if (factor > 0.0 && factor < 1e-10) {
-        std::cerr << clr::YEL << tr("警告：倍率极小（", "warn: factor very small (") << factor
-                  << tr("），步数可能爆炸，请确认\n", "), steps may explode, please confirm\n") << clr::RST;
+        char buf[128];
+        std::snprintf(buf, sizeof(buf), "%g", factor);
+        warns.push_back(tr("警告：倍率极小（factor=%s），步数可能爆炸", "warn: factor very small (factor=%g), steps may explode"));
+        // fallback: just put the number in the message
+        warns.back() = tr("警告：倍率极小（", "warn: factor very small (") + buf + tr("），步数可能爆炸", "), steps may explode");
     }
+    // DPD / dec128 warnings: check single mode or all+--only
+    bool is_dpd = (mode == "dpd32" || mode == "dpd64" || mode == "dpd128" ||
+                   mode == "dpd-dec32" || mode == "dpd-dec64" || mode == "dpd-dec128");
+    bool is_dec128 = (mode == "dec128" || mode == "decimal128");
+    if (mode == "all" && !only_csv.empty()) {
+        std::string s = only_csv;
+        for (auto& c : s) c = (char)tolower(c);
+        if (s.find("dpd") != std::string::npos) is_dpd = true;
+        if (s.find("dec128") != std::string::npos) is_dec128 = true;
+    } else if (mode == "all") {
+        // default all excludes DPD/dec128, so no warning needed
+    }
+    if (is_dpd) {
+        warns.push_back(tr("DPD 是纯软件十进制数组运算：逐位乘法+进位+舍入，无硬件十进制浮点单元，性能可能降低 20-30 倍，低端 CPU 满载时间更长。包含格式：DPD32/DPD64/DPD128。",
+                           "DPD is pure software decimal-array arithmetic: per-digit multiply+carry+round, no hardware decimal FPU, performance may drop 20-30x, weak CPUs stay loaded longer. Includes DPD32/DPD64/DPD128."));
+    }
+    if (is_dec128) {
+        warns.push_back(tr("dec128 每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。",
+                           "dec128 each step uses UInt256 schoolbook big-integer multiply, takes a while. Without -t it runs to completion."));
+    }
+    if (!confirm_warnings(warns)) return 0;
 
     if (mode == "all") {
         if (!refresh_explicit) refresh_ms = 1000;
