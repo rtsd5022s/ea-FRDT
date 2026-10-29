@@ -114,7 +114,9 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
         sim_extra = [&](const SVal& v) -> std::string {
             std::string b;
             b += v.sign ? '1' : '0';
-            int eb = v.exp + f.bias;
+            int eb;
+            if (v.man < (1ULL << f.M)) eb = 0;
+            else eb = v.exp + f.bias;
             for (int i = f.E - 1; i >= 0; --i) b += ((eb >> i) & 1) ? '1' : '0';
             std::uint64_t m = v.man & ((1ULL << f.M) - 1);
             for (int i = f.M - 1; i >= 0; --i) b += ((m >> i) & 1) ? '1' : '0';
@@ -138,7 +140,9 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
     auto sim_dump = [&f, rec_bytes](const SVal& v) {
         std::string b;
         b += v.sign ? '1' : '0';
-        int eb = v.exp + f.bias;
+        int eb;
+        if (v.man < (1ULL << f.M)) eb = 0;  // subnormal: biased exp = 0
+        else eb = v.exp + f.bias;
         for (int i = f.E - 1; i >= 0; --i) b += ((eb >> i) & 1) ? '1' : '0';
         std::uint64_t m = v.man & ((1ULL << f.M) - 1);
         for (int i = f.M - 1; i >= 0; --i) b += ((m >> i) & 1) ? '1' : '0';
