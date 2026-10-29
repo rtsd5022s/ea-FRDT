@@ -396,9 +396,11 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
                 for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
             }
             std::fwrite(buf, 1, bw, g_dump_file);
+            g_dump_bytes_written += bw;
             if (bw < g_dump_align) {
                 char pad[16] = {0};
                 std::fwrite(pad, 1, g_dump_align - bw, g_dump_file);
+                g_dump_bytes_written += (g_dump_align - bw);
             }
         }
 

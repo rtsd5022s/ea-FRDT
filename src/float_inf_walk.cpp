@@ -175,7 +175,11 @@ int main(int argc, char** argv) {
     struct PeriodGuard { ~PeriodGuard(){ fw::plat::reset_high_res_timer(); } } _pg;
 #endif
     std::signal(SIGINT, on_sigint);
-    std::atexit([](){ if (g_dump_file) { std::fclose(g_dump_file); g_dump_file = nullptr; } });
+    std::atexit([](){ if (g_dump_file) { std::fflush(g_dump_file);
+#ifdef _WIN32
+        _chsize(_fileno(g_dump_file), g_dump_bytes_written);
+#endif
+        std::fclose(g_dump_file); g_dump_file = nullptr; } });
     std::atexit([](){
         if (!g_json) return;
         if (g_fmt_name == "all") return;  // run_all emits its own JSON summary
