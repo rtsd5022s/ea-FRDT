@@ -269,10 +269,10 @@ int main(int argc, char** argv) {
         if (a == "--start" || a == "-a") {
             if (i + 1 >= argc) { std::cerr << tr("错误：--start 需要一个值\n", "error: --start requires a value\n"); return 2; }
             std::string sv = argv[++i];
-            if (sv == "min-normal" || sv == "minnormal" || sv == "normmin") {
+            if (sv == "min-normal" || sv == "minnormal" || sv == "normmin" || sv == "min") {
                 if (start_kind != StartKind::Default) { std::cerr << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
                 start_kind = StartKind::MinNormal;
-            } else if (sv == "max-finite" || sv == "maxfinite" || sv == "infmax") {
+            } else if (sv == "max-finite" || sv == "maxfinite" || sv == "infmax" || sv == "max") {
                 if (start_kind != StartKind::Default) { std::cerr << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
                 start_kind = StartKind::MaxFinite;
             } else {
