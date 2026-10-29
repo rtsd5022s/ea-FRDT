@@ -205,7 +205,12 @@ void run_native(const char* tag, double delay_ms, StartKind kind, StepMode sm, D
     T one;
     const char* start_tag;
     if (kind == StartKind::Subnormal) { one = std::numeric_limits<T>::denorm_min(); start_tag = "min-subnormal"; }
-    else if (kind == StartKind::MinNormal) { one = std::numeric_limits<T>::min(); start_tag = "min-normalized"; }
+    else if (kind == StartKind::MinNormal) {
+        if constexpr (sizeof(T) == 2) one = (T)5.9604644775390625e-8;       // _Float16 denorm_min = 2^-24
+        else if constexpr (sizeof(T) == 4) one = (T)1.401298464324817e-45;  // float denorm_min = 2^-149
+        else one = std::numeric_limits<T>::denorm_min();
+        start_tag = "min";
+    }
     else if (kind == StartKind::MaxFinite) { one = std::numeric_limits<T>::max(); start_tag = "max-finite"; }
     else if (!std::isnan(start_val)) { one = (T)start_val; start_tag = "custom"; }
     else { one = T(1); start_tag = "1.0"; }
