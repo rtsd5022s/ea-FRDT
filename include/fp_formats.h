@@ -510,7 +510,7 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
         start = Q128{false, Q128_EMIN, 1ULL << 63, 0, false};
         tag = (kind == StartKind::Subnormal) ? tr("min-subnormal(无denormal,取min-normal)", "min-subnormal(no denormal, use min-normal)") : "min-normalized";
     } else if (kind == StartKind::MaxFinite) {
-        start = Q128{false, Q128_EMAX, ~0ULL, 0, false}; tag = "max-finite";
+        start = Q128{false, Q128_EMAX, ~0ULL, ~0ULL, false}; tag = "max-finite";
     } else if (!std::isnan(start_val)) { start = q128_encode(start_val); tag = "custom"; }
     else { start = q128_encode(1.0); tag = "1.0"; }
     Q128 fac = q128_encode(factor);
