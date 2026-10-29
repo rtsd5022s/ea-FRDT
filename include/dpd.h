@@ -382,6 +382,26 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
         if (nxt.digits.size()==1 && nxt.digits[0]==0) { reason = RunResult::UNDERFLOW; if (out) out->reason = reason; done = true; break; }
         cur = nxt;
 
+        // binary dump: write packed DPD bit pattern as bytes
+        if (g_dump_file) {
+            std::string hex = dpd_pack_bits(cur, fmt);
+            int bw = (int)hex.size() / 2;
+            char buf[16] = {0};
+            for (int i = 0; i < bw; ++i) {
+                unsigned int byte;
+                std::sscanf(hex.c_str() + 2*i, "%2x", &byte);
+                buf[i] = (char)byte;
+            }
+            if (g_dump_endian == 1) {
+                for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
+            }
+            std::fwrite(buf, 1, bw, g_dump_file);
+            if (bw < g_dump_align) {
+                char pad[16] = {0};
+                std::fwrite(pad, 1, g_dump_align - bw, g_dump_file);
+            }
+        }
+
         // timeout
         if (g_timeout_sec.load() > 0) {
             double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
