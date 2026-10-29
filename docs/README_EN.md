@@ -174,6 +174,9 @@ The first positional argument is the starting value as a string. Use `-a` for na
 | `-x hex` | Explicit hex. |
 | `-x bin` | Explicit binary, with sign/exponent/mantissa grouped by spaces. |
 | `-q` | Quiet mode: do not print per-step output; print only the final summary. |
+| `--json` | Machine-readable JSON output. No ANSI colors, no progress. One JSON object per run, suitable for benchmark scripts and data collection. |
+| `--dump <file>` | Binary-serialize every step's raw bytes to a file. Useful for offline analysis, bit-level replay, or diffing runs. |
+| `--dump-align <n>` | Record alignment for `--dump`: 1, 2, 4, 8, or 16 bytes. Default 8. |
 | `--lang zh` | Chinese UI. `--lang en` for English (default). |
 
 ### Concurrency and control
