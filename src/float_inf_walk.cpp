@@ -83,6 +83,7 @@ static void print_help() {
 "  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
 "  --dump <file>      binary serialize every step raw bytes to file\n"
 "  --dump-align <n>   record alignment: 1/2/4/8/16 (default 8)\n"
+"  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
 "  -lang <zh|en>      UI language (default zh)\n"
 "\n"
 "\033[33mConcurrency (-m all):\033[0m\n"
@@ -140,6 +141,7 @@ static void print_help() {
 "  --json             机器可读 JSON 输出（无 ANSI，供评测脚本采集）\n"
 "  --dump <file>      二进制序列化每步原始字节到文件\n"
 "  --dump-align <n>   记录对齐：1/2/4/8/16（默认8）\n"
+"  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
 "  -lang <zh|en>      界面语言（默认 zh）\n"
 "\n"
 "\033[33m并发选项（-m all）:\033[0m\n"
@@ -368,6 +370,14 @@ int main(int argc, char** argv) {
             if (g_dump_align != 1 && g_dump_align != 2 && g_dump_align != 4 && g_dump_align != 8 && g_dump_align != 16) {
                 std::cerr << tr("错误：--dump-align 仅支持 1/2/4/8/16\n", "error: --dump-align only supports 1/2/4/8/16\n"); return 2;
             }
+            continue;
+        }
+        if (a == "--dump-endian") {
+            if (i + 1 >= argc) { std::cerr << tr("错误：--dump-endian 需要 little/big\n", "error: --dump-endian requires little/big\n"); return 2; }
+            std::string e = argv[++i];
+            if (e == "little" || e == "le" || e == "cpu") g_dump_endian = 0;
+            else if (e == "big" || e == "be") g_dump_endian = 1;
+            else { std::cerr << tr("错误：--dump-endian 仅支持 little/big\n", "error: --dump-endian only supports little/big\n"); return 2; }
             continue;
         }
         if (a == "-lang" || a == "--lang" || a == "--language") {
