@@ -186,7 +186,7 @@ inline DpdNum dpd_mul(const DpdNum& a, double factor, const DpdFmt& f) {
     int emin = (f.digits == 7) ? -95 : (f.digits == 16) ? -383 : -6143;
     int top_exp = r.exp10 + (int)r.digits.size() - 1;
     if (top_exp > emax) { r.inf = true; }
-    else if (r.exp10 < emin) { r.digits = {0}; r.exp10 = 0; }
+    else if (top_exp < emin) { r.digits = {0}; r.exp10 = 0; }
     return r;
 }
 
@@ -327,7 +327,9 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
                     RunResult* out = nullptr, std::int64_t refresh_ms = 0) {
     DpdNum start = dpd_from_double(std::isnan(start_val) ? 1.0 : start_val, fmt);
     if (kind == StartKind::MinNormal || kind == StartKind::Subnormal) {
-        start.digits = {1}; start.exp10 = -fmt.bias;
+        start.digits = {1};
+        int emax = (fmt.digits == 7) ? 96 : (fmt.digits == 16) ? 384 : 6144;
+        start.exp10 = 1 - emax;
     } else if (kind == StartKind::MaxFinite) {
         start.digits = std::vector<int>(fmt.digits, 9);
         start.exp10 = 9 * (fmt.digits - 1);
