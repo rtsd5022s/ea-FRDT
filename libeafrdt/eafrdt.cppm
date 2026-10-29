@@ -1,5 +1,6 @@
-// eafrdt.cppm — C++23 module interface for libeafrdt
+// eafrdt.cppm — C++23 module interface for libeafrdt v1.0.1
 // Usage: import eafrdt;
+// Synced with main branch: bid128 34-digit coeff fix, UInt256 pure software.
 module;
 #include <cstdint>
 export module eafrdt;
