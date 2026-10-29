@@ -46,6 +46,9 @@ static void print_help() {
 "  -d, --digits <n>   sci/eng decimals (default 6, -1=full, 0~100)\n"
 "  --bits <m>         hex / bin / off(default), append bit repr in parens\n"
 "  -q, --quiet        quiet: skip live monitor, print summary directly\n"
+"  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
+"  --dump <file>      binary serialize every step raw bytes to file\n"
+"  --dump-align <n>   record alignment: 1/2/4/8/16 (default 8)\n"
 "  -lang <zh|en>      UI language (default zh)\n"
 "\n"
 "\033[33mConcurrency (-m all):\033[0m\n"
@@ -65,7 +68,9 @@ static void print_help() {
 "  float_inf_walk.exe 0 -a max-finite -k 0.5     # max value descending to 0\n"
 "  float_inf_walk.exe 0 -m fp4 -g addulp         # enumerate to inf\n"
 "  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
-"  float_inf_walk.exe 0 -m all -l 3 -t 10        # loop 3x, max 10s each\n";
+"  float_inf_walk.exe 0 -m all -l 3 -t 10        # loop 3x, max 10s each\n"
+"  float_inf_walk.exe 0 -m f32 --json            # JSON output for scripts\n"
+"  float_inf_walk.exe 0 -m f64 --dump walk.bin --dump-align 8\n";
     } else {
     std::cout <<
 "\033[36m╔══════════════════════════════════════════════════════════════╗\n"
@@ -98,6 +103,9 @@ static void print_help() {
 "  -d, --digits <n>   sci/eng 小数位（默认6，-1=完整，0~100）\n"
 "  --bits <m>         hex / bin / off(默认)，括号内追加位表示\n"
 "  -q, --quiet        静默模式：不显示实时监视器，直接出汇总表\n"
+"  --json             机器可读 JSON 输出（无 ANSI，供评测脚本采集）\n"
+"  --dump <file>      二进制序列化每步原始字节到文件\n"
+"  --dump-align <n>   记录对齐：1/2/4/8/16（默认8）\n"
 "  -lang <zh|en>      界面语言（默认 zh）\n"
 "\n"
 "\033[33m并发选项（-m all）:\033[0m\n"
@@ -117,7 +125,9 @@ static void print_help() {
 "  float_inf_walk.exe 0 -a max-finite -k 0.5     # 最大值递减到0\n"
 "  float_inf_walk.exe 0 -m fp4 -g addulp         # 逐值枚举到 inf\n"
 "  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
-"  float_inf_walk.exe 0 -m all -l 3 -t 10        # 循环3次，每次最多10s\n";
+"  float_inf_walk.exe 0 -m all -l 3 -t 10        # 循环3次，每次最多10s\n"
+"  float_inf_walk.exe 0 -m f32 --json            # JSON 输出供脚本采集\n"
+"  float_inf_walk.exe 0 -m f64 --dump walk.bin --dump-align 8\n";
     }
 }
 
