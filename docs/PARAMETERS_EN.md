@@ -6,7 +6,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 
 | Argument | Default | Description |
 |---|---|---|
-| `delay_ms` | none (required, else help is shown) | Per-step delay in milliseconds. `0` = unlimited speed. In `-m all` defaults to `10` when omitted. Negative values are clamped to `0`. |
+| `delay_ms` | none (required, else help is shown) | Per-step delay in milliseconds, supports fractional (e.g. `0.5`, `0.01`). `0` = unlimited speed. In `-m all` defaults to `10` when omitted. Negative values are clamped to `0`. |
 
 ## Help
 
@@ -62,6 +62,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 | `--json` | none | off | no value | Machine-readable JSON output. Auto-enables quiet. One JSON line per run (format/steps/elapsed_ms/steps_per_sec/reason/final_value/params/system/timestamp). In `-m all` emits a `workers` array. |
 | `--dump <file>` | none | off | file path | Binary-serialize every step's raw bytes to file. Auto-enables quiet. |
 | `--dump-align <n>` | none | `8` | `1` / `2` / `4` / `8` / `16` | Record alignment for `--dump`. Each step writes sizeof(S) bytes then zero-pads to align. |
+| `--dump-endian <e>` | none | `little` | `little` (aliases `le`/`cpu`) / `big` (alias `be`) | Byte order for `--dump`. Default follows x86 CPU native little-endian; `big` flips byte order before writing. |
 | `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | UI language. Errors, warnings, summary table all follow. |
 
 ## Concurrency (-m all)
