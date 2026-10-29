@@ -432,8 +432,8 @@ int main(int argc, char** argv) {
                                "DPD is pure software decimal-array arithmetic: per-digit multiply+carry+round, no hardware decimal FPU, performance may drop 20-30x, weak CPUs stay loaded longer. Includes DPD32/DPD64/DPD128.")});
     }
     if (is_dec128) {
-        warns.push_back({2, tr("dec128 每步 UInt256 schoolbook 大整数乘法，耗时较长。无 -t 时会跑满全程。",
-                               "dec128 each step uses UInt256 schoolbook big-integer multiply, takes a while. Without -t it runs to completion.")});
+        warns.push_back({2, tr("dec128 每步 UInt256 schoolbook 大整数乘法，性能比 DPD128 暴跌 2-3 倍以上。",
+                               "dec128 each step uses UInt256 schoolbook big-integer multiply, performance drops 2-3x vs DPD128.")});
     }
     if (!confirm_warnings(warns)) return 0;
 
