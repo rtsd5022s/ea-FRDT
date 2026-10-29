@@ -25,7 +25,8 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
                 double delay_ms,
                 std::function<std::string(const S&)> extra = {},
                 RunResult* quiet = nullptr,
-                std::int64_t refresh_ms = 0) {
+                std::int64_t refresh_ms = 0,
+                std::function<void(const S&)> dump_cb = nullptr) {
     static const u128 SAFETY_LIMIT = ((u128)1 << 120);
     constexpr size_t INPLACE_MAX = 110;
     constexpr u128 SLOW_INTERVAL = 256;
@@ -74,19 +75,23 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             break;
         }
         if (g_dump_file) {
-            std::size_t sz = sizeof(S);
-            if (g_dump_endian == 1) {
-                char buf[16];
-                for (std::size_t i = 0; i < sz; ++i) buf[i] = ((char*)&s)[sz - 1 - i];
-                std::fwrite(buf, 1, sz, g_dump_file);
+            if (dump_cb) {
+                dump_cb(s);
             } else {
-                std::fwrite(&s, 1, sz, g_dump_file);
-            }
-            g_dump_bytes_written += sz;
-            if ((int)sz < g_dump_align) {
-                char pad[16] = {0};
-                std::fwrite(pad, 1, g_dump_align - sz, g_dump_file);
-                g_dump_bytes_written += (g_dump_align - sz);
+                std::size_t sz = sizeof(S);
+                if (g_dump_endian == 1) {
+                    char buf[16];
+                    for (std::size_t i = 0; i < sz; ++i) buf[i] = ((char*)&s)[sz - 1 - i];
+                    std::fwrite(buf, 1, sz, g_dump_file);
+                } else {
+                    std::fwrite(&s, 1, sz, g_dump_file);
+                }
+                g_dump_bytes_written += sz;
+                if ((int)sz < g_dump_align) {
+                    char pad[16] = {0};
+                    std::fwrite(pad, 1, g_dump_align - sz, g_dump_file);
+                    g_dump_bytes_written += (g_dump_align - sz);
+                }
             }
         }
         if (quiet) {

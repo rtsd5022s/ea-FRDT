@@ -297,6 +297,24 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
                    : group_dec_bits(bits, dbf.exp_cont, dbf.coeff_bits);
         };
     }
+    // dump callback: write packed BID bit-pattern bytes (4 for dec32, 8 for dec64)
+    auto dec_dump = [dbf](const DecNum& v) {
+        std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10,
+                                      std::to_string(v.coeff), dbf);
+        std::string hex = bid_bits_to_hex(bits);
+        int bw = (int)hex.size() / 2;
+        char buf[8] = {0};
+        for (int i = 0; i < bw; ++i) {
+            unsigned int byte; std::sscanf(hex.c_str() + 2*i, "%2x", &byte);
+            buf[i] = (char)byte;
+        }
+        if (g_dump_endian == 1) {
+            for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
+        }
+        std::fwrite(buf, 1, bw, g_dump_file);
+        g_dump_bytes_written += bw;
+        if (bw < g_dump_align) { char pad[8]={0}; std::fwrite(pad,1,g_dump_align-bw,g_dump_file); g_dump_bytes_written += (g_dump_align-bw); }
+    };
     drive_core(start,
           [&](DecNum v) -> DecNum {
               switch (sm) {
@@ -309,7 +327,7 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
           [](DecNum v) { return v.coeff == 0; },
           [](DecNum v) { return false; },  // DecNum never produces NaN
           [&](const DecNum& v) { return dec_fmt_text(std::to_string(v.coeff), v.exp10, v.neg, df, digits); },
-          delay_ms, dec_extra, quiet, refresh_ms);
+          delay_ms, dec_extra, quiet, refresh_ms, std::function<void(const DecNum&)>(dec_dump));
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +469,24 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                    : group_dec_bits(bits, bf.exp_cont, bf.coeff_bits);
         };
     }
+    // dump callback: write packed BID128 bit-pattern (16 bytes)
+    auto big_dump = [](const BigDec& v) {
+        BidFmt bf = bid_fmt128();
+        std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10, v.coeff, bf);
+        std::string hex = bid_bits_to_hex(bits);
+        int bw = (int)hex.size() / 2;
+        char buf[16] = {0};
+        for (int i = 0; i < bw; ++i) {
+            unsigned int byte; std::sscanf(hex.c_str() + 2*i, "%2x", &byte);
+            buf[i] = (char)byte;
+        }
+        if (g_dump_endian == 1) {
+            for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
+        }
+        std::fwrite(buf, 1, bw, g_dump_file);
+        g_dump_bytes_written += bw;
+        if (bw < g_dump_align) { char pad[16]={0}; std::fwrite(pad,1,g_dump_align-bw,g_dump_file); g_dump_bytes_written += (g_dump_align-bw); }
+    };
     drive_core(start,
           [&](BigDec v) -> BigDec {
               switch (sm) {
@@ -463,7 +499,7 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
           [](BigDec v) { return v.coeff.empty() || v.coeff == "0"; },
           [](BigDec v) { return false; },  // BigDec never produces NaN
           [&](const BigDec& v) { return dec_fmt_text(v.coeff, v.exp10, v.neg, df, digits); },
-          delay_ms, big_extra, quiet, refresh_ms);
+          delay_ms, big_extra, quiet, refresh_ms, std::function<void(const BigDec&)>(big_dump));
 }
 
 } // namespace fw
