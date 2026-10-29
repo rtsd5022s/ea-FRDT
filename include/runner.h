@@ -142,7 +142,7 @@ inline FmtId fmt_canon(const std::string& in) {
 
 // All params packed into POD, worker thread value-copies, no reference to run_all stack frame
 struct RunParams {
-    std::int64_t delay_ms;
+    double delay_ms;
     StartKind kind;
     StepMode sm;
     DispFmt df;
@@ -176,7 +176,7 @@ inline void run_format(FmtId id, const RunParams& p, RunResult* out) {
     }
 }
 
-inline double run_all(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
              double start_val, double factor, int digits, std::vector<int> core_ids,
              const std::string& only_csv = {}, std::int64_t refresh_ms = 0, int loop_count = 1, bool quiet = false) {
     int n = (int)core_ids.size();

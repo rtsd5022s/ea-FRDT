@@ -42,7 +42,7 @@ inline double g_json_factor = 1.02;
 inline double g_json_start = 1.0;
 inline int g_json_step_mode = 0;
 inline int g_json_digits = 6;
-inline int64_t g_json_delay_ms = 0;
+inline double g_json_delay_ms = 0;
 inline int g_json_loop = 1;
 inline int g_json_workers = 1;
 #include <cstdio>

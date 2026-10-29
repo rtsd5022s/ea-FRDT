@@ -264,7 +264,7 @@ inline std::string dec_fmt_text(const std::string& coeffStr, int exp10,
     return (neg && body != "0") ? "-" + body : body;
 }
 
-inline void run_dec(const DecFmt& fmt, std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode sm, DispFmt df,
              double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
              RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     DecNum start;
@@ -420,7 +420,7 @@ inline BigDec big_from_double(double v, int sig) {
     return r;
 }
 
-inline void run_dec128(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                 double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
                 RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     BigDec start;

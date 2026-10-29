@@ -22,7 +22,7 @@ const char* reason_name(RunResult::Reason r);
 // Template driver (must stay in header for explicit instantiation)
 template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Render>
 void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render render,
-                std::int64_t delay_ms,
+                double delay_ms,
                 std::function<std::string(const S&)> extra = {},
                 RunResult* quiet = nullptr,
                 std::int64_t refresh_ms = 0) {
@@ -93,7 +93,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
                     }
                 }
             }
-            if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+            if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(delay_ms));
             continue;
         }
         if (g_timeout_sec.load() > 0) {
@@ -114,7 +114,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             else std::cout << '\r' << "\033[K" << out << '\n' << std::flush;
             last_print = now;
         }
-        if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(delay_ms));
     }
     if (!quiet) {
         auto t1 = std::chrono::steady_clock::now();
@@ -134,7 +134,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
 
 template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Disp>
 void drive(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Disp disp,
-           std::int64_t delay_ms, DispFmt df, int digits,
+           double delay_ms, DispFmt df, int digits,
            std::function<std::string(const S&)> extra = {}, RunResult* quiet = nullptr,
            std::int64_t refresh_ms = 0) {
     drive_core(s, next, isInf, isZero, isNaN,

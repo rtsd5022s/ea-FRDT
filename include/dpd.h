@@ -322,7 +322,7 @@ inline std::string dpd_pack_bin(const DpdNum& n, const DpdFmt& fmt) {
 // ---------------------------------------------------------------------------
 // Run entry point: signature matches run_dec, wired to FmtId in runner.h
 // ---------------------------------------------------------------------------
-inline void run_dpd(const DpdFmt& fmt, std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                     double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
                     RunResult* out = nullptr, std::int64_t refresh_ms = 0) {
     DpdNum start = dpd_from_double(std::isnan(start_val) ? 1.0 : start_val, fmt);
@@ -411,7 +411,7 @@ inline void run_dpd(const DpdFmt& fmt, std::int64_t delay_ms, StartKind kind, St
             out->cur_elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             out->cur_value = dpd_to_string(cur, df, digits);
         }
-        if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(delay_ms));
     }
 
     auto t1 = std::chrono::steady_clock::now();

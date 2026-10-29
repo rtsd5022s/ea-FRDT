@@ -207,7 +207,7 @@ int main(int argc, char** argv) {
               "\"factor\":%.17g,"
               "\"step_mode\":\"%s\","
               "\"digits\":%d,"
-              "\"delay_ms\":%lld,"
+              "\"delay_ms\":%.17g,"
               "\"timeout_s\":%d,"
               "\"loop\":%d"
             "},"
@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
             g_json_factor,
             sm,
             g_json_digits,
-            (long long)g_json_delay_ms,
+            g_json_delay_ms,
             g_timeout_sec.load(),
             g_json_loop,
             std::thread::hardware_concurrency(),
@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
         );
     });
     std::string mode = "f32";
-    std::int64_t delay_ms = 0;
+    double delay_ms = 0;
     bool has_delay = false;
     StartKind start_kind = StartKind::Default;
     StepMode step_mode = StepMode::X102;
@@ -383,7 +383,7 @@ int main(int argc, char** argv) {
             g_fmt_name = mode;
             continue;
         }
-        try { delay_ms = std::stoll(a); has_delay = true; }
+        try { delay_ms = std::stod(a); has_delay = true; }
         catch (...) { std::cerr << tr("错误：无法解析参数 '", "error: cannot parse argument '") << sanitize(a) << tr("'\n", "'\n"); return 2; }
     }
 

@@ -96,7 +96,7 @@ inline SVal step_addulp(SVal x, const Fmt& f) {
     return r;
 }
 
-inline void run_sim(const Fmt& f, std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, DispFmt df,
              double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
              RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     SVal start;
@@ -157,7 +157,7 @@ T nextafterT(T x, T y) {
 }
 
 template <class T>
-void run_native(const char* tag, std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+void run_native(const char* tag, double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                 double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
                 RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     T one;
@@ -286,7 +286,7 @@ inline std::string x87_format(const X87& v, DispFmt df, int digits) {
     return v.sign ? "-" + os.str() : os.str();
 }
 
-inline void run_x87_soft(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                   double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
                   RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     X87 start;
@@ -444,7 +444,7 @@ inline std::string q128_bits(const Q128& v) {
     return b;
 }
 
-inline void run_q128_soft(std::int64_t delay_ms, StartKind kind, StepMode sm, DispFmt df,
+inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                    double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
                    RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     Q128 start;
