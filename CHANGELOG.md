@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.3 (2026-10-29)
+
+### Added
+- `-g subulp`: subtract 1 ULP per step.
+- `-g mululp-down`: multiply by `(1 - 1ULP)` per step.
+- `-a min` now starts from smallest subnormal (not min-normal).
+
+### Fixed
+- Self-written formats min-normal: exp was hardcoded `1`, now `emin(f)`.
+- Self-written formats max-finite: man was `(1<<M)-1`, now `(1<<(M+1))-1` (Q1.f implicit leading bit).
+- FP128 max-finite: lo was `0`, now `~0ULL` (112-bit mantissa all ones).
+- Subnormal biased exponent displays as all-zero bits in hex/bin/dump.
+- Native f16/f32 min: `numeric_limits::denorm_min()` returns 0 on this clang, hardcoded correct values.
+- DPD min: exp10 was `-bias` (below emin), now `emin = 1 - emax`; underflow check uses `top_exp` not raw `exp10`.
+
+### Removed
+- `--dump-align` parameter: each format decides its own record width (fp4/fp6/fp8=1B, x87/fp128=16B, etc.).
+
 ## v1.0.1 (2026-10-29)
 
 ### Added

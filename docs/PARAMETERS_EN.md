@@ -21,7 +21,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 | `--start <x>` | `-a` | `1.0` | finite number, negatives, scientific (`1e-3`), engineering, hex Raw (`0x3F800000`), keywords `min-normal` / `max-finite` | Walk start value. Cannot be NaN/Inf. Mutually exclusive with `-s`. |
 | `--subnormal` | `-s` | off | no value | Start from the format's minimum subnormal and walk upward. Mutually exclusive with numeric `-a`. |
 | `--factor <r>` | `-k` | `1.02` | positive, non-zero, non-NaN, non-Inf; scientific notation accepted; `<1e-10` triggers warning | Per-step multiplier. `>1` walks to +inf, `0<r<1` walks to 0. |
-| `--step <s>` | `-g` | `x1.02` | `x1.02` (alias `x102`) / `mululp` / `addulp` | Step mode. `x1.02` = multiply by factor; `mululp` = multiply by `(1+1ULP)`; `addulp` = add `1ULP`. |
+| `--step <s>` | `-g` | `x1.02` | `x1.02` (alias `x102`) / `mululp` / `addulp` / `subulp` / `mululp-down` | Step mode. `x1.02` = multiply by factor; `mululp` = multiply by `(1+1ULP)`; `addulp` = add `1ULP`; `subulp` = subtract `1ULP`; `mululp-down` = multiply by `(1-1ULP)`. |
 
 ## Floating-point format
 
@@ -61,7 +61,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 | `--quiet` | `-q` | off | no value | Quiet: skip per-step output, print only the summary table. |
 | `--json` | none | off | no value | Machine-readable JSON output. Auto-enables quiet. One JSON line per run (format/steps/elapsed_ms/steps_per_sec/reason/final_value/params/system/timestamp). In `-m all` emits a `workers` array. |
 | `--dump <file>` | none | off | file path | Binary-serialize every step's raw bytes to file. Auto-enables quiet. |
-| `--dump-align <n>` | none | `8` | `1` / `2` / `4` / `8` / `16` | Record alignment for `--dump`. Each step writes sizeof(S) bytes then zero-pads to align. |
+| `--dump-packed` | none | off | no value | Compact record width (tf32=3B instead of 4B). |
 | `--dump-endian <e>` | none | `little` | `little` (aliases `le`/`cpu`) / `big` (alias `be`) | Byte order for `--dump`. Default follows x86 CPU native little-endian; `big` flips byte order before writing. |
 | `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | UI language. Errors, warnings, summary table all follow. |
 

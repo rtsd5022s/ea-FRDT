@@ -21,7 +21,7 @@
 | `--start <x>` | `-a` | `1.0` | 有限数值，支持负数、科学计数法（`1e-3`）、工程计数法、十六进制 Raw（`0x3F800000`）、关键字 `min-normal`/`max-finite` | 行走起点。不能为 NaN/Inf。与 `-s` 互斥。 |
 | `--subnormal` | `-s` | 关 | 无值 | 从该格式的最小非规格化数（min subnormal）开始向上走。与 `-a` 数值起点互斥。 |
 | `--factor <r>` | `-k` | `1.02` | 正数，不能为 0、负数、NaN、Inf。支持科学计数法（`1.05e0`）。`<1e-10` 触发警告。 | 每步倍率。`>1` 递增到 +inf，`0<r<1` 递减到 0。 |
-| `--step <s>` | `-g` | `x1.02` | `x1.02`（或 `x102`）/ `mululp` / `addulp` | 步进模式。`x1.02` = 乘倍率；`mululp` = 乘 `(1+1ULP)`；`addulp` = 加 `1ULP`。 |
+| `--step <s>` | `-g` | `x1.02` | `x1.02`（或 `x102`）/ `mululp` / `addulp` / `subulp` / `mululp-down` | 步进模式。`x1.02` = 乘倍率；`mululp` = 乘 `(1+1ULP)`；`addulp` = 加 `1ULP`；`subulp` = 减 `1ULP`；`mululp-down` = 乘 `(1-1ULP)`。 |
 
 ## 浮点格式
 
