@@ -4,6 +4,7 @@
 *.o
 *.obj
 *.dll
+*.bin
 
 # 临时文件
 v.txt
@@ -20,6 +21,8 @@ gh.exe
 gh.zip
 build.ps1
 test_all.ps1
+prot.json
+notes.txt
 
 # 备份目录
 backup/
