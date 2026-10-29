@@ -356,6 +356,8 @@ int main(int argc, char** argv) {
             if (s == "x1.02" || s == "x102") step_mode = StepMode::X102;
             else if (s == "mululp") step_mode = StepMode::MUL_ULP;
             else if (s == "addulp") step_mode = StepMode::ADD_ULP;
+            else if (s == "subulp") step_mode = StepMode::SUB_ULP;
+            else if (s == "mululp-down" || s == "mululpdown") step_mode = StepMode::MUL_ULP_DOWN;
             else { std::cerr << tr("错误：未知步进 '", "error: unknown step '") << sanitize(s) << tr("'\n", "'\n"); return 2; }
             continue;
         }
