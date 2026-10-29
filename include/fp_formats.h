@@ -102,7 +102,7 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
     SVal start;
     const char* start_tag;
     if (kind == StartKind::Subnormal) { start = SVal{false, emin(f), 1, false}; start_tag = "min-subnormal"; }
-    else if (kind == StartKind::MinNormal) { start = SVal{false, 1, 1ULL << f.M, false}; start_tag = "min-normalized"; }
+    else if (kind == StartKind::MinNormal) { start = SVal{false, emin(f), 1ULL << f.M, false}; start_tag = "min-normalized"; }
     else if (kind == StartKind::MaxFinite) { start = SVal{false, emax(f), (1ULL << f.M) - 1, false}; start_tag = "max-finite"; }
     else if (!std::isnan(start_val)) { start = encode(start_val, f); start_tag = "custom"; }
     else { start = encode(1.0, f); start_tag = "1.0"; }
