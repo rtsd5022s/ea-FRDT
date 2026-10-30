@@ -34,8 +34,8 @@ const char* reason_name(RunResult::Reason r) {
     switch (r) {
         case RunResult::OVERFLOW: return "overflow->inf";
         case RunResult::UNDERFLOW: return "underflow->0";
-        case RunResult::IDENTITY: return "identity(stopped)";
-        case RunResult::SAFETY: return "safety-limit";
+        case RunResult::IDENTITY: return "identity->stop";
+        case RunResult::SAFETY: return "safety->limit";
         case RunResult::TIMEOUT: return "timeout";
         case RunResult::NOT_A_NUMBER: return "nan->nan";
     }
