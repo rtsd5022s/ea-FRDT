@@ -215,8 +215,8 @@ inline DecNum dec_subulp(const DecNum& v, const DecFmt& f) {
     if (r.inf || r.coeff == 0) return r;
     r.coeff -= 1;
     unsigned long long maxc = dec_pow10(f.sig);
-    if (r.coeff < maxc / 10) { r.coeff = maxc - 1; r.exp10 -= 1; }
-    if (r.exp10 + (f.sig - 1) < 1 - f.emax) { r.coeff = 0; }  // underflow to zero
+    if (r.coeff == 0) { r.exp10 -= 1; }  // underflow
+    if (r.exp10 + (int)std::to_string(r.coeff).size() - 1 < 1 - f.emax) r.coeff = 0;
     return r;
 }
 
@@ -445,9 +445,9 @@ inline BigDec big_subulp(const BigDec& v, int sig, int emax) {
     size_t first = c.find_first_not_of('0');
     if (first == std::string::npos) { r.coeff = "0"; return r; }
     c = c.substr(first);
-    if ((int)c.size() < sig) { r.coeff = std::string(sig - 1, '9'); r.exp10 -= 1; }
-    else r.coeff = c;
-    if (r.exp10 + sig - 1 < 1 - emax) r.coeff = "0";
+    // 33 nines * 10^-33 = 0.999...9 — correct, don't pad or shift exp
+    r.coeff = c;
+    if (r.exp10 + (int)c.size() - 1 < 1 - emax) r.coeff = "0";
     return r;
 }
 

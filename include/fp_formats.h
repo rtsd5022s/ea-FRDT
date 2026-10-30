@@ -333,7 +333,10 @@ inline X87 x87_subulp(X87 x) {
     if (x.inf || (x.exp == X87_EMIN && x.man == 1ULL << 63)) return x;
     X87 r = x;
     --r.man;
-    if (r.man < (1ULL << 63) && x.exp > X87_EMIN) { r.exp = X87_EMIN; }
+    if (r.man < (1ULL << 63)) {
+        if (x.exp > X87_EMIN) { r.exp = x.exp - 1; r.man = ~0ULL; }
+        else { r.exp = X87_EMIN; r.man = (1ULL << 63) | ((1ULL << 63) - 1); }
+    }
     return r;
 }
 
@@ -517,8 +520,11 @@ inline Q128 q128_addulp(Q128 x) {
 inline Q128 q128_subulp(Q128 x) {
     if (x.inf || (x.exp == Q128_EMIN && x.hi == 1ULL << 63 && x.lo == 0)) return x;
     Q128 r = x;
-    --r.hi;
-    if (r.hi < (1ULL << 63) && x.exp > Q128_EMIN) r.exp = Q128_EMIN;
+    if (r.lo == 0) { r.lo = ~0ULL; --r.hi; } else --r.lo;
+    if (r.hi < (1ULL << 63)) {
+        if (x.exp > Q128_EMIN) { r.exp = x.exp - 1; r.hi = ~0ULL; r.lo = ~0ULL; }
+        else { r.exp = Q128_EMIN; r.hi = (1ULL << 63) | ((1ULL << 63) - 1); r.lo = ~0ULL; }
+    }
     return r;
 }
 
