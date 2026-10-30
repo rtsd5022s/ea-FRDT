@@ -3,10 +3,8 @@
 
 namespace fw {
 
-constexpr int CLEAR = 200;
-
 void on_sigint(int) {
-    std::cerr << '\r' << std::string(CLEAR, ' ') << '\r'
+    std::cerr << "\r\033[2K"
               << tr("程序提前退出（收到 Ctrl+C）\n", "Interrupted (Ctrl+C)\n");
     std::_Exit(130);
 }
