@@ -8,7 +8,7 @@
 
 namespace fw {
 
-enum class StepMode { X102, MUL_ULP, ADD_ULP, SUB_ULP, MUL_ULP_DOWN };
+enum class StepMode { X102, MUL_ULP, ADD_ULP, SUB_ULP };
 enum class DispFmt { ENG, SCI, FULL };
 enum class StartKind { Default, Subnormal, MinNormal, MaxFinite };
 enum class ShowBits { OFF, HEX, BIN };

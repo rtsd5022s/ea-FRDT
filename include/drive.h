@@ -32,6 +32,8 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
     constexpr u128 SLOW_INTERVAL = 256;
     u128 step = 0;
     u128 last_slow = 0;
+    int ident_streak = 0;
+    constexpr int IDENT_LIMIT = 16;
     auto t0 = std::chrono::steady_clock::now();
     auto last_print = t0;
     RunResult::Reason exit_reason = RunResult::OVERFLOW;
@@ -63,11 +65,13 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             if (quiet) { quiet->steps = step; quiet->reason = RunResult::NOT_A_NUMBER; quiet->cur_value = render(s); }
             break;
         }
-        if (!(nxt == s)) { s = nxt; }
+        if (!(nxt == s)) { s = nxt; ident_streak = 0; }
         else {
-            exit_reason = RunResult::IDENTITY;
-            if (quiet) { quiet->steps = step; quiet->reason = RunResult::IDENTITY; quiet->cur_value = render(s); }
-            break;
+            if (++ident_streak >= IDENT_LIMIT) {
+                exit_reason = RunResult::IDENTITY;
+                if (quiet) { quiet->steps = step; quiet->reason = RunResult::IDENTITY; quiet->cur_value = render(s); }
+                break;
+            }
         }
         if (step >= SAFETY_LIMIT) {
             exit_reason = RunResult::SAFETY;

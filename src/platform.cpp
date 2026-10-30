@@ -9,7 +9,7 @@
 namespace fw::plat {
 
 void bind_thread_to_core(int core_id) {
-    SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)(1ULL << (core_id - 1)));
+    SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)(1ULL << core_id));
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 }
 
@@ -46,7 +46,7 @@ namespace fw::plat {
 
 void bind_thread_to_core(int core_id) {
     cpu_set_t cs; CPU_ZERO(&cs);
-    if (core_id >= 1) CPU_SET(core_id - 1, &cs);
+    CPU_SET(core_id, &cs);
     pthread_setaffinity_np(pthread_self(), sizeof(cs), &cs);
 }
 

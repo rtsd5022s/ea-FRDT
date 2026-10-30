@@ -106,13 +106,6 @@ inline SVal step_subulp(SVal x, const Fmt& f) {
     return r;
 }
 
-inline SVal step_mululp_down(SVal x, const Fmt& f) {
-    if (x.inf) return x;
-    double ulp = std::ldexp(1.0, x.exp - f.M);
-    SVal fac = encode(1.0 - ulp, f);
-    return mul(x, fac, f);
-}
-
 inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, DispFmt df,
              double start_val, double factor, int digits, ShowBits showbits = ShowBits::OFF,
              RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
@@ -186,7 +179,6 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
                   case StepMode::MUL_ULP: { SVal r = mul(v, encode(factor, f), f); return step_mululp(r, f); }
                   case StepMode::ADD_ULP: return step_addulp(v, f);
                   case StepMode::SUB_ULP: return step_subulp(v, f);
-                  case StepMode::MUL_ULP_DOWN: { SVal r = mul(v, encode(factor, f), f); return step_mululp_down(r, f); }
               }
               return v;
           },
@@ -258,7 +250,6 @@ void run_native(const char* tag, double delay_ms, StartKind kind, StepMode sm, D
                   case StepMode::MUL_ULP: { T ulp = (T)(nextafterT(v, up) - v); return (T)(v * fac * (T(1) + ulp)); }
                   case StepMode::ADD_ULP: return nextafterT(v, up);
                   case StepMode::SUB_ULP: return nextafterT(v, -up);
-                  case StepMode::MUL_ULP_DOWN: { T ulp = (T)(nextafterT(v, up) - v); return (T)(v * fac * (T(1) - ulp)); }
               }
               return v;
           },
@@ -409,7 +400,6 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
                   case StepMode::MUL_ULP: { X87 r = x87_mul(v, fac); double ulp = std::ldexp(1.0, r.exp - 63); return x87_mul(r, x87_encode(1.0 + ulp)); }
                   case StepMode::ADD_ULP: return x87_addulp(v);
                   case StepMode::SUB_ULP: return x87_subulp(v);
-                  case StepMode::MUL_ULP_DOWN: { X87 r = x87_mul(v, fac); double ulp = std::ldexp(1.0, r.exp - 63); return x87_mul(r, x87_encode(1.0 - ulp)); }
               }
               return v;
           },
@@ -596,7 +586,6 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
                   case StepMode::MUL_ULP: { Q128 r = q128_mul(v, fac); double ulp = std::ldexp(1.0, r.exp - 63); return q128_mul(r, q128_encode(1.0 + ulp)); }
                   case StepMode::ADD_ULP: return q128_addulp(v);
                   case StepMode::SUB_ULP: return q128_subulp(v);
-                  case StepMode::MUL_ULP_DOWN: { Q128 r = q128_mul(v, fac); double ulp = std::ldexp(1.0, r.exp - 63); return q128_mul(r, q128_encode(1.0 - ulp)); }
               }
               return v;
           },

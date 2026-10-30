@@ -50,7 +50,7 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
     std::vector<int> out;
     if (spec.empty()) {
         int n = hw < 1 ? 1 : hw;
-        for (int v = 1; v <= n; ++v) out.push_back(v);
+        for (int v = 0; v < n; ++v) out.push_back(v);
         return out;
     }
     std::string rest = spec;
@@ -79,11 +79,11 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
             std::exit(2);
         }
     }
-    out.erase(std::remove_if(out.begin(), out.end(), [hw](int v){ return v < 1 || v > hw; }), out.end());
+    out.erase(std::remove_if(out.begin(), out.end(), [hw](int v){ return v < 0 || v >= hw; }), out.end());
     std::sort(out.begin(), out.end());
     out.erase(std::unique(out.begin(), out.end()), out.end());
     if (out.empty()) {
-        std::cerr << tr("错误：--jobs 未解析出有效核心编号（需 1~", "error: --jobs no valid core id (1~") << hw << ")\n";
+        std::cerr << tr("错误：--jobs 未解析出有效核心编号（需 0~", "error: --jobs no valid core id (0~") << (hw-1) << ")\n";
         std::exit(2);
     }
     return out;
