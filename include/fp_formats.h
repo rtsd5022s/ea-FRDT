@@ -100,8 +100,16 @@ inline SVal step_subulp(SVal x, const Fmt& f) {
     if (x.inf || (x.exp == emin(f) && x.man == 0)) return x;
     SVal r = x;
     --r.man;
-    if (r.man < (1ULL << f.M) && x.exp > emin(f)) {
-        r.exp = emin(f); r.man = ((1ULL << f.M) | (r.man & ((1ULL << f.M) - 1)));
+    if (r.man < (1ULL << f.M)) {
+        // borrow: exponent decreases, mantissa wraps to all-ones
+        if (x.exp > emin(f)) {
+            r.exp = x.exp - 1;
+            r.man = (1ULL << (f.M + 1)) - 1;
+        } else {
+            // already at emin: stay subnormal, man wraps to all-ones subnormal
+            r.exp = emin(f);
+            r.man = (1ULL << f.M) - 1;
+        }
     }
     return r;
 }
