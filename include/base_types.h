@@ -44,12 +44,10 @@ inline int g_json_step_mode = 0;
 inline int g_json_digits = 6;
 inline double g_json_delay_ms = 0;
 inline int g_json_loop = 1;
-inline int g_json_workers = 1;
 #include <cstdio>
 inline std::FILE* g_dump_file = nullptr;
 inline int g_dump_endian = 0; // 0=little (native x86), 1=big
 inline int g_dump_packed = 0; // 0=natural width (default), 1=packed tight (tf32=3B not 4B)
 inline long g_dump_bytes_written = 0;
-inline void (*g_dump_cb)(const void* data, std::size_t len) = nullptr;
 
 } // namespace fw
