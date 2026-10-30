@@ -367,6 +367,23 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
         return r;
     };
 
+    auto dpd_subulp = [&](DpdNum v) -> DpdNum {
+        DpdNum r = v;
+        if (r.digits.size() == 1 && r.digits[0] == 0) return r;
+        int i = (int)r.digits.size() - 1;
+        r.digits[i] -= 1;
+        while (i >= 0 && r.digits[i] < 0) {
+            r.digits[i] += 10;
+            if (i > 0) r.digits[i-1] -= 1;
+            --i;
+        }
+        // strip leading zeros
+        size_t first = 0;
+        while (first < r.digits.size() - 1 && r.digits[first] == 0) ++first;
+        r.digits.erase(r.digits.begin(), r.digits.begin() + first);
+        return r;
+    };
+
     u128 steps = 0;
     auto t0 = std::chrono::steady_clock::now();
     auto last_print = t0;
@@ -378,6 +395,7 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
         ++steps;
         DpdNum nxt;
         if (sm == StepMode::ADD_ULP) nxt = dpd_addulp(cur);
+        else if (sm == StepMode::SUB_ULP) nxt = dpd_subulp(cur);
         else nxt = dpd_mul(cur, factor, fmt);
 
         if (nxt.inf) { reason = RunResult::OVERFLOW; if (out) out->reason = reason; done = true; break; }

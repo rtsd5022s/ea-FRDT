@@ -210,6 +210,16 @@ inline DecNum dec_addulp(const DecNum& v, const DecFmt& f) {
     return r;
 }
 
+inline DecNum dec_subulp(const DecNum& v, const DecFmt& f) {
+    DecNum r = v;
+    if (r.inf || r.coeff == 0) return r;
+    r.coeff -= 1;
+    unsigned long long maxc = dec_pow10(f.sig);
+    if (r.coeff < maxc / 10) { r.coeff = maxc - 1; r.exp10 -= 1; }
+    if (r.exp10 + (f.sig - 1) < 1 - f.emax) { r.coeff = 0; }  // underflow to zero
+    return r;
+}
+
 inline DecNum dec_mululp_step(const DecNum& v, const DecNum& fac, const DecFmt& f) {
     DecNum r = dec_mul(v, fac, f);
     return dec_addulp(r, f);
@@ -322,6 +332,7 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
           [&](DecNum v) -> DecNum {
               switch (sm) {
                   case StepMode::ADD_ULP: return dec_addulp(v, fmt);
+                  case StepMode::SUB_ULP: return dec_subulp(v, fmt);
                   case StepMode::MUL_ULP: return dec_mululp_step(v, fac, fmt);
                   default:                return dec_mul(v, fac, fmt);
               }
@@ -420,6 +431,26 @@ inline BigDec big_addulp(const BigDec& v, int sig, int emax) {
     return r;
 }
 
+inline BigDec big_subulp(const BigDec& v, int sig, int emax) {
+    BigDec r = v;
+    if (r.inf || r.coeff == "0") return r;
+    std::string c = r.coeff;
+    int borrow = 1;
+    for (int i = (int)c.size() - 1; i >= 0 && borrow; --i) {
+        int d = (c[i] - '0') - borrow;
+        if (d < 0) { d += 10; borrow = 1; } else borrow = 0;
+        c[i] = (char)('0' + d);
+    }
+    // strip leading zeros
+    size_t first = c.find_first_not_of('0');
+    if (first == std::string::npos) { r.coeff = "0"; return r; }
+    c = c.substr(first);
+    if ((int)c.size() < sig) { r.coeff = std::string(sig - 1, '9'); r.exp10 -= 1; }
+    else r.coeff = c;
+    if (r.exp10 + sig - 1 < 1 - emax) r.coeff = "0";
+    return r;
+}
+
 inline BigDec big_mululp_step(const BigDec& v, const BigDec& fac, int sig, int emax) {
     BigDec r = big_mul(v, fac, sig, emax);
     return big_addulp(r, sig, emax);
@@ -497,6 +528,7 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
           [&](BigDec v) -> BigDec {
               switch (sm) {
                   case StepMode::ADD_ULP: return big_addulp(v, DEC128_SIG, DEC128_EMAX);
+                  case StepMode::SUB_ULP: return big_subulp(v, DEC128_SIG, DEC128_EMAX);
                   case StepMode::MUL_ULP: return big_mululp_step(v, fac, DEC128_SIG, DEC128_EMAX);
                   default:                return big_mul(v, fac, DEC128_SIG, DEC128_EMAX);
               }
