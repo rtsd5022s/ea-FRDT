@@ -204,7 +204,13 @@ T nextafterT(T x, T y) {
     std::uint64_t raw = 0;
     std::memcpy(&raw, &x, sizeof(T));
     bool neg = (raw >> (sizeof(T)*8 - 1)) & 1;
-    if (neg) raw -= 1; else raw += 1;
+    bool go_up = (y > x);
+    if (neg) {
+        // negative: more negative = raw increases, toward zero = raw decreases
+        if (go_up) raw -= 1; else raw += 1;
+    } else {
+        if (go_up) raw += 1; else raw -= 1;
+    }
     T r; std::memcpy(&r, &raw, sizeof(T));
     return r;
 }
