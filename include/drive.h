@@ -122,8 +122,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
         bool due = (refresh_ms <= 0) ||
                    std::chrono::duration_cast<std::chrono::milliseconds>(now - last_print).count() >= refresh_ms;
         if (due) {
-            if (out.size() <= INPLACE_MAX) std::cout << '\r' << "\033[K" << out << std::flush;
-            else std::cout << '\r' << "\033[K" << out << '\n' << std::flush;
+            std::cout << '\r' << "\033[K" << out << std::flush;
             last_print = now;
         }
         if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(delay_ms));
