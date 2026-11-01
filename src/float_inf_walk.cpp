@@ -175,9 +175,38 @@ int main(int argc, char** argv) {
     struct PeriodGuard { ~PeriodGuard(){ fw::plat::reset_high_res_timer(); } } _pg;
 #endif
     std::signal(SIGINT, on_sigint);
-    std::atexit([](){ if (g_dump_file) { std::fflush(g_dump_file);
+    std::atexit([](){ if (g_dump_file) {
+        // write header at offset 0
+        std::rewind(g_dump_file);
+        char hdr[256] = {0};
+        // magic 8 bytes
+        std::memcpy(hdr+0x00, "ea-FRDT", 8);
+        // version_utf8 at 0x08, version_len at 0x88
+        const char* ver = "v1.0.6";
+        std::memcpy(hdr+0x08, ver, std::strlen(ver));
+        hdr[0x88] = (char)std::strlen(ver);
+        // timestamp at 0x90
+        std::uint64_t ts = (std::uint64_t)std::time(nullptr);
+        std::memcpy(hdr+0x90, &ts, 8);
+        // format_id at 0x98
+        hdr[0x98] = (char)g_dump_format_id;
+        // endianness at 0x99
+        hdr[0x99] = (char)g_dump_endian;
+        // payload_align at 0x9A = 16
+        hdr[0x9A] = 16;
+        // total_steps at 0xA0 (16 bytes = UInt128, little-endian)
+        std::uint64_t total_steps = (std::uint64_t)(g_dump_bytes_written / g_dump_record_size);
+        std::memcpy(hdr+0xA0, &total_steps, 8);
+        // header_size at 0xB0 = 256
+        std::uint64_t hsize = 256;
+        std::memcpy(hdr+0xB0, &hsize, 8);
+        // record_size at 0xD0 (16 bytes)
+        std::uint64_t rsize = g_dump_record_size;
+        std::memcpy(hdr+0xD0, &rsize, 8);
+        std::fwrite(hdr, 1, 256, g_dump_file);
+        std::fflush(g_dump_file);
 #ifdef _WIN32
-        _chsize(_fileno(g_dump_file), g_dump_bytes_written);
+        _chsize(_fileno(g_dump_file), 256 + g_dump_bytes_written);
 #endif
         std::fclose(g_dump_file); g_dump_file = nullptr; } });
     std::atexit([](){
@@ -367,6 +396,7 @@ int main(int argc, char** argv) {
             if (i + 1 >= argc) { std::cerr << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
             g_dump_file = std::fopen(argv[++i], "wb");
             if (!g_dump_file) { std::cerr << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
+            std::fseek(g_dump_file, 256, SEEK_SET);  // reserve header space
             quiet = true;
             continue;
         }
@@ -451,6 +481,26 @@ int main(int argc, char** argv) {
         auto jobs_list = parse_jobs(jobs_spec, hw);
         run_all(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, jobs_list, only_csv, refresh_ms, loop_count, quiet);
         return 0;
+    }
+    // dump metadata: format_id and record_size
+    if (g_dump_file) {
+        if (mode=="fp4")       { g_dump_format_id=0;  g_dump_record_size=1; }
+        else if (mode=="fp6") { g_dump_format_id=1;  g_dump_record_size=1; }
+        else if (mode=="fp8"||mode=="fp8-e4m3") { g_dump_format_id=2; g_dump_record_size=1; }
+        else if (mode=="fp8-e5m2") { g_dump_format_id=3; g_dump_record_size=1; }
+        else if (mode=="f16"||mode=="fp16") { g_dump_format_id=4; g_dump_record_size=2; }
+        else if (mode=="bf16") { g_dump_format_id=5; g_dump_record_size=2; }
+        else if (mode=="tf32") { g_dump_format_id=6; g_dump_record_size=4; }
+        else if (mode=="f32"||mode=="fp32") { g_dump_format_id=7; g_dump_record_size=4; }
+        else if (mode=="dec32"||mode=="decimal32") { g_dump_format_id=8; g_dump_record_size=4; }
+        else if (mode=="dpd32"||mode=="dpd-dec32") { g_dump_format_id=9; g_dump_record_size=4; }
+        else if (mode=="f64"||mode=="fp64") { g_dump_format_id=10; g_dump_record_size=8; }
+        else if (mode=="dec64"||mode=="decimal64") { g_dump_format_id=11; g_dump_record_size=8; }
+        else if (mode=="dpd64"||mode=="dpd-dec64") { g_dump_format_id=12; g_dump_record_size=8; }
+        else if (mode=="x87")  { g_dump_format_id=13; g_dump_record_size=10; }
+        else if (mode=="fp128"){ g_dump_format_id=14; g_dump_record_size=16; }
+        else if (mode=="dec128"||mode=="decimal128") { g_dump_format_id=15; g_dump_record_size=16; }
+        else if (mode=="dpd128"||mode=="dpd-dec128") { g_dump_format_id=16; g_dump_record_size=16; }
     }
     if (mode == "f16" || mode == "fp16")            { run_native<NativeF16>("FP16", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
     if (mode == "f32" || mode == "fp32")            { run_native<NativeF32>("FP32", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
