@@ -180,30 +180,83 @@ inline std::string dpd_combo(int msw, int expMSB) {
     return std::string("11") + (expMSB>>1&1?'1':'0') + (expMSB&1?'1':'0') + (msw==9?'1':'0');
 }
 
-inline std::string dpd_pack_bits(const DpdNum& n, const DpdFmt& fmt) {
-    int total = 1 + 5 + fmt.exp_bits + fmt.coeff_bits;
-    int nb = (total + 7) / 8;
-    std::vector<unsigned char> bits(nb, 0);
-    int bp = 0;
-    auto w = [&](int v){ if(v){int b=bp/8,o=7-(bp%8);bits[b]|=(1<<o);} ++bp; };
-    auto wn = [&](int v, int k){ for(int i=k-1;i>=0;--i) w((v>>i)&1); };
+// ---- declet chaining sub-unit: fixed-length DPD bitstring <-> DpdNum with round-trip check ----
+// Coefficient zero-padded on the low-significance side to fmt.digits; the leading digit rides in
+// the 5-bit combo, the remaining digits group into (digits-1)/3 declets (3 decimal digits -> 10 bits).
+inline std::vector<int> dpd_coeff_padded(const DpdNum& n, const DpdFmt& fmt) {
+    std::vector<int> d = n.digits;
+    while ((int)d.size() < fmt.digits) d.push_back(0);
+    while ((int)d.size() > fmt.digits) d.erase(d.begin());
+    return d;
+}
 
+// Fixed-length MSB-first bit string: S(1) | combo(5) | exp_cont(exp_bits) | declets(10 bits each)
+inline std::string dpd_pack_bitstring(const DpdNum& n, const DpdFmt& fmt) {
+    std::vector<int> d = dpd_coeff_padded(n, fmt);
     int be = n.exp10 + (int)fmt.bias;
-    int nd = (int)n.digits.size();
-    int ms = (nd > 0) ? n.digits[0] : 0;
     int E = be & ((1 << fmt.exp_bits) - 1);
     int eMSB = (be >> fmt.exp_bits) & 3;
-
-    w(n.neg?1:0);
-    std::string cb = dpd_combo(ms, eMSB);
-    for (char c : cb) w(c-'0');
-    wn(E, fmt.exp_bits);
-
-    if (nd > 0) {
-        int i = 1;
-        while (i + 2 < nd) { wn(dpd_encode3(n.digits[i],n.digits[i+1],n.digits[i+2]), 10); i += 3; }
-        while (i < nd) { wn(n.digits[i], 4); ++i; }
+    std::string out;
+    out += n.neg ? '1' : '0';
+    out += dpd_combo(d[0], eMSB);
+    for (int i = fmt.exp_bits - 1; i >= 0; --i) out += ((E >> i) & 1) ? '1' : '0';
+    for (int i = 1; i < (int)d.size(); i += 3) {
+        unsigned v = dpd_encode3((unsigned)d[i], (unsigned)d[i+1], (unsigned)d[i+2]);
+        for (int b = 9; b >= 0; --b) out += ((v >> b) & 1) ? '1' : '0';
     }
+    return out;
+}
+
+// Exact reverse of dpd_pack_bitstring.
+inline DpdNum dpd_unpack_bits(const std::string& bits, const DpdFmt& fmt) {
+    DpdNum r;
+    r.neg = (bits[0] == '1');
+    char g0=bits[1], g1=bits[2], g2=bits[3], g3=bits[4], g4=bits[5];
+    int eMSB, msd;
+    if (g0=='0' || g1=='0') {
+        eMSB = (g0=='1')*2 + (g1=='1');
+        msd  = (g2=='1')*4 + (g3=='1')*2 + (g4=='1');
+    } else {
+        eMSB = (g2=='1')*2 + (g3=='1');
+        msd  = (g4=='1') ? 9 : 8;
+    }
+    int E = 0, off = 6;
+    for (int i = 0; i < fmt.exp_bits; ++i) E = (E << 1) | (bits[off+i]=='1');
+    off += fmt.exp_bits;
+    r.exp10 = ((eMSB << fmt.exp_bits) | E) - (int)fmt.bias;
+    std::vector<int> d; d.push_back(msd);
+    int ndec = (fmt.digits - 1) / 3;
+    for (int k = 0; k < ndec; ++k) {
+        unsigned v = 0;
+        for (int b = 0; b < 10; ++b) v = (v << 1) | (bits[off + k*10 + b] == '1');
+        unsigned a=0, b=0, c=0;
+        dpd_decode3(v, a, b, c);
+        d.push_back((int)a); d.push_back((int)b); d.push_back((int)c);
+    }
+    r.digits = d;
+    return r;
+}
+
+// True round-trip self-check: pack -> unpack, compare sign / exp10 / fixed-length coefficient.
+inline bool dpd_selfcheck(const DpdNum& n, const DpdFmt& fmt, std::string* err = nullptr) {
+    std::string bits = dpd_pack_bitstring(n, fmt);
+    DpdNum u = dpd_unpack_bits(bits, fmt);
+    bool ok = true; std::string e;
+    if (u.neg != n.neg) { ok = false; e += " sign"; }
+    if (u.exp10 != n.exp10) { ok = false; e += " exp10(" + std::to_string(u.exp10) + "!=" + std::to_string(n.exp10) + ")"; }
+    std::vector<int> expect = dpd_coeff_padded(n, fmt);
+    if (u.digits != expect) { ok = false; e += " coeff"; }
+    if (err) *err = e;
+    return ok;
+}
+
+inline std::string dpd_pack_bits(const DpdNum& n, const DpdFmt& fmt) {
+    std::string b = dpd_pack_bitstring(n, fmt);
+    int total = (int)b.size();
+    int nb = (total + 7) / 8;
+    std::vector<unsigned char> bits(nb, 0);
+    for (int i = 0; i < total; ++i)
+        if (b[i] == '1') { int by=i/8, o=7-(i%8); bits[by]|=(unsigned char)(1<<o); }
     static const char* hx = "0123456789ABCDEF";
     std::string out;
     for (int i=0;i<nb;++i) { out+=hx[bits[i]>>4]; out+=hx[bits[i]&0xF]; }
@@ -211,31 +264,7 @@ inline std::string dpd_pack_bits(const DpdNum& n, const DpdFmt& fmt) {
 }
 
 inline std::string dpd_pack_bin(const DpdNum& n, const DpdFmt& fmt) {
-    int total = 1 + 5 + fmt.exp_bits + fmt.coeff_bits;
-    int nb = (total + 7) / 8;
-    std::vector<unsigned char> bits(nb, 0);
-    int bp = 0;
-    auto w = [&](int v){ if(v){int b=bp/8,o=7-(bp%8);bits[b]|=(1<<o);} ++bp; };
-    auto wn = [&](int v, int k){ for(int i=k-1;i>=0;--i) w((v>>i)&1); };
-
-    int be = n.exp10 + (int)fmt.bias;
-    int nd = (int)n.digits.size();
-    int ms = (nd > 0) ? n.digits[0] : 0;
-    int E = be & ((1 << fmt.exp_bits) - 1);
-    int eMSB = (be >> fmt.exp_bits) & 3;
-
-    w(n.neg?1:0);
-    std::string cb = dpd_combo(ms, eMSB);
-    for (char c : cb) w(c-'0');
-    wn(E, fmt.exp_bits);
-
-    if (nd > 0) {
-        int i = 1;
-        while (i + 2 < nd) { wn(dpd_encode3(n.digits[i],n.digits[i+1],n.digits[i+2]), 10); i += 3; }
-        while (i < nd) { wn(n.digits[i], 4); ++i; }
-    }
-    std::string s;
-    for (int i=0;i<total;++i) { int b=i/8,o=7-(i%8); s+=(bits[b]&(1<<o))?'1':'0'; }
+    std::string s = dpd_pack_bitstring(n, fmt);
     return s.substr(0,1)+" "+s.substr(1,5)+" "+s.substr(6,fmt.exp_bits)+" "+s.substr(6+fmt.exp_bits);
 }
 
@@ -257,13 +286,16 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
 
     bool print = (out == nullptr);
     double sv = std::isnan(start_val) ? 1.0 : start_val;
+    std::string sc_err;
+    bool sc_ok = dpd_selfcheck(start, fmt, &sc_err);
+    if (!sc_ok) std::fprintf(stderr, "  [DPD-SELFCHECK] MISMATCH%s\n", sc_err.c_str());
     if (print) {
         std::printf("%s walk: start=%.1f, %s, delay=%lldms (0=unlimited)\n",
                     fmt.name, sv, step_factor_str(sm, factor).c_str(), (long long)delay_ms);
         std::printf("  [DPD] coeff=");
         for (int d : start.digits) std::printf("%d", d);
         std::printf(" exp10=%d hex=%s\n", start.exp10, dpd_pack_bits(start, fmt).c_str());
-        std::printf("  [DPD-SELFCHECK] OK\n");
+        std::printf("  [DPD-SELFCHECK] %s\n", sc_ok ? "OK" : "MISMATCH");
     }
 
     // DPD ULP step: ADD_ULP = least significant digit +1

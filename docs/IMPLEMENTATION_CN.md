@@ -164,7 +164,7 @@ CI（GitHub Actions）在 Ubuntu 上用 GCC 和 Clang 双 job 构建，跑 fp32 
 ## 已知局限
 
 - UInt256 没有加法/减法/移位，dec128 只需要乘法和除以 10。
-- DPD 系数 declet 串联子单元是技术债（task #28），当前实现能跑但不够紧凑。
+- DPD 系数 declet 串联已实现定长对称 pack/unpack 子单元并配真实 pack→unpack 往返自检（task #28 已完成），原「能跑但不够紧凑」的技术债闭合。
 - x87/FP128 纯软件实现仍用 `__int128` 做 128 位辅助，未完全替换成 UInt256。
 - OSS-Fuzz 未接入。
 - g++ 16.2.0 本地有 ICE（内部编译器错误），Clang 18 编译正常；CI 上 Ubuntu GCC 不受影响。

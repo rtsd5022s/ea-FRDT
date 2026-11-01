@@ -164,7 +164,7 @@ CI (GitHub Actions) builds on Ubuntu with GCC and Clang in two jobs, runs an fp3
 ## Known limitations
 
 - UInt256 has no add/subtract/shift; dec128 only needs multiply and divide-by-10.
-- DPD coefficient declet chaining sub-unit is technical debt (task #28); current implementation runs but is not compact.
+- DPD coefficient declet chaining now uses a fixed-length symmetric pack/unpack sub-unit with a real pack->unpack round-trip self-check (task #28 completed); the former "runs but not compact" debt is closed.
 - x87/FP128 pure-software paths still use `__int128` for 128-bit assistance, not yet replaced by UInt256.
 - OSS-Fuzz not yet integrated.
 - g++ 16.2.0 locally has an ICE (internal compiler error); Clang 18 builds cleanly. CI on Ubuntu GCC is unaffected.
