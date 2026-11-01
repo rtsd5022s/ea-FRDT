@@ -2,6 +2,7 @@
 #include "common.h"
 #include "fp_formats.h"
 #include "decimal.h"
+#include "dpd128.h"
 #include "runner.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -203,6 +204,13 @@ int main(int argc, char** argv) {
         // record_size at 0xD0 (16 bytes)
         std::uint64_t rsize = g_dump_record_size;
         std::memcpy(hdr+0xD0, &rsize, 8);
+        // step_interval at 0xC0 (DPD128, 16 bytes)
+        {
+            char fbuf[32];
+            std::snprintf(fbuf, sizeof(fbuf), "%.15g", g_dump_factor);
+            auto di = fw::DPD128::from_string(fbuf);
+            std::memcpy(hdr+0xC0, di.data(), 16);
+        }
         std::fwrite(hdr, 1, 256, g_dump_file);
         std::fflush(g_dump_file);
 #ifdef _WIN32
@@ -438,6 +446,7 @@ int main(int argc, char** argv) {
     if (!std::isnan(start_val) && !std::isfinite(start_val)) { std::cerr << tr("错误：起点必须为有限数值\n", "error: start must be a finite number\n"); return 2; }
 
     g_json_factor = factor;
+    g_dump_factor = factor;
     g_json_start = std::isnan(start_val) ? 1.0 : start_val;
     g_json_step_mode = (int)step_mode;
     g_json_digits = digits;

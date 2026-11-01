@@ -51,5 +51,6 @@ inline int g_dump_packed = 0; // 0=natural width (default), 1=packed tight (tf32
 inline long g_dump_bytes_written = 0;
 inline int g_dump_record_size = 0;   // bytes per record (set per format)
 inline int g_dump_format_id = 0;     // format identifier (set per format)
+inline double g_dump_factor = 1.02;  // step factor for header step_interval
 
 } // namespace fw
