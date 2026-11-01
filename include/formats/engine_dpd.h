@@ -257,16 +257,9 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
 
     bool print = (out == nullptr);
     double sv = std::isnan(start_val) ? 1.0 : start_val;
-    const char* sm_str = (sm == StepMode::MUL_ULP) ? "mululp(x1+1ULP)"
-                       : (sm == StepMode::ADD_ULP) ? "addulp(+1ULP)"
-                       : "multiplied";
     if (print) {
-        if (sm == StepMode::X102)
-            std::printf("%s walk: start=%.1f, step=multiplied, x%.2f, delay=%lldms (0=unlimited)\n",
-                        fmt.name, sv, factor, (long long)delay_ms);
-        else
-            std::printf("%s walk: start=%.1f, step=%s, delay=%lldms (0=unlimited)\n",
-                        fmt.name, sv, sm_str, (long long)delay_ms);
+        std::printf("%s walk: start=%.1f, %s, delay=%lldms (0=unlimited)\n",
+                    fmt.name, sv, step_factor_str(sm, factor).c_str(), (long long)delay_ms);
         std::printf("  [DPD] coeff=");
         for (int d : start.digits) std::printf("%d", d);
         std::printf(" exp10=%d hex=%s\n", start.exp10, dpd_pack_bits(start, fmt).c_str());
@@ -347,7 +340,8 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
         if (g_timeout_sec.load() > 0) {
             double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
             if (es >= (double)g_timeout_sec.load()) {
-                if (out) { out->steps = steps; out->reason = RunResult::TIMEOUT; }
+                reason = RunResult::TIMEOUT;
+                if (out) { out->steps = steps; out->reason = reason; }
                 if (print) std::printf("\r\033[K[step %llu] timeout (%ds)\n", (unsigned long long)steps, g_timeout_sec.load());
                 break;
             }
