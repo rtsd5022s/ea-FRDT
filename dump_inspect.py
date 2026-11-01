@@ -64,13 +64,22 @@ def interpret(path):
     print(f"  0xF8  reserved3      : {h[0xF8:0x100].hex(' ')}")
     print(f"")
     payload = total_steps * record_size
-    import os
+    import os, binascii
     actual = os.path.getsize(path)
+    with open(path, "rb") as pf:
+        pf.seek(256)
+        payload_data = pf.read()
+    calc_crc = binascii.crc32(payload_data) & 0xFFFFFFFF
     print(f"  --- payload math ---")
     print(f"  total_steps × record_size = {total_steps} × {record_size} = {payload}")
     print(f"  header (256) + payload = {256+payload}")
     print(f"  actual file size      = {actual}")
     print(f"  match                 : {'YES' if actual == 256+payload else 'MISMATCH'}")
+    print(f"")
+    print(f"  --- crc32 payload integrity (IEEE 802.3 over offset 256..EOF) ---")
+    print(f"  header crc32 (0xE0)   : 0x{crc:08X}")
+    print(f"  recomputed payload    : 0x{calc_crc:08X}")
+    print(f"  crc match             : {'YES' if calc_crc == crc else 'MISMATCH'}")
     print(f"")
     print(f"  --- full 256-byte hex dump ---")
     print(hexdump(h))

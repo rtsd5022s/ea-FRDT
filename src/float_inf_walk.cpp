@@ -48,6 +48,35 @@ static bool confirm_warnings(std::vector<std::pair<int,std::string>>& warns) {
     return true;
 }
 
+// CRC-32/IEEE 802.3: reflected poly 0xEDB88320, init/xorout 0xFFFFFFFF;
+// bit-compatible with zlib / Python binascii.crc32.
+static std::uint32_t crc32_update(std::uint32_t crc, const unsigned char* p, std::size_t n) {
+    for (std::size_t i = 0; i < n; ++i) {
+        crc ^= p[i];
+        for (int k = 0; k < 8; ++k)
+            crc = (crc >> 1) ^ ((crc & 1u) ? 0xEDB88320u : 0u);
+    }
+    return crc;
+}
+
+// CRC over [base, base+n) of the open dump file; streams in chunks, n<=0 => CRC of empty = 0.
+static std::uint32_t crc32_payload(std::FILE* f, long base, long n) {
+    std::uint32_t crc = 0xFFFFFFFFu;
+    if (n > 0) {
+        std::fseek(f, base, SEEK_SET);
+        unsigned char buf[4096];
+        long remain = n;
+        while (remain > 0) {
+            std::size_t want = remain < (long)sizeof(buf) ? (std::size_t)remain : sizeof(buf);
+            std::size_t got = std::fread(buf, 1, want, f);
+            if (got == 0) break;
+            crc = crc32_update(crc, buf, got);
+            remain -= (long)got;
+        }
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
 static void print_help() {
     if (g_lang == Lang::EN) {
     std::cout <<
@@ -177,6 +206,9 @@ int main(int argc, char** argv) {
 #endif
     std::signal(SIGINT, on_sigint);
     std::atexit([](){ if (g_dump_file) {
+        std::fflush(g_dump_file);
+        // CRC-32/IEEE over payload (offset 256 .. EOF) before rewriting the header
+        std::uint32_t payload_crc = crc32_payload(g_dump_file, 256, g_dump_bytes_written);
         // write header at offset 0
         std::rewind(g_dump_file);
         char hdr[256] = {0};
@@ -211,9 +243,8 @@ int main(int argc, char** argv) {
             auto di = fw::DPD128::from_string(fbuf);
             std::memcpy(hdr+0xC0, di.data(), 16);
         }
-        // crc32 at 0xE0 (placeholder, payload CRC computed later)
-        std::uint32_t crc = 0;
-        std::memcpy(hdr+0xE0, &crc, 4);
+        // crc32 at 0xE0: CRC-32/IEEE over payload (offset 256..EOF), little-endian
+        std::memcpy(hdr+0xE0, &payload_crc, 4);
         // flags at 0xE4 (0 = no compression)
         std::uint32_t flags = 0;
         std::memcpy(hdr+0xE4, &flags, 4);
@@ -422,7 +453,7 @@ int main(int argc, char** argv) {
         if (a == "--json") { g_json = true; quiet = true; continue; }
         if (a == "--dump") {
             if (i + 1 >= argc) { std::cerr << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
-            g_dump_file = std::fopen(argv[++i], "wb");
+            g_dump_file = std::fopen(argv[++i], "wb+"); // wb+: truncate/write, but re-readable for payload CRC at exit
             if (!g_dump_file) { std::cerr << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
             std::fseek(g_dump_file, 256, SEEK_SET);  // reserve header space
             quiet = true;
