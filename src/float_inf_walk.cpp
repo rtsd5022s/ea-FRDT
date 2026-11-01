@@ -1,7 +1,6 @@
 // float_inf_walk.cpp — Overflow walk: grow from 1.0 step-by-step until overflow to +inf
 #include "common.h"
-#include "fp_formats.h"
-#include "decimal.h"
+#include "formats/formats_all.h"
 #include "dpd128.h"
 #include "runner.h"
 #ifdef _WIN32
@@ -532,27 +531,24 @@ int main(int argc, char** argv) {
         else if (mode=="dec128"||mode=="decimal128") { g_dump_format_id=15; g_dump_record_size=16; }
         else if (mode=="dpd128"||mode=="dpd-dec128") { g_dump_format_id=16; g_dump_record_size=16; }
     }
-    if (mode == "f16" || mode == "fp16")            { run_native<NativeF16>("FP16", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "f32" || mode == "fp32")            { run_native<NativeF32>("FP32", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "f64" || mode == "fp64")            { run_native<NativeF64>("FP64", delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "x87")                              { run_x87_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp4")        { run_sim({2, 1, 1, "FP4(E2M1)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp6")        { run_sim({3, 2, 3, "FP6(E3M2)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp8" || mode == "fp8-e4m3") { run_sim({4, 3, 7, "FP8(E4M3)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "fp8-e5m2")   { run_sim({5, 2, 15, "FP8(E5M2)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "bf16")       { run_sim({8, 7, 127, "BF16(E8M7)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    if (mode == "tf32")       { run_sim({8, 10, 127, "TF32(E8M10)"}, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    {
-        static const DecFmt f32d{7, 96, "Decimal32"};
-        static const DecFmt f64d{16, 384, "Decimal64"};
-        if (mode == "dec32" || mode == "decimal32") { run_dec(f32d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dec64" || mode == "decimal64") { run_dec(f64d, delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dec128" || mode == "decimal128") { run_dec128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dpd32" || mode == "dpd-dec32") { run_dpd(dpd_fmt32(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dpd64" || mode == "dpd-dec64") { run_dpd(dpd_fmt64(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-        if (mode == "dpd128" || mode == "dpd-dec128") { run_dpd(dpd_fmt128(), delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
-    }
-    if (mode == "fp128") { run_q128_soft(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, (g_json || g_dump_file ? &g_result : nullptr), refresh_ms); return 0; }
+    RunResult* q = (g_json || g_dump_file ? &g_result : nullptr);
+    if (mode == "f16" || mode == "fp16")            { run_fp16(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "f32" || mode == "fp32")            { run_fp32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "f64" || mode == "fp64")            { run_fp64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "x87")                              { run_x87(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "fp4")        { run_fp4(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "fp6")        { run_fp6(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "fp8" || mode == "fp8-e4m3") { run_fp8_e4m3(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "fp8-e5m2")   { run_fp8_e5m2(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "bf16")       { run_bf16(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "tf32")       { run_tf32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "dec32" || mode == "decimal32") { run_dec32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "dec64" || mode == "decimal64") { run_dec64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "dec128" || mode == "decimal128") { run_dec128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "dpd32" || mode == "dpd-dec32") { run_dpd32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "dpd64" || mode == "dpd-dec64") { run_dpd64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "dpd128" || mode == "dpd-dec128") { run_dpd128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
+    if (mode == "fp128") { run_fp128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
 
     std::cerr << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
     return 2;

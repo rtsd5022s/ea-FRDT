@@ -1,9 +1,7 @@
 // runner.h — ALL concurrent mode: worker pool + live monitor + summary
 #pragma once
 #include "common.h"
-#include "fp_formats.h"
-#include "decimal.h"
-#include "dpd.h"
+#include "formats/formats_all.h"
 #include "platform.h"
 #include <ctime>
 #ifdef _WIN32
@@ -152,26 +150,24 @@ struct RunParams {
 };
 
 inline void run_format(FmtId id, const RunParams& p, RunResult* out) {
-    static const DecFmt d32{7, 96, "Decimal32"};
-    static const DecFmt d64{16, 384, "Decimal64"};
     switch (id) {
-        case FmtId::FP4:      run_sim({2,1,1,"FP4"}, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP6:      run_sim({3,2,3,"FP6"}, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP8E4M3:  run_sim({4,3,7,"FP8"}, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP8E5M2:  run_sim({5,2,15,"FP8e5"}, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP16:     run_native<NativeF16>("FP16", p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::BF16:     run_sim({8,7,127,"BF16"}, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::TF32:     run_sim({8,10,127,"TF32"}, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP32:     run_native<NativeF32>("FP32", p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::Dec32:    run_dec(d32, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP64:     run_native<NativeF64>("FP64", p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::Dec64:    run_dec(d64, p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::X87:      run_x87_soft(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP128:    run_q128_soft(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP4:      run_fp4(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP6:      run_fp6(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP8E4M3:  run_fp8_e4m3(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP8E5M2:  run_fp8_e5m2(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP16:     run_fp16(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::BF16:     run_bf16(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::TF32:     run_tf32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP32:     run_fp32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::Dec32:    run_dec32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP64:     run_fp64(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::Dec64:    run_dec64(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::X87:      run_x87(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::FP128:    run_fp128(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
         case FmtId::Dec128:   run_dec128(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::DPD32:    run_dpd(dpd_fmt32(), p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out, 0); break;
-        case FmtId::DPD64:    run_dpd(dpd_fmt64(), p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out, 0); break;
-        case FmtId::DPD128:   run_dpd(dpd_fmt128(), p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out, 0); break;
+        case FmtId::DPD32:    run_dpd32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::DPD64:    run_dpd64(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
+        case FmtId::DPD128:   run_dpd128(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
         default: break;
     }
 }
