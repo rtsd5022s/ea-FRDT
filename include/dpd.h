@@ -416,7 +416,7 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
                 };
                 buf[i] = (char)((hexval(hex[2*i]) << 4) | hexval(hex[2*i+1]));
             }
-            if (g_dump_endian == 1) {
+            if (g_dump_endian == 0) {
                 for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
             }
             std::fwrite(buf, 1, bw, g_dump_file);

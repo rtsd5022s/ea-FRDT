@@ -172,7 +172,7 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
             }
             buf[i] = (char)bits;
         }
-        if (g_dump_endian == 1) {
+        if (g_dump_endian == 0) {
             for (int i = 0; i < rec_bytes/2; ++i) std::swap(buf[i], buf[rec_bytes-1-i]);
         }
         std::fwrite(buf, 1, rec_bytes, g_dump_file);
@@ -402,7 +402,7 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
             }
             buf[i] = (char)bits;
         }
-        if (g_dump_endian == 1) {
+        if (g_dump_endian == 0) {
             for (int i = 0; i < 5; ++i) std::swap(buf[i], buf[9-i]);
         }
         std::fwrite(buf, 1, 10, g_dump_file);
@@ -591,7 +591,7 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
             }
             buf[i] = (char)bits;
         }
-        if (g_dump_endian == 1) {
+        if (g_dump_endian == 0) {
             for (int i = 0; i < 8; ++i) std::swap(buf[i], buf[15-i]);
         }
         std::fwrite(buf, 1, 16, g_dump_file);
