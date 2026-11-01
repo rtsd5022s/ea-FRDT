@@ -10,6 +10,8 @@
 #include <io.h>
 #include <cstdio>
 #include <cmath>
+#elif defined(__GNUC__) || defined(__clang__)
+#include <cpuid.h>
 #endif
 
 using namespace fw;
@@ -251,7 +253,12 @@ int main(int argc, char** argv) {
         // cpu_brand_hash at 0xE8 (16 bytes)
         {
             int cpuinfo[4] = {0};
+#ifdef _WIN32
             __cpuid(cpuinfo, 0);
+#elif defined(__GNUC__) || defined(__clang__)
+            __get_cpuid(0u, (unsigned*)&cpuinfo[0], (unsigned*)&cpuinfo[1],
+                        (unsigned*)&cpuinfo[2], (unsigned*)&cpuinfo[3]);
+#endif
             char brand[13] = {0};
             std::memcpy(brand, &cpuinfo[1], 4);
             std::memcpy(brand+4, &cpuinfo[3], 4);
