@@ -392,10 +392,10 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
             return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 64);
         };
     }
-    // dump callback: x87 80-bit = 10 bytes, padded to 16
+    // dump callback: x87 80-bit = 10 bytes
     auto x87_dump = [](const X87& v) {
         std::string b = x87_bits(v);
-        char buf[16] = {0};
+        char buf[10] = {0};
         for (int i = 0; i < 10; ++i) {
             int bits = 0;
             for (int j = 0; j < 8; ++j) {
@@ -407,8 +407,8 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
         if (g_dump_endian == 1) {
             for (int i = 0; i < 5; ++i) std::swap(buf[i], buf[9-i]);
         }
-        std::fwrite(buf, 1, 16, g_dump_file);
-        g_dump_bytes_written += 16;
+        std::fwrite(buf, 1, 10, g_dump_file);
+        g_dump_bytes_written += 10;
     };
     drive_core(start,
           [&](X87 v) -> X87 {

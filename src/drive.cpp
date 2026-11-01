@@ -14,6 +14,7 @@ const char* step_name(StepMode sm) {
         case StepMode::X102:    return "multiplied";
         case StepMode::MUL_ULP: return "mululp(x1+1ULP)";
         case StepMode::ADD_ULP: return "addulp(+1ULP)";
+        case StepMode::SUB_ULP: return "subulp(-1ULP)";
     }
     return "?";
 }

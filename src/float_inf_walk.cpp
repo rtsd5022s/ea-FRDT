@@ -195,6 +195,7 @@ int main(int argc, char** argv) {
         const char* sm = "x1.02";
         if (g_json_step_mode == 1) sm = "mululp";
         else if (g_json_step_mode == 2) sm = "addulp";
+        else if (g_json_step_mode == 3) sm = "subulp";
         double rate = g_result.elapsed_ms > 0.0 ? (double)g_result.steps / (g_result.elapsed_ms / 1000.0) : 0.0;
         auto now = std::time(nullptr);
         std::printf(
