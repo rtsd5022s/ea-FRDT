@@ -10,7 +10,7 @@ What do you want to ask?
 
 **Environment**
 - OS:
-- Compiler: (g++ / clang++ / MSVC)
+- Compiler: (g++ / clang++; MSVC is not supported)
 - Version or tag:
 
 **Command line**

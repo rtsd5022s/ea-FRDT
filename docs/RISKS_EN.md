@@ -32,15 +32,15 @@ The power supply is the most overlooked component. A loaded CPU draws highly flu
 
 ### 2.1 System lag
 
-This is the most immediate. On an 8-core CPU running 8 workers, each pinned to a core and bumped to realtime priority (THREAD_PRIORITY_TIME_CRITICAL). The Windows scheduler prioritizes high-priority threads, and everything else (Explorer, antivirus, IME, browser) gets squeezed onto whatever cores are left. If all 8 cores are taken, other processes run in the gaps of time slices.
+This is the most immediate. On an 8-core CPU running 8 workers, each is pinned to a core; on Windows the thread priority is additionally raised to `THREAD_PRIORITY_TIME_CRITICAL` (Linux only pins affinity and leaves default nice scheduling). The Windows scheduler favors high-priority threads, and everything else (Explorer, antivirus, IME, browser) gets squeezed onto the remaining cores. When all 8 are taken, other processes run in the gaps of time slices.
 
-In practice: mouse drag has lag, window switching takes seconds, even typing stutters. When you want to press Ctrl+C to stop the tool, the terminal may take a second to respond. This is not a bug; it is the expected behavior of pinning plus realtime priority. If you want to use the machine while it runs, pin fewer cores: on a 4-core CPU use `-j 1-2` and leave two cores for the OS.
+In practice: mouse drag has lag, window switching takes seconds, even typing stutters. When you want to press Ctrl+C to stop the tool, the terminal may take a second to respond. This is not a bug; it is the expected behavior of pinning plus realtime priority. If you want to use the machine while it runs, pin fewer cores (ids are zero-based): on a 4-core CPU use `-j 0-1` and leave two cores for the OS.
 
 ### 2.2 Background tasks starved
 
 Windows Update, Defender full scans, OneDrive sync, browser update checks: these background tasks get starved under CPU load. They do not stop running, they simply cannot get CPU time. After a night of stress testing you find Windows Update still downloading yesterday's patch, and last night's OneDrive sync never completed. The system is not broken; background tasks did not win the CPU lottery.
 
-Antivirus may start scanning the tool's temporary files under load (though this tool barely writes anything), and the scan itself eats CPU, competing with the workers. It is worth temporarily disabling real-time protection during a run and re-enabling it after.
+Antivirus may scan the tool's artifacts under load (the run itself barely writes files; the sole exception is an explicit `--dump <file>` recording), and the scan itself eats CPU, competing with the workers. It is worth temporarily disabling real-time protection during a run and re-enabling it after.
 
 ### 2.3 Watchdog and system protection
 
@@ -74,7 +74,7 @@ DPD formats (dpd32/dpd64/dpd128) are pure software decimal-array arithmetic: per
 
 What does this mean? If you include DPD formats in `-m all`, that worker stays loaded longer than pure binary formats. Other workers finish their chain in seconds; the DPD worker takes longer. You think the tool hung, but it is faithfully computing DPD. Worse: the DPD worker occupies the CPU longer, meaning your machine stays loaded longer, and cooling, electricity, and noise costs all double.
 
-DPD prints a yellow warning before starting, waiting 10 seconds for `y`. This warning is not decoration; it is meant to make you think: are you sure you want the machine loaded for another half hour just for a DPD run?
+In `-m all`, including DPD×3 or Dec128(BID) raises a level-2 red `[!!!]` confirmation before start; press `y` within 10 s to continue, otherwise `cancelled`; single-format invocations skip the gate. This confirmation is not decoration: slow formats keep the worker loaded longer, so decide whether the extra run time on the machine is justified.
 
 ## 5. Infinite Loops and Timeouts
 

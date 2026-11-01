@@ -7,7 +7,7 @@ labels: build
 
 **Environment**
 - OS: (Windows / Linux / macOS)
-- Compiler: (g++ version, clang++ version, MSVC version)
+- Compiler: (g++ version / clang++ version; MSVC is not supported)
 - Architecture: (x86_64 / ARM64 / other)
 
 **Build command**

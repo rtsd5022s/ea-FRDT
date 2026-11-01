@@ -1,51 +1,43 @@
-# Concurrent mode (-m all multithreaded)
+# Concurrent mode (`-m all`, multithreaded)
 
-## What is concurrent mode
+## What concurrent mode is
 
-Concurrent mode runs multiple threads simultaneously, each thread independently running the format chain. Threads don't share state; each has its own current value, step count, and result list.
+`-m all` runs one worker per selected logical core; every worker independently walks the default format chain. Workers share no mutable state; each holds its own current value, step count, and result list.
 
-The default chain includes 13 formats, excluding DPD32/DPD64/DPD128 and Dec128(BID) (slow formats require `--only` to add).
-
-Add `-m all` to the command line:
+The default chain has **13 formats**: DPD32/DPD64/DPD128 and Dec128(BID) are excluded by default and added only via `--only`.
 
 ```
 float_inf_walk 0 -m all
-float_inf_walk 0 -m all -j 1-4
+float_inf_walk 0 -m all -j 0-3
 float_inf_walk 0 -m all -t 10 -q
 ```
 
-The biggest difference from single-thread mode: not running one format at a time, but each thread running the full set of 17 formats. Thread count is controlled by `-j`, each thread pinned to a specified core.
+Difference from single mode: not one format per invocation, but each worker repeatedly walks the chain. Worker count and core set are controlled by `-j`; each worker binds to its assigned core.
 
 ## Startup sequence
 
-`-m all` enters the `run_all` function:
+`-m all` enters `run_all`:
 
-1. Parse core list (`-j` arg), determine thread count and core pinning
-2. Print banner: CPU model, logical cores, physical cores, factor, throttle, thread count, format count
-3. Create WorkerSlot for each worker, `alignas(64)` cache-line aligned
-4. Start worker thread pool, each thread value-copies parameters, pins core, runs format chain
-5. Start monitor thread, periodically refreshes screen showing each worker status
-6. Wait for all workers to finish
-7. Print summary table
+1. Parse the `-j` core spec, decide worker count and affinity.
+2. Print banner: CPU brand, logical cores, physical cores (Linux reports `0` and hides the field), factor, throttle, worker count, chain length.
+3. Create one `alignas(64)` `WorkerSlot` per worker.
+4. Spawn worker threads: value-copy parameters, bind the core, walk the chain.
+5. Spawn the monitor, refreshing per `-r`.
+6. Join all workers.
+7. Print the summary table; `-q` suppresses the live monitor and keeps the table.
 
-## Core ID parsing
+## Core ID parsing (`-j` / `--jobs`)
 
-`-j` supports four syntaxes:
+**Zero-based**: IDs index logical processors directly; the first core is `0`. Empty spec (default) selects every logical core `0..hw-1`.
 
-- **Single**: `-j 4` uses only core 4
-- **Comma**: `-j 1,3` uses cores 1 and 3
-- **Range**: `-j 1-4` uses cores 1 through 4
-- **Mixed**: `-j 1,3-5` uses cores 1, 3, 4, 5
+- Single: `-j 3` = core `3`
+- Comma: `-j 0,2` = cores `0, 2`
+- Range: `-j 0-3` = cores `0,1,2,3`
+- Mixed: `-j 0,2-4` = `0,2,3,4`
 
-IDs are 1-based, not 0-based. `-j 1` is the first logical core.
+`parse_jobs` splits on commas, expands `-` ranges, then drops `v < 0 || v >= hw`, sorts, and deduplicates. A spec resolving to empty exits `2` with `expected 0~(hw-1)`.
 
-Parsing is in `parse_core_list`: split by comma, each segment with `-` expands as a range. Result is a core ID array.
-
-Hard cap is `std::thread::hardware_concurrency()`, excess gets truncated. On an 8-core CPU, `-j 1-16` truncates to 1-8.
-
-## WorkerSlot structure
-
-One WorkerSlot per worker:
+## WorkerSlot
 
 ```cpp
 struct alignas(64) WorkerSlot {
@@ -57,191 +49,82 @@ struct alignas(64) WorkerSlot {
 };
 ```
 
-`alignas(64)` is key: align the whole struct to 64 bytes (CPU cache line size). Each worker's data occupies its own cache line, so when multiple cores read/write simultaneously they don't step on each other's cache line, avoiding false sharing.
-
-Fields:
-- `cur`: result for the currently running format
-- `done`: result list for all formats in this round
-- `loop_done`: current loop count
-- `total_steps`: cumulative total steps (u128 to prevent overflow)
-- `sum_steps`: cumulative steps per format
+`alignas(64)` pins the struct to a CPU cache line, avoiding false sharing across cores. Fields: current-format result, per-pass result list, loop counter, cumulative `u128` step total, per-format step accumulator.
 
 ## Worker thread
 
-What each worker thread does:
-
 ```
-pin to specified core
-reset loop counter
-while (not done) {
+bind core
+loop counter = 0
+while (!done) {
     loop counter++
     if (timeout) break
-    clear done list
-    for (each format in chain) {
-        cur = fresh empty result
-        run this format
-        append cur to done
+    clear done
+    for (fmt : chain) {
+        cur = fresh RunResult
+        run fmt
+        done.push_back(cur)
         total_steps += cur.steps
-        sum_steps[format] += cur.steps
+        sum_steps[fmt] += cur.steps
     }
 }
 ```
 
-Parameters are value-copied, each worker has its own copy, no sharing. Format chain is also a value-copied vector.
+Parameters and the chain vector are value-copied; workers never read another's stack.
 
-## Core pinning
+## Core binding
 
-Each worker thread pins to a specified core:
+- **Windows**: `SetThreadAffinityMask(GetCurrentThread(), 1ULL << core_id)` (no offset), and `SetThreadPriority(..., THREAD_PRIORITY_TIME_CRITICAL)`.
+- **Linux**: `pthread_setaffinity_np` with `CPU_SET(core_id, ...)`; no real-time priority is set (default nice class).
 
-- **Windows**: `SetThreadAffinityMask(GetCurrentThread(), 1 << (core_id - 1))`, also set `THREAD_PRIORITY_TIME_CRITICAL`
-- **Linux**: `pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset)`
+Cross-platform calls go through `fw::plat::bind_thread_to_core` in `platform.cpp`. Binding reduces migration and keeps caches warm; if the container/VM denies permission, binding fails and the worker runs unpinned.
 
-Cross-platform logic is isolated in `platform.h`, worker code just calls `fw::plat::bind_thread_to_core(core_id)`.
+## Confirmation warnings (this gate exists only in `-m all`)
 
-Pinning benefits: threads don't drift between cores, always run on the same core, cache hit rate high. Without pinning, OS scheduler may move threads around, cache goes cold.
+`confirm_warnings` aggregates non-fatal warnings before workers start; within 10 s press `y` to continue, otherwise the run is `cancelled` and exits `0`:
 
-## Monitor thread
+- Level-1 yellow `[!]`: `-l -1` together with `-t 0`; factor `< 1e-10`.
+- Level-2 red `[!!!]`: chain includes DPD32/DPD64/DPD128 (slow software declets); chain includes Dec128 (slow UInt256 arithmetic). These warn rather than reject.
 
-The monitor thread is a separate thread responsible for screen refresh:
+Single-format invocations do not go through this gate.
 
-```
-while (workers not done) {
-    sleep(refresh_ms)
-    clear screen
-    for (each worker) {
-        print [wN] format current speed time loop
-    }
-}
-```
+## Monitor
 
-Refresh interval `-r`:
-- `-m all` defaults to 1000ms (1 second)
-- Single-thread mode defaults to 0 (every step)
-
-Monitor line format:
+A dedicated thread sleeps `-r` (default `1000` ms in `-m all`; single mode refreshes per step) and prints one line per worker:
 
 ```
-[w1] FP32: 1.234567e+10   4500000 steps/s   1.234s   loop=1/3
+[w1] FP32: 1.234567e+10   4.50e6 steps/s   1.234s   loop=1/3
 ```
 
-Time display is layered: under 1 minute shows seconds only, over 1 minute shows min:sec, over 1 hour shows hr:min:sec, over 1 day shows day:hr:min:sec.
+Elapsed time renders layered (s → m:s → h:m:s → d:h:m:s), refreshed in place with `\r`.
 
-## Timeout
+## Timeout and loops
 
-Timeout is global, all workers share `g_timeout_sec` and `t0`. Each worker checks at each loop start:
-
-```
-elapsed = now - t0
-if (elapsed >= g_timeout_sec) break
-```
-
-After timeout, workers exit, wait for other workers to exit, then print summary.
-
-## Loops
-
-`-l 3` runs 3 passes through the format chain. After each pass (all formats overflow/underflow), clear done list, reset cur, start next pass.
-
-`-l -1` infinite loop, pair with `-t`.
-
-In loop mode the monitor shows `loop=1/3`, `loop=2/3`, `loop=3/3`. Infinite loop shows `loop=1/-1`.
+The global `g_timeout_sec` and shared start time gate every worker; on expiry the reason is `timeout`. `-l 3` repeats the chain three passes; the monitor shows `loop=1/3` …; `-l -1` repeats indefinitely. `-l -1` with `-t 0` only raises the level-1 warning above; pairing a timeout remains strongly recommended, especially over SSH.
 
 ## Summary table
 
-After all workers finish, each worker prints a section:
+After join, per-worker sections list each format's single-pass steps, cumulative steps, exit reason, per-pass and cumulative time; the last row totals steps, wall clock, and aggregate throughput. Exit reasons drawn from the six enums (`overflow->inf`, `underflow->0`, `identity->stop`, `safety->limit`, `timeout`, `nan->nan`), plus outer `cancelled` / `sigint`.
 
-```
---- worker 1 ---
-format      single steps  total steps  exit            time ms  total time
-FP32        4481          13443        overflow->inf   0.5      1.5
-FP64        35843         107529       overflow->inf   4.2      5.7
-...
-Total: 120972 steps, 5.7s = 21223 steps/s
-```
-
-Columns:
-- Format name
-- Single-pass steps: steps for this format this round
-- Cumulative steps: all loops combined
-- Exit reason: overflow->inf / underflow->0 / timeout / cancelled
-- Single-pass time: how long this format took this round
-- Total time: wall clock from start
-
-Last row is total: total steps, total wall clock, average speed.
-
-## DPD warning
-
-If the format chain includes DPD32/DPD64/DPD128, a yellow warning shows before start:
-
-```
-[!] DPD is pure software decimal-array arithmetic, no hardware acceleration;
-speed vs BID UInt256 varies, but per-digit multiply + lookup overhead keeps the CPU
-loaded longer on weak machines. Press y to continue, auto-cancel in 10s...
-```
-
-Press y to continue, auto-cancels if no key within 10 seconds. Windows uses `_kbhit`/`_getch` non-blocking keyboard check, Linux uses `std::cin.read` blocking read.
-
-`-m all` doesn't include DPD formats by default; specify manually with `--only dpd32,dpd64`.
-
-DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
-
-## Format chain order
-
-Default 13 formats run in this order (DPD/Dec128 excluded):
+## Default chain order (13)
 
 ```
 FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32
-→ Dec32 → FP64 → Dec64
-→ x87 → FP128
+→ Dec32 → FP64 → Dec64 → X87 → FP128
 ```
 
-Use `--only dpd32,dpd64,dpd128,dec128` to add slow formats.
+`--only` selects a subset or adds slow formats, e.g. `--only dpd32,dpd64,dpd128,dec128`; `--only fp32,fp64` runs just those two. Small-to-large order means small formats finish first, but a worker waits for its whole chain.
 
-Small to large, small formats first. Each worker runs this full chain.
+## Performance notes
 
-`--only` specifies a format subset: `--only fp32,fp64` runs only FP32 and FP64.
+Binding removes migration; `alignas(64)` removes false sharing; value copies remove locking; the monitor only reads slots. x87/FP128 are pure software and DPD uses per-digit declet arithmetic, so chain throughput is dominated by those formats. Real-time priority applies on Windows only; measured throughput fluctuates under background load and thermal throttling.
 
-## Performance considerations
+## Risks (stress-test expectations)
 
-Performance bottlenecks in concurrent mode:
-
-- **Core pinning**: eliminates core migration, high cache hit rate
-- **alignas(64)**: eliminates false sharing, multi-cores don't step on each other's cache lines
-- **Value copy**: workers don't share data, no locks needed
-- **Independent monitor**: monitor doesn't block workers, only reads WorkerSlot periodically
-
-x87 and FP128 are pure software integer math, slower than native formats. DPD has lookup table overhead. These are determined by computation volume, not by the concurrency model.
-
-## Notes
-
-1. `-m all`: every worker runs the full 17 formats, not assigned different formats per worker.
-2. `-j` IDs are 1-based, hard cap is logical core count.
-3. DPD formats are not in the default `-m all` chain, add manually.
-4. `alignas(64)` eliminates false sharing, removing it causes cache ping-pong slowdown.
-5. `-r` refresh interval defaults to 1 second, too frequent slows workers.
-6. Monitor time display is layered, doesn't always show seconds.
-7. Summary table's "single-pass steps" is the last pass, not average.
-8. Infinite loop `-l -1` must pair with `-t`, otherwise runs forever.
-9. Core pinning may fail in containers/VMs without permission, workers run unpinned.
-10. Quiet mode `-q` skips the monitor, prints summary directly after done.
-
-## Usage risks
-
-Concurrent mode maxes out all cores. Long-running has several real risks to know before you start.
-
-**System lag and slowdown**. Each worker is pinned and bumped to TIME_CRITICAL priority, leaving other system processes on the remaining cores. On an 8-core CPU running 8 workers, the system can barely do anything else; even mouse drag may drop frames. This isn't a bug, it's expected behavior from pinning + high priority. To keep system responsive, pin fewer cores: on a 4-core CPU use `-j 1-2`, leave two cores for the OS.
-
-**Thermals and throttling**. Sustained load pushes CPU temperature up, then it downclocks. Laptops especially; machines with weak cooling start throttling after a few minutes and speed drops. Desktop with good airflow is less affected. This is a stress test tool, designed to push CPU to the limit, don't expect it to run gently.
-
-**Power cost**. Sustained load draws way more power than idle: desktop 100W+, laptop also jumps to 65W+. Long runs show up on the electricity bill. Servers don't care, but laptops on battery will drain fast.
-
-**Extra risk with DPD**. DPD is pure software decimal-array arithmetic: per-digit multiply plus lookup. Speed vs BID UInt256 varies, but DPD cannot use the hardware FPU. If DPD formats are added to concurrent mode, that worker stays loaded longer, and other workers may see scheduling jitter. The DPD warning isn't scaremongering; it really does keep the system laggier.
-
-**Infinite loop risk**. `-l -1` without `-t` runs forever. Ctrl+C works, but if running over SSH and the connection drops, the process may become an orphan and keep eating CPU. Always pair with a timeout.
-
-**Watchdog and OOM**. Some systems have a watchdog; CPU pegged at 100% for too long may trigger a watchdog reboot. WorkerSlot is a few KB per worker, won't OOM, but monitor and thread stacks take a bit. Memory isn't the bottleneck, CPU is.
-
-**Measurement bias**. Pinning + high priority is for accurate measurement, but background processes (antivirus, Windows Update, sync drives) steal CPU in the background, so measured speed fluctuates. For clean measurement, turn off background services or run in a container.
-
-**Don't run in production**. This is a stress test / testing tool, not a production tool. Running it on a production server slows other workloads. Play around in test environments.
-
-**Data accuracy**. Concurrent mode: each worker independently runs the format chain, results should match single-thread mode. If step counts disagree, first check whether pinning failed (scheduling drift) or system interference. Pure software formats (x87/FP128) should match single-core under multi-core concurrency, because they're pure integer math with no shared state.
+- **System responsiveness**: pinned, high-priority (Windows) workers leave other processes fewer cores; leave cores free (`-j 0-1` on a 4-core box) for responsiveness.
+- **Thermals / power**: sustained all-core load heats up and may downclock; laptops and weak-cooling machines throttle within minutes; power draw rises well above idle.
+- **Long-running slow formats**: DPD×3 and Dec128 keep a worker loaded longer; they are excluded from the default chain for this reason.
+- **Infinite loop**: `-l -1` without a timeout relies on Ctrl+C; a dropped SSH session may orphan the process. Use `-t`.
+- **Resource footprint**: slots are kilobytes; memory is not the bottleneck, CPU is. Some platforms have hardware watchdogs reacting to prolonged pegging.
+- **Do not run in production**: this is a stress tool, not a production workload.
+- **Accuracy**: pure-software integer formats reproduce the same step counts as single-core runs; divergence suggests binding failure or external interference.

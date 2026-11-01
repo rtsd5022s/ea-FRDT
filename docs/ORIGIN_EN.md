@@ -1,153 +1,123 @@
 # The Birth of ea-FRDT
 
+> Note: this narrative records design motivations and early-prototype decisions. Early rough step counts and old-machine timings are historical only; authoritative reference steps/timings for the current build live in BASELINE_EN.md, and implementation details follow the source code.
+
 ## 1. The Starting Point: A Boring Afternoon
 
 In the autumn of 2026, on a perfectly ordinary afternoon, I was debugging a floating-point boundary issue. A number had suddenly turned into infinity at some strange point, and I was doing nothing more exotic than multiplying 1.0 by 1.02. I wrote a script, about twenty lines of Python, that started at 1.0, multiplied by 1.02 each step, and printed every result until overflow.
 
-I ran it and watched the numbers grow: from 1 to 10, to 100, to 1e10, to 1e20, until at step 4481 it became inf. I stared at that 4481 for a long time.
+I ran it and watched the numbers grow: from 1 to 10, to 100, to 1e10, to 1e20, until near step 4481 I saw overflow. I stared at that number for a long time.
 
 Then I thought: what if I used a different format? What about float16? What about bfloat16? What about that almost-forgotten 80-bit x87 extended precision?
 
 That question was the seed of ea-FRDT.
 
-The first version was ugly. One C file, a main function, a for loop, a printf. Start at 1.0, multiply by 1.02 until overflow, print the step count. About fifty lines of code. I ran it on float, double, and long double, and watched how many steps each took.
+The first version was ugly: one C file, a main function, a for loop, a printf; start at 1.0, multiply by 1.02 until overflow, print the count. About fifty lines. I ran it on float, double, and long double and watched how many steps each took.
 
-Then I noticed something interesting: float took 4481 steps, double took 8275, long double (80-bit x87) took 573521. The gap was enormous—not because long double was "more precise" in a way that made it run farther, but because its exponent range was larger. Float has 8 exponent bits, max around 3.4e38. Double has 11 bits, max 1.8e308. Long double has 15 bits, max 1.2e4932. To go from 1.0 to 1e4932 by repeatedly multiplying by 1.02 takes 573521 multiplications.
+I noticed a striking spread: step counts to overflow differ enormously across formats for the same ×1.02 factor (early prototype rough marks: float ≈ 4481, long double in the hundreds-of-thousands; current reference counts are in BASELINE_EN.md). The main reason was not higher precision but a larger exponent range. Float has 8 exponent bits (max ≈ 3.4e38), double 11 (≈1.8e308), x87 15 (≈1.2e4932); the exponent width sets the reachable ceiling and therefore how many multiplies reach it.
 
-I wrote that number down. It was the first baseline.
+I wrote that magnitude down. It was the first baseline.
 
 ## 2. Expansion: From One Format to Seventeen
 
 The initial script only tested float and double. But I was not satisfied for long.
 
-I started adding formats. First float16—the 16-bit half-precision popular in GPUs and deep learning. Then bfloat16—the 16-bit format Google uses in TPUs, with the same exponent width as float32 but fewer mantissa bits. Then tf32—the 19-bit format in NVIDIA A100.
+I started adding formats. First float16—the 16-bit half-precision popular in GPUs and deep learning. Then bfloat16—the 16-bit format used in TPUs, with the same exponent width as float32 but fewer mantissa bits. Then tf32—the 19-bit format in NVIDIA A100.
 
-Each new format required me to write code that simulated that format's bit operations. Float16 has 5 exponent bits and 10 mantissa bits; bfloat16 has 8 exponent bits and 7 mantissa bits. I could not use hardware float16—not every CPU supports it—so I simulated it in integer registers: split the float into sign, exponent, and mantissa fields, and do shifts, masks, and adds in ordinary 64-bit integer registers.
+Each format required bit-operation simulation. Float16 has 5 exponent bits and 10 mantissa bits; bfloat16 has 8 exponent bits and 7 mantissa bits. I could not rely solely on hardware float16 (not every CPU supports it), so I emulated it in integer registers: split sign, exponent, mantissa, and do shifts, masks, and adds in ordinary 64-bit registers.
 
 That was the beginning of "hand-rolled bit-level emulation."
 
-Then came fp8—the 8-bit floating point that went viral in large-model training. There are two variants: E4M3 (4 exponent bits, 3 mantissa bits) and E5M2 (5 exponent bits, 2 mantissa bits). I added both. fp4 and fp6 were even more extreme—4-bit and 6-bit floats that can barely store anything except numbers near 0 and 1.
+Then came fp8—E4M3 (4 exponent, 3 mantissa) and E5M2 (5 exponent, 2 mantissa). fp4 and fp6 were even more extreme—4-bit and 6-bit floats barely storing numbers outside near 0 and 1.
 
-By this point I had nine binary floating-point formats: fp4, fp6, fp8-e4m3, fp8-e5m2, float16, bfloat16, tf32, float32, float64. The code had grown from fifty lines to five hundred.
+By this point I had nine binary formats: fp4, fp6, fp8-e4m3, fp8-e5m2, float16, bfloat16, tf32, float32, float64. The code had grown from fifty lines to five hundred.
 
 But I was still not satisfied.
 
 ## 3. The Deep Hole: x87 and fp128
 
-The 80-bit x87 extended precision is a strange artifact. It is not part of the IEEE 754 standard—it was designed by Intel in 1980 for the 8087 coprocessor. Eighty bits: 1 sign bit, 15 exponent bits, 64 mantissa bits. Three more exponent bits and 52 more mantissa bits than double.
+The 80-bit x87 extended precision is a strange artifact, not part of IEEE 754; Intel designed it in 1980 for the 8087 coprocessor. Eighty bits: 1 sign, 15 exponent, 64 mantissa.
 
-The problem: on modern CPUs, x87 instructions are implemented in microcode, not hardwired. And compilers do not use x87 as the primary floating-point unit in x86-64 mode—they default to SSE2. I wanted to test x87, but I did not want to depend on hardware x87. What if the tool ran on an embedded ARM without an FPU?
+On modern CPUs x87 is largely microcoded, and x86-64 compilers default to SSE2 rather than x87. I wanted to test x87 without depending on hardware x87, in case the tool ran where that FPU was unavailable.
 
-So I decided: pure software emulation of x87. Split the 80-bit value into three integers: sign, 15-bit exponent, 64-bit mantissa. Do shifts, masks, and adds in ordinary 64-bit integer registers. This was not about speed—pure software emulation is inevitably slower than hardware—it was about portability.
+So I emulated x87 in pure software: sign, 15-bit exponent, 64-bit mantissa handled with shifts, masks, and adds in 64-bit integer registers—not for speed, but for portability and determinism.
 
-Then came fp128—128-bit floating point, 15 exponent bits, 112 mantissa bits. IEEE 754-2008 defined it, but almost no hardware implements it. GCC has a libquadmath library providing __float128, but that is a third-party dependency. I did not want third-party dependencies.
+Then fp128—a 128-bit binary128 with 15 exponent bits and 112 mantissa bits, defined by IEEE 754-2008 but barely implemented in hardware; GCC's libquadmath provides `__float128`, a third-party dependency I chose not to add.
 
-So I decided again: pure software emulation of fp128. 112 mantissa bits means the intermediate result of a multiply is 224 bits. A 64-bit integer register cannot hold 224 bits, so I had to use four 64-bit words and do schoolbook multiplication. It was some of the most painful code I have ever written—224-bit multiplication, multiply digit by digit, add digit by digit, handle carry.
+So I emulated fp128 in pure software too. 112 mantissa bits require a wider product than a single 64-bit register; multiple 64-bit words are assembled for schoolbook multiplication: multiply per word, add, propagate carry. It was among the hardest code I wrote.
 
-x87 and fp128 both took 573521 steps—because they have the same exponent range. I remembered that number for a long time.
+x87 and fp128 both walk toward very large exponent ceilings, at the same order of magnitude; because their mantissa widths differ, their counts need not be equal. See BASELINE_EN.md for current reference values.
 
 ## 4. Decimal: BID and DPD
 
-By now I had eleven binary floating-point formats. But floating point is not only binary.
+By now I had eleven binary formats, but floating point is not only binary.
 
-IEEE 754-2008 added decimal floating point: decimal32, decimal64, decimal128. Decimal floating point matters in financial computing—because humans use decimal, and binary floating point has rounding errors on numbers like 0.1 and 0.2. Decimal floating point does not.
+IEEE 754-2008 added decimal floating point: decimal32/64/128, important in finance because humans use decimal and binary float cannot represent 0.1 or 0.2 exactly.
 
-There are two encodings for decimal floating point: BID (Binary Integer Decimal) and DPD (Densely Packed Decimal).
+Two encodings exist: BID (Binary Integer Decimal) and DPD (Densely Packed Decimal). BID stores a binary-integer coefficient and multiplies in binary before adjusting the exponent by powers of 10. DPD stores a decimal digit string: three digits (000–999) pack into 10 bits (10^3=1000 < 1024=2^10), and multiplication proceeds per decimal digit with carry propagation.
 
-BID stores the coefficient as a binary integer. For example, decimal64's coefficient is 16 decimal digits, stored as a 53-bit binary integer. Multiplication is ordinary binary integer multiplication, followed by division by 10^n.
+I did BID first. dec32's coefficient was narrow and simple; dec64 manageable; dec128 has 34 decimal digits and needs a very wide binary integer that no single 64-bit register holds.
 
-DPD stores the coefficient as a decimal digit string. Three decimal digits (000-999) are packed into 10 bits (because 10^3=1000 < 1024=2^10). Multiplication is per-digit decimal multiplication with carry propagation.
+That is why UInt256 was built: a pure-software 256-bit unsigned big integer in four 64-bit words using schoolbook multiplication; UInt256 itself does not use `__int128`, for portability.
 
-I did BID first. decimal32's coefficient is 7 decimal digits, stored in a 23-bit binary integer—simple. decimal64 is 16 digits, 53-bit integer—manageable. But decimal128 is 34 decimal digits—that requires a 113-bit binary integer. A 64-bit register cannot hold that.
+It took a long time: multiply, divide-by-10, compare, read-low-word, each with careful carry handling. Dec128's reference count is on the order of 700k steps (current value in BASELINE_EN.md).
 
-That is where UInt256 came from.
+Then DPD. The single-declet codec is a lookup table; simpler than big-integer BID, but per-digit decimal multiplication lacks a hardware multiplier and must add/carry digit by digit. DPD and BID agree numerically; only the bit encoding differs. The multi-declet concatenation pack/unpack subunit was later added with a startup round-trip self-check.
 
-I wrote a pure-software 256-bit unsigned big-integer class, implemented in four 64-bit words. Schoolbook multiplication—just like how children learn multiplication by hand: multiply digit by digit, add digit by digit, handle carry. No __int128—even though GCC/Clang provide it, I wanted a pure C++ implementation that did not depend on compiler-specific extensions.
-
-UInt256 took a long time. Multiply, divide, add, compare—every operation required careful handling of carry and shift. decimal128 ended up taking 714521 steps to overflow.
-
-Then I did DPD. DPD's triplet encoding/decoding is a lookup table—three decimal digits packed into 10 bits, and the reverse. It was simpler than BID, but per-digit decimal multiplication was slower than BID's binary integer multiplication—because decimal has no hardware multiply instruction, you have to multiply digit by digit and propagate carry.
-
-DPD128 took 714521 steps—the same as BID decimal128, because the math is the same, only the encoding differs.
-
-By this point I had 17 formats: 11 binary + 6 decimal (3 BID + 3 DPD).
+At this point I had 17 formats: 11 binary + 6 decimal (3 BID + 3 DPD). Note that the default `-m all` chain runs 13 of 17; DPD×3 and Dec128 are excluded by default and added via `--only`.
 
 ## 5. Concurrency: Multi-Threaded Stress Testing
 
-Walking a single format was slow. decimal128 took 13 seconds; x87 took 4 seconds. If I wanted to run all formats in one go, single-threaded would take forever.
+A single format was slow; old machines showed Dec128 at ten-second scale and x87 at a few seconds, but timing varies strongly with machine, optimization level, and build (see BASELINE_EN.md). Running everything single-threaded would take a long time.
 
-So I added multi-threading. The -m all mode: spawn N worker threads, each independently running the full format chain. Threads do not share state—each has its own current value, its own step count, its own results.
+So I added multi-threading. `-m all` spawns N worker threads, each independently running its chain, with no shared state—own current value, step count, and result.
 
-There were several key decisions:
+Key decisions:
 
-**Core pinning.** Each worker is pinned to a CPU core. On Windows this uses SetThreadAffinityMask; on Linux, pthread_setaffinity_np. Without pinning, the OS scheduler migrates threads between cores, causing performance jitter. With pinning, each worker stays on one core and never migrates.
+**Core pinning.** Each worker pins to a 0-based logical core. On Windows this uses `SetThreadAffinityMask` plus `THREAD_PRIORITY_TIME_CRITICAL`; on Linux it uses `pthread_setaffinity_np` with `CPU_SET` and no real-time priority. Without pinning, scheduler migration causes jitter.
 
-**alignas(64).** Each worker's state structure is aligned to 64 bytes—the standard CPU cache line size. If two workers' state lands on the same cache line, they invalidate each other's cache (false sharing), and performance collapses. alignas(64) pads each worker to a full cache line, eliminating false sharing.
+**alignas(64).** Worker state is aligned to 64 bytes, a common cache-line size; if two workers share a line they invalidate each other's cache (false sharing) and collapse performance. `alignas(64)` pads each worker to a full line.
 
-**Enum switch dispatch.** Initially I used std::function to store each format's step function, and the worker loop called std::function. But std::function has huge call overhead—type erasure, indirect calls, no inlining. I rewrote it as enum FmtId + direct switch dispatch. The compiler can inline each format's step function into the switch case, with zero indirect-call overhead.
+**Enum switch dispatch.** I first stored step functions in `std::function` and called them indirectly; type erasure and indirect calls resist inlining. This was rewritten as `enum FmtId` plus a direct switch, letting the compiler inline each step function into its case.
 
 ## 6. Polish: The Small Traps
 
-As the project grew, various small issues appeared.
+**Step-count consistency.** A wrong rounding direction when a value sits exactly between two representable points drifts the count; fixing the boundary keeps the count deterministic for the same factor and implementation. Current reference values are in BASELINE_EN.md.
 
-**Step count mismatch.** Once I changed code and float32's step count went from 4481 to 4480. I spent a long time debugging and found a boundary condition I had wrong—when a number fell exactly between two floats, I had chosen the wrong rounding direction. I fixed the rounding logic, and the count went back to 4481.
+**Bilingual UI.** Every user-visible string goes through the `lang.h` translation table (Chinese and English). This mattered because international users would not read Chinese; the default UI language is `zh`, switched to English with `--lang en`.
 
-**Chinese/English UI.** I added bilingual support. Every user-visible string goes through lang.h's tr() function, one Chinese string and one English string. This decision turned out to matter a lot—because I planned to open-source, and international users would not read Chinese.
+**Ctrl+C.** In multi-threaded mode Ctrl+C sets a stop flag so all workers exit gracefully with a bilingual message rather than being killed abruptly.
 
-**Ctrl+C handling.** In multi-threaded mode, Ctrl+C had to correctly interrupt all workers. Windows uses SetConsoleCtrlHandler; Linux uses signal. It took me a while to get the cross-platform signal handling right.
+**Slow-format confirmation gate.** DPD is pure per-digit decimal arithmetic and Dec128 uses the UInt256 big-integer multiply; both are slow. The gate appears only in `-m all`: DPD32/64/128 or Dec128 inclusion raises a level-2 red `[!!!]`; other cases (e.g. `-l -1` without `-t`, or a tiny factor) raise a level-1 yellow `[!]`. Press `y` within 10 s to continue; otherwise it prints `cancelled` and exits 0. Single-format mode skips the gate.
 
-**DPD warning dialog.** DPD formats are slow—pure software per-digit decimal multiplication, 20-30x slower than BID. If a user accidentally included DPD in -m all, their machine would be fully loaded for a long time. I added a confirmation dialog: before starting, a yellow warning, press y to continue, auto-cancel after 10 seconds. Later I added the same warning for dec128—because the UInt256 big-integer multiply also runs for 13 seconds.
+**Input safety.** Echoes strip ESC, C0 controls, and DEL; `0x` Raw input is validated, and malformed or out-of-range input exits with code 2, preventing terminal corruption by escape sequences.
 
-**Input sanitization.** A user (which was me) once typed a malicious hex string with ANSI escape codes, which cleared the terminal and corrupted colors. I added a sanitize() function that strips ESC, C0 control characters, and DEL from every user echo. Hex strings are limited to 32 characters (128-bit max), and non-hex characters are rejected outright.
+## 7. The Compiler Story: GNU vs Clang
 
-## 7. The Compiler Wars: GCC vs Clang
+The project supports GNU/Clang toolchains and explicitly excludes MSVC. Early on, g++ hit an internal compiler error on a template instantiation on this machine; switching to Clang avoided it.
 
-The project originally built with GCC. But g++ 16.2.0 on this machine had an internal compiler error (ICE)—it crashed while instantiating a template. I tried various flags and could not work around it.
-
-So I switched to Clang. MSYS2 ships two Clang builds: ucrt64's Clang and clang64's Clang. ucrt64's Clang is a compatibility layer in the GCC ecosystem, using GNU ld, and does not support thin LTO. clang64's Clang is native LLVM, with its own lld linker, and supports thin LTO.
-
-Building with clang64 and adding -Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections brought the binary from 3.3MB down to 0.81MB. That is because thin LTO lets the compiler do cross-module optimization at link time, and gc-sections strips functions that are never called.
-
-I also tried -march=native, -march=x86-64-v2, -march=x86-64-v3. Disassembly showed that -march=native on this i7-6700 generated 5 mulx instructions (BMI2's no-carry multiply), but no adcx/adox (ADX's dual carry chains)—because the i7-6700 is Skylake, which does not support ADX. Dual carry chains require Broadwell or later.
+Under MSYS2, clang64 is native LLVM with its own lld and thin-LTO support; `-Oz -flto=thin` together with section separation and `--gc-sections` shrinks the binary. Instruction-set choices such as `-march=native` (whether `mulx`/ADX emit depends on the microarchitecture) are build-level trade-offs and do not change numeric results.
 
 ## 8. Open-Source Preparation
 
-At 0.81MB, 17 formats, multi-threading, bilingual, input hardening, and a baseline, I felt ready to open-source.
-
-But before making it public, I did one thing: I imagined what would happen in the 72 hours after going public.
-
-Scarcity tags—fp128, decimal-float, bid-decimal, dpd-decimal, x87-emulation, uint256—these tags have almost no projects on GitHub. Search results would land on the first page. The hard-core README—"Silicon-level devil-grade hardware stress testing"—would hit three audiences: compiler developers, microarchitecture debuggers, and financial auditors. The striking repo name—ea-FRDT—was shareable.
-
-The three factors multiply, and within 72 hours there would be a traffic tsunami. So I prepared:
-
-- Issue templates (question, build issue, bug report)
-- PR template (checklist: zero warnings, smoke test, English comments)
-- CI (GitHub Actions, Ubuntu with GCC and Clang dual jobs)
-- README with Windows-only warning, MSVC not supported, compiler requirements
-- Limitations section (self-disclosing __int128 remnants, DPD exclusion, no GPU)
-- Disclaimer (full load may crash, throttle, wear hardware; run at your own risk)
-- MIT license
-- CMakeLists.txt
-- SECURITY.md, CHANGELOG.md, CONTRIBUTING.md
+After covering many formats with threading, bilingual output, input hardening, and a baseline, I prepared release materials: issue templates; CI (GCC + Clang build with a smoke test on Ubuntu); README platform/compiler notes; a self-disclosing Limitations section; a disclaimer; the MIT license (LICENSE at the repo root); and SECURITY.md, CHANGELOG.md, and CONTRIBUTING.md.
 
 ## 9. What This Project Is
 
-ea-FRDT is not a benchmark. It does not report GFLOPS. It does not compete with SPEC CPU. It does not compete with MLPerf.
+ea-FRDT is not a benchmark. It reports no GFLOPS and competes with neither SPEC CPU nor MLPerf.
 
-It is a walking tool. It starts from a value, takes fixed steps, one step at a time, until the format can no longer represent the number. It prints the step, the hex bit pattern, and the milliseconds elapsed.
+It is a walking tool: start from a value, take fixed steps one at a time until the format cannot represent the number, printing the step count, an optional hex/bit pattern (`--bits`, off by default), and timing.
 
-Its value is: when you are verifying that a compiler optimization pass did not break precision, debugging a CPU floating-point unit bug, or auditing a financial decimal pipeline for rounding errors, you need to know—from 1.0 times 1.02, float32 overflows at step 4481, float64 at step 8275, x87 at step 573521, decimal128 at step 714521.
+Its value is in verifying that an optimization pass did not break precision, inspecting CPU floating-point behavior, and auditing a financial decimal pipeline: compare reference step counts for a fixed ×1.02 factor (e.g. FP32 ≈ 4481, Dec128 on the order of 700k; see BASELINE_EN.md).
 
-These numbers are not guesses. They are mathematical facts. Whether you use an i7-6700 or a Fugaku supercomputer, float32 from 1.0 times 1.02 to overflow is always 4481 steps. The CPU determines the speed, not the result.
+For the same factor, implementation, and rounding rule the count is deterministic and machine-independent—the CPU sets speed, not the numeric result—but counts can differ across compilers, optimization levels, or step modes; treat BASELINE_EN.md as the current reference and do not treat one machine's timing or count as a cross-build promise.
 
 ## 10. Epilogue
 
-This project started on a boring afternoon, from a twenty-line Python script, from a question: "what if I switch to float16?" It grew into a 0.81MB C++23 program supporting 17 floating-point formats, multi-threaded stress mode, bilingual UI, pure-software big-integer multiplication, and core-pinned cache-line isolation.
+It began on a boring afternoon with a twenty-line Python script and the question "what if I switch to float16?" and grew into a C++23 program covering 17 formats, supporting multi-threaded stress mode, bilingual output, pure-software big-integer multiply, core pinning, and cache-line isolation.
 
-It is not perfect. UInt256 is not optimal—schoolbook multiplication could be replaced with Karatsuba or Toom-Cook. x87 and fp128 still use __int128 for auxiliary arithmetic. DPD's declets concatenation is still technical debt. There is no GPU offload. There is no WebAssembly target.
+It is not perfect. UInt256 uses n=4-word schoolbook multiplication, which beats Karatsuba at this size; revisit that at wider widths. Both x87 and fp128 use `unsigned __int128` for their 64×64 mantissa intermediates (integer assistance, not an FPU data type). The DPD multi-declet pack/unpack subunit is complete with a round-trip self-check. There is no GPU offload and no WebAssembly target.
 
-But it is correct. Every step is deterministic. Every hex bit pattern is auditable. Every exit reason is explainable.
+But it is correct: every step is deterministic, bit patterns are auditable, and exit reasons are explainable (`overflow`, `underflow`, `identity->stop`, `safety->limit`, `timeout`, `cancelled`, `interrupted`).
 
-That is ea-FRDT. Silicon-level devil-grade hardware stress testing.
-
-The algorithm may misbehave occasionally.
+That is ea-FRDT: silicon-level devil-grade hardware stress testing.

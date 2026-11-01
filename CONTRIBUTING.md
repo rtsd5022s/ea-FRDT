@@ -6,53 +6,60 @@
 
 - C++23 compiler: GCC 13+ or Clang 16+. **MSVC is not supported.**
 - CMake 3.20+
-- On Windows: `winmm` (already linked via CMake)
+- On Windows: `winmm` (linked automatically via CMake on WIN32)
 
-### Build commands
+### Build commands (CMake)
 
 ```bash
 cmake -B build
 cmake --build build -j
 ```
 
+CMake defaults to `Release`, enables `-Wall -Wextra`, and names the executable `float_inf_walk`.
+
 ### Raw compiler (no CMake)
 
 ```bash
-# Linux
-g++ -std=c++23 -O2 -Wall -Wextra -Iinclude src/*.cpp -o float_inf_walk -pthread
+# Linux (needs the POSIX threads library)
+g++ -std=c++23 -O2 -Wall -Wextra -pthread \
+    -Iinclude \
+    src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
+    src/drive.cpp src/platform.cpp \
+    -o float_inf_walk
 
-# Windows (MSYS2 clang64 — recommended, LLVM native)
+# Windows (MSYS2 clang64 — recommended release, LLVM native, thin LTO)
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections \
     -static \
-    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 
 # Note: clang64 uses libc++/compiler-rt/lld. Do NOT add -static-libgcc
 # -static-libstdc++ (those are GCC flags that pull ucrt64 libraries).
-
-# Windows (MSYS2 ucrt64 — GCC-based, Clang is compat-only)
-# Note: ucrt64 Clang uses GNU ld, does NOT support thin LTO.
-# Use clang64 for release builds.
-C:\msys64\ucrt64\bin\clang++.exe -std=c++23 -O2 \
-    -static -static-libgcc -static-libstdc++ \
-    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+# ucrt64 Clang is GCC-compat, uses GNU ld, and does NOT support thin LTO;
+# use clang64 for release builds.
 ```
 
-## Code style
+## Code layout
 
-- Headers in `include/`, implementation in `src/`.
-- All comments in English.
-- Bilingual UI strings go through `lang.h` (`tr()` table). Add both zh and en.
-- Windows-specific code wrapped in `#ifdef _WIN32`, Linux in `#ifdef __linux__`.
-- No third-party dependencies. No libquadmath, Boost, Eigen.
+- Shared headers and engines live in `include/`; the 17 per-format thin headers live in `include/formats/`.
+- Non-template definitions live in `src/`.
+- User-visible bilingual strings go through the `lang.h` `tr()` table; add both the zh and en entries together.
+- Windows-specific code is wrapped in `#ifdef _WIN32`, Linux code in `#ifdef __linux__`.
+- No third-party dependencies: no libquadmath, Boost, or Eigen.
 
 ## Pull requests
 
 1. Fork, branch from `main`.
-2. Build with zero warnings (`-Wall -Wextra`).
-3. Run the smoke test: `./float_inf_walk 0 -m fp32 -t 5`.
-4. Open a PR describing what changed and why.
+2. Build with zero warnings (`-Wall -Wextra`). The only accepted compiler warning is `#pragma comment(lib, "winmm.lib")` being ignored on Clang (pre-existing, Windows-only, harmless).
+3. Smoke test a native and a hand-rolled format, e.g.:
+   ```bash
+   ./float_inf_walk 0 -m fp32 -t 5
+   ./float_inf_walk 0 -m fp4  -g addulp
+   ```
+   Optionally validate a dump round trip: `./float_inf_walk 0 -m f64 --dump walk.bin` and inspect it with `python dump_inspect.py walk.bin`.
+4. Update the paired CN/EN docs under `docs/` when a flag, default, exit reason, or format behavior changes.
+5. Open a PR describing what changed and why.
 
 ## Reporting bugs
 
-Use the bug report template. Include: compiler, OS, exact command line, expected vs actual output, and the hex bit pattern if relevant.
+Use the bug report template. Include: compiler, OS, exact command line, expected vs actual output, and the hex bit pattern or step count when relevant.

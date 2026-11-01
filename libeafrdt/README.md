@@ -11,6 +11,7 @@ ea-FRDT core algorithm as a standalone static library, with C ABI.
 | `eafrdt.cppm` | C++23 module interface (`import eafrdt;`) |
 | `c_api.h` | `extern "C"` ABI for C/Rust/other languages |
 | `c_api.cpp` | C ABI dispatch |
+| `test_capi.cpp` | Minimal C ABI smoke program |
 | `libeafrdt.a` | Prebuilt static archive (clang64, -O2) |
 
 ## Build
@@ -45,4 +46,4 @@ long long steps = walk_binary(fmt_f32(), 1.0, 1.02, 0, &reason);
 - x87/q128: rewritten to use UInt256 (removed `unsigned __int128` from q128_mul).
 - f32/f64 currently route through the parameterized SVal emulator (not hardware native). Step counts need alignment with the main program's native path.
 - DPD/BID walks produce correct relative step counts (dec32=11279, dec64=44767, matching baseline).
-- No Windows-specific code in this library. The main `ea-FRDT.exe` is Windows-only because of `SetThreadAffinityMask`/`winmm`, but `libeafrdt.a` itself compiles on Linux.
+- No Windows-specific code in this library. The main `float_inf_walk.exe` is Windows-only because of `SetThreadAffinityMask`/`winmm`, but `libeafrdt.a` itself compiles on Linux.

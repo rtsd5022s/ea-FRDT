@@ -1,164 +1,142 @@
 # Frequently Asked Questions (QA)
 
-This document lists every behavior exactly to prevent contradictions between docs. If any other document conflicts with this file, this file is authoritative.
+This file consolidates verified behavior. For CLI semantics see `PARAMETERS_EN.md`, architecture `IMPLEMENTATION_EN.md`, measured steps `BASELINE_EN.md`; on disagreement the source and those docs prevail.
 
 ## 1. Dependencies and build
 
 ### Q: Does Dec128 depend on `__int128`?
-**A: No.** Dec128's BID path uses a hand-rolled `UInt256` schoolbook big-integer multiply, pure 64-bit word operations, no `__int128`. The x87 and FP128 pure-software paths still use `__int128` for 128-bit auxiliary arithmetic, but that is not a Dec128 dependency.
+**A: No.** The Dec128(BID) path uses a hand-rolled `UInt256` schoolbook multiply over 64-bit words, no `__int128`. x87/FP128 use `__int128` only for 64×64 helper intermediates; that is a separate path.
 
 ### Q: Do x87 and FP128 depend on libquadmath?
-**A: No.** Both are pure software integer simulations. No libquadmath, no `long double`, no `__float128`.
+**A: No.** Pure software integer simulation; no libquadmath, no `long double`, no `__float128`.
 
 ### Q: Is MSVC supported?
-**A: No.** The project uses C++23 features and GNU/Clang extensions. MSVC is explicitly excluded. Requires GCC 13+ or Clang 16+.
+**A: No.** The toolchain must be GNU/Clang (MSYS2 clang64 / GCC); MSVC is explicitly excluded.
 
-### Q: Do I need third-party libraries?
-**A: No.** Zero third-party dependencies. No Boost, Eigen, or libquadmath. All code is in `include/` and `src/`.
+### Q: Third-party libraries?
+**A: None.** No Boost/Eigen/libquadmath; implementation lives in `include/` and `src/`; the C ABI static library lives in `libeafrdt/`.
 
-### Q: Does the Windows static exe need the VC++ runtime?
-**A: No.** The Release `ea-FRDT.exe` is built with UCRT64 static linking (`-static -static-libgcc -static-libstdc++`), 3.3MB, and runs on any Windows x86_64 machine without installation.
+### Q: Does the Windows static exe need a runtime?
+**A: With `-static` it runs on Windows x86_64 without an extra runtime install; binary size varies with optimization, see the actual build.**
 
-### Q: Can I build on Linux or macOS?
-**A: Yes, from source.** CI builds on Ubuntu with GCC and Clang. Release currently ships only the Windows exe. Linux/macOS: `cmake -B build && cmake --build build`.
+### Q: Linux / macOS?
+**A: Buildable from source.** Linux uses GCC/Clang and `pthread`; `physical_cores()` returns `0` on Linux (banner hides physical core count). Windows artifacts are the primary release; other platforms build via CMake.
 
 ## 2. Formats and step counts
 
-### Q: Which formats are supported?
-**A: 17 total. Default `-m all` includes 13:**
+### Q: Which formats?
+**A: 17 total; the default `-m all` chain has 13:**
 FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec32(BID) → FP64 → Dec64(BID) → x87 → FP128.
 
 **Excluded by default (add with `--only`):** DPD32, DPD64, DPD128, Dec128(BID).
 
-### Q: What are the reference step counts (from 1.0 times 1.02 to overflow)?
-**A: On i7-6700:**
-- FP32: 4481 steps
-- FP64: 8275 steps
-- Dec64: 11958 steps
-- x87: 573521 steps
-- FP128: 573521 steps
-- Dec128: 714521 steps
-These are format fingerprints. Any correct implementation should match.
+### Q: Reference step counts (1.0 × 1.02 → overflow)?
+**A: Full table in `BASELINE_EN.md`.** Order of magnitude: FP32 ≈ 4481, Dec32/DPD32 ≈ 11279, FP64 ≈ 35843, Dec64/DPD64 ≈ 44767, x87/FP128 hundreds of thousands, Dec128/DPD128 seven figures. Steps are mostly determined by width and Emax and fairly build-stable; times vary with machine and optimization.
 
-### Q: Are DPD and Dec128 included in the default `-m all` chain?
-**A: No, by default.** The three DPD formats (dpd32/dpd64/dpd128) and Dec128(BID) are excluded from the default chain because they are pure software decimal arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128,dec128`, or run them single-mode with `-m dpd64`.
+### Q: Are DPD and Dec128 in the default chain?
+**A: No.** They are slow software paths; add them with `--only dpd32,dpd64,dpd128,dec128`, or run single-format `-m dpd64` (no confirmation gate in single mode).
 
-### Q: What is the difference between BID and DPD?
-**A: BID stores the coefficient as a binary integer, using binary multiplication plus division by 10^n. DPD stores the coefficient as a decimal digit string, using per-digit decimal multiplication plus carry propagation. They encode differently and follow different arithmetic paths, but both follow IEEE 754-2008.**
+### Q: BID vs DPD?
+**A: BID keeps a binary-integer coefficient and adjusts by 10^n; DPD keeps a decimal digit array and multiplies declet-wise with carry. Different encoding and arithmetic, both within IEEE 754-2008 decimal Emax/Emin.**
 
 ## 3. Stepping modes
 
-### Q: What is the default step?
-**A: Multiply by 1.02 (`-k 1.02`).**
+### Q: Default step?
+**A: Multiply `1.02` (`-k 1.02` / `-g x1.02`).**
 
-### Q: What happens with `-k 1`?
-**A: 1.0 × 1 = 1.0, no progress. The tool exits immediately with `identity(stopped)`.**
+### Q: `-k 1`?
+**A: No progress; exits `identity->stop`.**
 
-### Q: What happens with `-k 0`?
-**A: Rejected with the error "factor cannot be 0".**
+### Q: `-k 0`, negative, NaN/Inf factor?
+**A: Hard exit code `2` with a stderr error; these are invalid input, not runtime outcomes.**
 
-### Q: What happens with factor < 1?
-**A: Walks downward from the start value until underflow to zero.**
+### Q: factor < 1?
+**A: Descending walk to `underflow->0`.**
 
-### Q: What is the difference between `-g mululp` and `-g addulp`?
-**A: mululp = multiply by `1 + 1 ULP` (relative step); addulp = add `1 ULP` (absolute step). They are mutually exclusive.**
-
-### Q: Does it still show factor= when using `-g mululp`/`addulp`?
-**A: No.** Only the default multiply mode shows `x1.02`. mululp/addulp shows `step=mululp` or `step=addulp`, no factor.
+### Q: `-g mululp` / `addulp` / `subulp`?
+**A: `mululp` multiplies by `1 + 1 ULP`; `addulp` adds one ULP; `subulp` subtracts one ULP (descending).**
 
 ## 4. Start values
 
-### Q: What is the default start?
-**A: 1.0.**
+### Q: Default start?
+**A: 1.0. The first positional argument is `delay_ms` (throttle), not the start value.**
 
-### Q: How do negative starts work?
-**A: Pass a negative first positional argument (e.g. `-1`). Walks from -1.0 toward -inf.**
+### Q: Negative start?
+**A: Use `-a -1` (walks toward `-inf`); a negative value is never a positional argument.**
 
-### Q: What is `-a max-finite`?
-**A: Start at the largest finite positive number for the format. Pair with `-k 0.5` to halve to zero.**
+### Q: `-a max-finite` / `-a min-normal` / `-s`?
+**A: `max-finite` = largest finite positive; `min-normal` (alias `min`) = smallest **normal** positive; `-s` (`--subnormal`) = smallest **subnormal** positive; `-a` and `-s` are mutually exclusive.**
 
-### Q: What is `-a min-normal`?
-**A: Start at the smallest normal positive number for the format, walking upward.**
-
-### Q: What does `0x3f800000` as the first argument do?
-**A: Raw hex bit pattern, interpreted as the start value according to the format.**
+### Q: Raw hex start?
+**A: `-a 0x3f800000`, interpreted as bits for the target format; a malformed `0x` token exits `2`.**
 
 ## 5. Safety and guards
 
-### Q: Can I use `-l -1` (infinite loop) alone?
-**A: No.** Must also pass `-t <seconds>` timeout. Otherwise it refuses to start with a DoS warning.
+### Q: Can `-l -1` run without a timeout?
+**A: It starts, but in `-m all` a level-1 yellow `[!]` confirmation warns that a timeout is recommended; press `y` within 10 s to continue, otherwise `cancelled`. It is not a hard rejection; single mode skips the gate. Always pair a timeout over SSH.**
 
-### Q: What if the factor is too close to 1?
-**A: Rejected. A step too small would walk millions of steps and hit the 2^120 safety limit.**
+### Q: Factor close to 1?
+**A: There is no “reject if close to 1”. `-k 1` yields `identity->stop`; a factor `< 1e-10` raises only a level-1 warning in `-m all` (many steps ahead); the real backstop is `safety->limit` (`2^120`).**
 
-### Q: What happens before DPD formats start?
-**A: In concurrent mode, prints a yellow warning about high algorithm complexity and reduced performance, waits 10 seconds for y to continue; timeout or any other key cancels. Single mode does not show the warning.**
+### Q: What happens before DPD / Dec128?
+**A: Only in `-m all`: including DPD×3 or Dec128 raises a level-2 red `[!!!]` confirmation; press `y` within 10 s, otherwise `cancelled`. Single mode runs directly.**
 
-### Q: What happens before dec128 starts?
-**A: In concurrent mode, prints a yellow warning and waits 10 seconds for y. Single mode does not show it.**
+### Q: Invalid input exit code?
+**A: Code `2` on stderr; normal end, `cancelled`, and `sigint` are `0`. There is no code `1` convention.**
 
-### Q: What happens on invalid input?
-**A: Hard exit with an error message on stderr and a non-zero exit code. No crash.**
-
-### Q: What about malicious hex strings or ANSI escape characters?
-**A: Rejected.** Raw hex strings are limited to 32 characters (128-bit max) and non-hex characters are rejected. User input echoed in error messages passes through `sanitize()` which strips ESC, C0 control characters, and DEL to prevent terminal injection.
+### Q: Malicious hex / ANSI escapes?
+**A: Malformed `0x` is rejected; echoed user input passes through `sanitize()` (ESC/C0/DEL stripped) against terminal injection.**
 
 ## 6. Concurrent mode
 
 ### Q: What does `-m all` do?
-**A: Each worker pins to a core and independently walks the full format chain.**
+**A: One worker per selected core independently walks the default 13-chain (or an `--only` subset); value-copied, no shared mutable state, no locks.**
 
-### Q: What is the difference between `-j 1-4` and `-j 1,3`?
-**A: `-` is a range (1 through 4, four workers); `,` is a list (only cores 1 and 3, two workers). They can be mixed: `-j 1,3-5`.**
+### Q: `-j` syntax and indexing?
+**A: Zero-based: `-j 0` is the first core; range `-j 0-3`; list `-j 0,2`; mixed `-j 0,2-4`. After parsing, `v<0 || v>=hw` entries are dropped, the rest sorted/deduped; empty (default) selects all logical cores; an empty resolved list exits `2`.**
 
-### Q: Is there a hard cap on `-j`?
-**A: Yes.** The hard cap is the logical core count (`std::thread::hardware_concurrency()`). Values above are rejected or clamped.
+### Q: Upper bound?
+**A: Valid ids are `0..hw-1`; out-of-range ids are dropped rather than erroring individually.**
 
-### Q: Is there cache-line isolation on worker state?
-**A: Yes.** `alignas(64)` pads each `WorkerSlot` to 64 bytes, eliminating false sharing.**
+### Q: Cache-line isolation?
+**A: Yes; `alignas(64)` gives each `WorkerSlot` its own cache line, avoiding false sharing.**
 
-### Q: What happens on Ctrl+C in concurrent mode?
-**A: Caught and prints "Program interrupted (received Ctrl+C)" bilingually, exits gracefully.**
+### Q: Ctrl+C?
+**A: Sets a flag; the current iteration ends, then `sigint` with a bilingual message and a clean exit.**
 
 ## 7. Display
 
-### Q: What does `-x` do?
-**A: Appends the raw bit pattern in parentheses after the value. `-x hex` explicit hex, `-x bin` explicit binary (sign/exponent/mantissa grouped by spaces).**
+### Q: Bit-pattern switch?
+**A: `--bits hex|bin|off` (`--showbits`), default `off`; `bin` groups sign/exponent/coefficient. There is no `-x` flag.**
 
-### Q: What does `-q` do?
-**A: Quiet mode. No per-step output, only the final summary table.**
+### Q: `-q`?
+**A: Suppresses live per-step and finish lines; the result still lands in `RunResult` (for `--json`/summary). `--json` and `--dump` imply quiet.**
 
-### Q: What are the loop= display rules?
-**A: loop=1 (default single pass) does not show loop=. loop > 1 shows `loop=current/total`. loop=-1 infinite shows `loop=current` (no /-1 suffix).**
-
-### Q: What are the time display rules?
-**A: All layers shown fully: Y/M/D/H/M/S/ms, not just the top two layers.**
-
-### Q: Are `step=` and `factor=` shown together?
-**A: No.** Default multiply mode shows `step=multiplied x1.02`. mululp/addulp shows `step=mululp` or `step=addulp`, no factor.
+### Q: Monitor elapsed format?
+**A: Layered by magnitude (s → m:s → h:m:s → d:h:m:s …), refreshed in place with `\r`.**
 
 ## 8. Exit reasons
 
-### Q: What does the tool print when it exits?
-**A: One of:**
-- `overflow->inf`: next step would be infinity
-- `underflow->0`: next step would be zero
-- `nan->nan`: next step would be not-a-number (only reachable on native float/double paths; hand-rolled integer formats never produce NaN)
-- `identity(stopped)`: no progress (e.g. 1.0 × 1.0)
-- `safety-limit`: hit the 2^120 step cap
-- `timeout`: `-t` timer fired
-- `cancelled`: DPD/dec128 warning timed out or was declined
-- `sigint`: Ctrl+C received
+Driver reasons (six enums):
+
+- `overflow->inf`
+- `underflow->0`
+- `identity->stop` (no progress)
+- `safety->limit` (`2^120` counter)
+- `timeout`
+- `nan->nan` (native float/double paths only; integer formats never yield NaN)
+
+Outer control messages (not enums): `cancelled` (confirmation declined/timed out, mainly `-m all`), `sigint` (Ctrl+C).
 
 ## 9. Language
 
-### Q: Which languages are supported?
-**A: Chinese (`--lang zh`) and English (`--lang en`, default). All text including warnings, errors, and Ctrl+C messages is bilingual.**
+### Q: Default language?
+**A: Default `zh`; `--lang en` switches to English. All UI strings (warnings, errors, Ctrl+C) go through `tr(zh,en)`.**
 
-## 10. Version
+## 10. Version and maturity
 
-### Q: What is the current version?
-**A: 1.0-deta1 (beta). Tag `v1.0-deta1`.**
+### Q: Where is the version?
+**A: Tracked in `CHANGELOG.md` and git tags; this file does not pin a number.**
 
-### Q: Is this a stable release?
-**A: No.** deta is a test release. Undiscovered edge bugs may exist. The algorithm may misbehave occasionally.
+### Q: Is it stable?
+**A: Under active iteration; trust measured behavior and the `BASELINE_EN.md` reference table; numeric results can differ across builds.**

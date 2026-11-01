@@ -86,7 +86,7 @@ IBM POWER 有完整的十进制浮点硬件（POWER6+），这是其他 ISA 没�
 
 SPARC V9 有 VIS（Visual Instruction Set）向量扩展，IEEE 754 严格模式。SPARC 在 Sun 服务器上用，现已边缘化。
 
-### 5.6 LoongArch
+### 5.4 LoongArch
 
 龙芯自主指令集，LA464 微架构有 128 位向量（LSX）和 256 位（LASX）。兼容 MIPS 生态但全新设计。
 
@@ -135,7 +135,7 @@ WebAssembly（Wasm）有自己的浮点类型：f32/f64 是原生的，没有 f1
 
 ## 九、为什么 ea-FRDT 不依赖 ISA
 
-ea-FRDT 的设计是：原生 FP32/FP64 用 C++ `float`/`double`，编译器自动选 ISA；其他格式（FP4/FP6/FP8/BF16/TF32/x87/FP128/Dec32/Dec64/Dec128/DPD）全部在整数寄存器里软件仿真，不用任何 ISA 专有指令。
+ea-FRDT 的设计按三档划分：原生档 FP16/FP32/FP64 直接用编译器原生类型（Clang `_Float16`、GCC `std::float16_t`，fp32/fp64 为 `float`/`double`），由编译器选择 ISA 生成的指令；自写位级档 FP4/FP6/FP8E4M3/FP8E5M2/BF16/TF32 在整数位域里仿真；纯软件/十进制档 x87、FP128、BID dec32/64/128 与 DPD×3 用宽整数数组与十进制数组运算，不调用任何 ISA 专有浮点指令。
 
 这意味着：
 
@@ -144,7 +144,7 @@ ea-FRDT 的设计是：原生 FP32/FP64 用 C++ `float`/`double`，编译器自�
 - 在 WebAssembly 上，f32/f64 原生，其他格式软件仿真。
 - 在 GPU 上，ea-FRDT 不跑（它是 CPU 工具）。
 
-步数是格式的数学性质，和 ISA 无关。FP32 从 1.0 乘 1.02 到溢出永远是 4481 步，不管你用 i7-6700、Apple M1、RISC-V 还是 WebAssembly。ISA 决定速度，不决定结果。
+步数由格式的数学边界（位宽、Emax、舍入规则）决定，与 ISA 无关；跨 CPU 架构比较的是“同一格式是否走到同一数学结果”，而毫秒级耗时由 ISA 与微架构决定。例如 FP32 从 1.0 × 1.02 到溢出的参考步数约 4481（见 BASELINE_CN.md），在 i7-6700、Apple M1、RISC-V 上数学步数一致、耗时不同。ISA 决定速度，不决定数学结果。
 
 ## 十、边界陷阱
 
@@ -158,6 +158,4 @@ ea-FRDT 的设计是：原生 FP32/FP64 用 C++ `float`/`double`，编译器自�
 - **WebAssembly 无异常**：不抛浮点异常，NaN/Inf 静默产生。
 - **IBM POWER 十进制硬件**：唯一有十进制 FPU 的通用 ISA，其他全软件。
 
-ea-FRDT 在所有这些 ISA 上的步数一致，因为它不依赖任何专有指令。慢，但正确。这就是纯软件仿真的意义：可移植、可审计、不被 ISA 绑死。
-
-算法本身可能会开小差。
+ea-FRDT 在所有这些 ISA 上数学步数一致，因为它不依赖任何专有指令。慢，但正确。这就是纯软件仿真的意义：可移植、可审计、不被 ISA 绑死。

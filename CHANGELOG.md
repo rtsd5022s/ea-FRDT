@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (main)
+
+### Changed
+- Modular refactor: the 17 formats moved to dedicated headers under `include/formats/`, with shared logic extracted into `engine_*.h` modules (`engine_sim`, `engine_native`, `engine_bid_codec`, `engine_decnum`, `engine_dpd_codec`, `engine_dpd`).
+- `-q` now suppresses the live/finish output uniformly for every single-format engine; `--json` and `--dump` imply quiet as well.
+- DPD coefficient path: fixed-length symmetric pack/unpack bitstring sub-unit; startup runs a real pack→unpack round-trip self-check, replacing the former hardcoded placeholder `OK` (long-standing debt #28 closed).
+
+### Added
+- Dump header `0xE0` stores the payload (offset `256..EOF`) IEEE 802.3 CRC-32, little-endian; `dump_inspect.py` recomputes it independently and reports `MATCH`/`MISMATCH`.
+- Release build regression verified under `-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static` (≈0.8 MB static Windows binary).
+
+### Removed
+- `-g mululp-down` was removed. Valid step modes are `x1.02` (default), `mululp`, `addulp`, `subulp`.
+
 ## v1.0.3 (2026-10-29)
 
 ### Added

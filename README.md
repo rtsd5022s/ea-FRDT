@@ -6,13 +6,13 @@
 
 > **Platform note:** Prebuilt binary is Windows x86_64 only. Linux/macOS build from source with GCC 13+ or Clang 16+. MSVC is not supported.
 >
-> **Compiler requirements:** C++23 (`<stdfloat>`, `if consteval`). Use Clang 17+ or GCC 13+. g++ 16.2.0 has a known ICE; fall back to Clang. CMake 3.28+.
+> **Compiler requirements:** C++23 (`<stdfloat>`, `if consteval`). Use Clang 17+ or GCC 13+. g++ 16.2.0 has a known ICE; fall back to Clang. CMake 3.20+.
 >
 > **MSYS2 prefix note:** On Windows, use the **clang64** environment (`C:\msys64\clang64\bin\clang++.exe`, LLVM native, lld linker, supports thin LTO). The **ucrt64** environment's Clang is GCC-compat only and uses GNU ld, which does not support thin LTO and produces larger binaries.
 
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 
-This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, add `1 ULP`, subtract `1 ULP`, or multiply by `1 - 1 ULP`), and prints the result at every step (or only at the end in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
+This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, add `1 ULP`, or subtract `1 ULP`), and prints the result at every step (or stays silent in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
 
 ## Documentation
 
@@ -30,6 +30,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 - [ISA boundaries](docs/ISA_BOUNDARIES_EN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm float support
 - [Origin story](docs/ORIGIN_EN.md) — how ea-FRDT grew from a 20-line script to a 17-format stress tool
 - [FAQ](docs/FAQ_EN.md) — common questions and edge cases
+- [Baseline](docs/BASELINE_EN.md) — reference step counts and known-good anchors
 
 ### 中文
 
@@ -45,6 +46,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 - [指令集架构边界](docs/ISA_BOUNDARIES_CN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm 浮点支持
 - [项目诞生记](docs/ORIGIN_CN.md) — ea-FRDT 如何从二十行脚本长成 17 格式压测工具
 - [FAQ](docs/FAQ_CN.md) — 常见问题和边缘情况
+- [基线](docs/BASELINE_CN.md) — 参考步数与已知良好锚点
 
 ## Why this exists
 
@@ -64,7 +66,7 @@ ea-FRDT exists to answer those questions directly, without a library in between.
 - A C++23 compiler: GCC 13+ or Clang 16+. MSVC is not supported and is intentionally excluded.
 - CMake 3.20+ (recommended) or a raw compiler invocation.
 - On Windows: `winmm` library for high-resolution timer (`timeBeginPeriod`).
-- No external dependencies. No libquadmath. No Boost. No Eigen. Everything is in `include/` and `src/`.
+- No external dependencies. No libquadmath. No Boost. No Eigen. Everything lives in `include/` and `src/`.
 
 ### CMake
 
@@ -73,58 +75,63 @@ cmake -B build
 cmake --build build -j
 ```
 
-The binary lands in `build/`.
+CMake produces an executable named `float_inf_walk` (see `CMakeLists.txt`); the CMake build defaults to `Release` and enables `-Wall -Wextra`.
 
 ### Raw compiler
 
 ```bash
-g++ -std=c++23 -O2 -march=native \
+# Linux
+g++ -std=c++23 -O2 -Wall -Wextra -pthread \
     -Iinclude \
     src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
     src/drive.cpp src/platform.cpp \
     -o float_inf_walk
 ```
 
-On Windows add `-lwinmm`. For a fully static binary:
+On Windows add `-lwinmm`. For a fully static Windows binary:
 
 ```bash
-g++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk.exe
-```
-
-**Recommended build (Clang 17+, smallest binary):**
-
-```bash
-clang++ -std=c++23 -Oz -flto=thin \
+# Windows (MSYS2 clang64, recommended release flags)
+C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections \
     -static \
-    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
 Note: clang64 uses its own libc++/compiler-rt/lld. Do not add `-static-libgcc -static-libstdc++` (those are GCC flags and will pull ucrt64 libraries).
 
-This produces a ~0.8 MB static binary. For microarchitecture-specific builds, add `-march=x86-64-v2` (2009 Nehalem+), `-march=x86-64-v3` (2013 Haswell+, enables BMI2), or `-march=native` (current CPU).
+The optimized release link (`-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static`) has been regression-tested and produces a roughly 0.8 MB static binary. For microarchitecture-specific builds, add `-march=x86-64-v2` (2009 Nehalem+), `-march=x86-64-v3` (2013 Haswell+, enables BMI2), or `-march=native` (current CPU).
 
 ### Build matrix in CI
 
-GitHub Actions (`.github/workflows/ci.yml`) builds on Ubuntu with both GCC and Clang, runs a smoke test on `fp32`, and fails the job if any warning appears.
+GitHub Actions (`.github/workflows/ci.yml`) builds on Ubuntu with both GCC and Clang, runs a smoke test on `fp32`, and fails the job on warnings.
 
 ## Quick start
 
 ```bash
-# Default: binary32, start at 1.0, multiply by 1.02 each step, walk to +inf
+# positional arg = delay_ms per step (0 = no throttle); f32, start 1.0, x1.02, walk to +inf
 ./float_inf_walk 0
 
 # binary16, start at max-finite, multiply by 0.5, walk down to 0
 ./float_inf_walk 0 -m fp16 -a max-finite -k 0.5
 
-# decimal64 BID, 10 second timeout, quiet mode (summary only)
+# start from the smallest subnormal (independent flag, mutually exclusive with -a)
+./float_inf_walk 0 -m fp32 -s
+
+# decimal64 BID, 10 second timeout, quiet (no per-step output)
 ./float_inf_walk 0 -m dec64 -t 10 -q
 
-# All 17 formats concurrently, pin workers to cores 1 through 4
-./float_inf_walk 0 -m all -j 1-4
+# append hex / grouped binary bit representation in parentheses
+./float_inf_walk 0 -m fp32 --bits hex
+./float_inf_walk 0 -m fp4 --bits bin
 
-# Only fp32 and fp64 in all-mode, refresh monitor every 500 ms
+# serialize every step's raw bytes; 256-byte header + payload, payload CRC-32 at 0xE0
+./float_inf_walk 0 -m f64 --dump walk.bin
+
+# default 13-format chain concurrently; -j uses 0-based core ids, e.g. cores 0..3
+./float_inf_walk 0 -m all -j 0-3
+
+# only fp32 and fp64 in all-mode, refresh monitor every 500 ms
 ./float_inf_walk 0 -m all --only fp32,fp64 -r 500
 ```
 
@@ -134,123 +141,140 @@ Formats are walked in this order in `-m all`:
 
 | Group | Formats | Notes |
 |---|---|---|
-| Native | `fp16` `fp32` `fp64` | Hardware-supported via `std::float16_t` / float / double |
+| Native | `f16`/`fp16` `f32`/`fp32` `f64`/`fp64` | Hardware path; `_Float16` under Clang, `std::float16_t` under GCC, plus `float`/`double` |
 | Bit-level (hand-rolled) | `fp4` `fp6` `fp8-e4m3` `fp8-e5m2` `bf16` `tf32` | Software simulation of sign/exponent/mantissa, parameterized E/M/bias |
-| Pure software | `x87` `fp128` | 80-bit x87 extended and 128-bit binary128, both simulated in pure integer arithmetic; no libquadmath |
+| Pure software | `x87` `fp128` | 80-bit x87 extended and 128-bit binary128, simulated in pure integer arithmetic; no libquadmath |
 | Decimal BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal; dec128 uses a hand-rolled UInt256 big integer |
-| Decimal DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal; independent header, pure lookup-table and digit-array arithmetic |
+| Decimal DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal; dedicated codec header, digit-array arithmetic, real pack→unpack self-check |
 
-`-m all` by default excludes the three DPD formats because they are pure software decimal-array arithmetic with no hardware acceleration. Add them explicitly with `--only dpd32,dpd64,dpd128` or by passing `-m dpd64` in single mode. When DPD formats or `dec128` are about to run, the tool prints a yellow warning and waits 10 seconds for `y` to continue; any other key or timeout cancels. DPD cannot use the hardware FPU, so weak CPUs stay loaded longer. `dec128` uses a hand-rolled UInt256 schoolbook big-integer multiply at every step and takes a while to reach overflow.
+`-m all` runs a default chain of 13 of the 17 formats: it excludes DPD32/DPD64/DPD128 (pure software decimal-array arithmetic with no FPU acceleration) and Dec128 (BID, hand-rolled UInt256 coefficient multiply at every step). Add them explicitly with `--only dpd32,dpd64,dpd128,dec128`, or run one in single mode (`-m dpd64`, `-m dec128`). The confirmation gate appears only in `-m all`: inclusion of DPD32/64/128 or `dec128` raises a level-2 red `[!!!]`; a level-1 yellow `[!]` covers other cases such as `-l -1` without `-t` or a tiny factor. Press `y` within 10 s to continue; any other key or timeout prints `cancelled` and exits 0; single-format mode skips the gate. DPD cannot use the hardware FPU, so weak CPUs stay loaded longer; `dec128`'s schoolbook big-integer multiply also makes it slow to reach overflow.
 
 ## Command-line reference
 
-The first positional argument is the starting value as a string. Use `-a` for named starts.
+### Positional argument
 
-### Step mode
-
-| Flag | Meaning |
+| Arg | Meaning |
 |---|---|
-| `-k <factor>` | Multiply by `factor` each step. Default `1.02`. Factor `<1` walks downward (underflow). Factor `0` is rejected. |
-| `-g mululp` | Multiply by `1 + 1 ULP` each step (relative ULP step). |
-| `-g addulp` | Add `1 ULP` to the mantissa each step (absolute ULP step). |
-| `-g subulp` | Subtract `1 ULP` from the mantissa each step (descending). |
-| `-g mululp-down` | Multiply by `1 - 1 ULP` each step (descending relative). |
+| `delay_ms` | First positional value: milliseconds between steps; `0` = no throttle. No positional value in single mode prints the help and exits; in `-m all` the default delay is 10 ms. **The start value is not positional — use `-a`.** |
 
 ### Start value
 
 | Flag | Meaning |
 |---|---|
-| `-a default` | Start at `1.0` (or `-1.0` if the first argument is negative). |
-| `-a zero` | Start at `0`. |
-| `-a min` | Start at the smallest subnormal positive number for the format. |
-| `-a max-finite` | Start at the largest finite positive number for the format. |
-| First argument | A number, scientific notation, or `0x` raw bit pattern. Negative values walk toward `-inf`. |
+| `-a <x>` / `--start <x>` | Start at `x` (default `1.0`). Accepts a number, scientific/engineering notation, or `0x` raw bit pattern; negatives walk toward `-inf`. |
+| `-a min-normal` / `min` | Start at the smallest **normal** positive number (`minnormal`/`normmin` aliases accepted). |
+| `-a max-finite` / `max` | Start at the largest finite positive number (`maxfinite`/`infmax` aliases accepted). |
+| `-s` / `--subnormal` | Start at the smallest subnormal positive number. Mutually exclusive with `-a` and with `-a min-normal`/`max-finite`. |
+
+### Step mode
+
+| Flag | Meaning |
+|---|---|
+| `-k <r>` / `--factor <r>` | Multiply by `r` each step. Default `1.02`. `>1` walks upward to `+inf`; `0<r<1` walks downward to zero. `0`, negative, NaN, and Inf are rejected. |
+| `-g x1.02` / `x102` | Multiply by factor (default step). |
+| `-g mululp` | Multiply by `1 + 1 ULP` each step (relative ULP step). |
+| `-g addulp` | Add `1 ULP` to the mantissa each step (absolute ULP step). |
+| `-g subulp` | Subtract `1 ULP` from the mantissa each step (descending). |
 
 ### Display and output
 
 | Flag | Meaning |
 |---|---|
-| `--digits <n>` | Number of mantissa digits in sci/eng notation. `-1` = full precision. Default `6`. |
-| `-f eng` | Engineering notation (default). |
-| `-f sci` | Scientific notation. |
-| `-f full` | Full decimal expansion. |
-| `-x` | Append the raw bit pattern in parentheses after the value. |
-| `-x hex` | Explicit hex. |
-| `-x bin` | Explicit binary, with sign/exponent/mantissa grouped by spaces. |
-| `-q` | Quiet mode: do not print per-step output; print only the final summary. |
-| `--json` | Machine-readable JSON output. No ANSI colors, no progress. One JSON object per run, suitable for benchmark scripts and data collection. |
-| `--dump <file>` | Binary-serialize every step's raw bytes to a file. Useful for offline analysis, bit-level replay, or diffing runs. |
-| `--dump-packed` | Compact record width (tf32=3B instead of 4B). |
-| `--dump-endian <e>` | Byte order for `--dump`: `little` (default, x86 native) or `big`. |
-| `--lang zh` | Chinese UI. `--lang en` for English (default). |
+| `-f eng` / `sci` / `full` | Display notation. `eng` (default), `sci`, or full decimal expansion. |
+| `-d <n>` / `--digits <n>` | Mantissa digits in sci/eng notation. Default `6`; `-1` = full precision; valid range `0..100`. |
+| `--bits hex` / `bin` / `off` (`--showbits`) | Append the raw bit representation after the value: `hex`, `bin` (sign/exponent/coefficient grouped by spaces), or `off` (default). |
+| `-q` / `--quiet` | Quiet: suppress the live per-step monitor and the engine's live/finish lines for every single format; results are still captured in `RunResult`. `--json` and `--dump` imply quiet. |
+| `--json` | Machine-readable JSON output. No ANSI colors, no progress. One JSON object per run (format, steps, elapsed, steps/sec, reason, final value, params, system info, timestamp), suitable for benchmark scripts. |
+| `--dump <file>` | Binary-serialize every step's raw bytes. Writes a fixed 256-byte header followed by the payload; the payload (offset 256..EOF) carries an IEEE 802.3 CRC-32 stored little-endian at `0xE0`, recomputable offline with `dump_inspect.py`. |
+| `--dump-endian little\|big` | Byte order for `--dump` records: `little`/`le`/`cpu` (default, x86 native) or `big`/`be`. |
+| `--dump-packed` | Compact record width (e.g. tf32 = 3 B instead of 4 B); default is natural width. |
+| `--lang zh` / `en` | UI language. Default `zh`; `--lang en` for English. |
 
 ### Concurrency and control
 
 | Flag | Meaning |
 |---|---|
 | `-m all` | Concurrent mode: each worker thread runs the full format chain independently. |
-| `-j <spec>` | Worker / core specification. Comma-separated list and ranges allowed: `-j 1`, `-j 1,3,5`, `-j 1-4`, `-j 1,3-5`. Hard cap is the logical core count. |
-| `-t <seconds>` | Timeout in seconds. `0` = run until overflow/underflow. |
-| `-l <n>` | Loop count. `1` = single pass (default). `-1` = infinite. `>1` = repeat the chain `n` times. |
-| `-r <ms>` | Monitor refresh interval in milliseconds. Default `0` (refresh every step). In `-m all` the default is `1000` ms. |
-| `-d <ms>` | Delay between steps in milliseconds. `0` = no delay. Useful for watching the monitor without burning the CPU. |
-| `--only <formats>` | Comma-separated subset of formats to run in `-m all`. |
+| `-j <spec>` / `--jobs <spec>` | Worker / core specification. Comma-separated list and ranges allowed: `-j 1`, `-j 0,2,5`, `-j 0-3`, `-j 0,2-5`. Hard cap is the logical core count. |
+| `--only <formats>` / `--modes <formats>` | Comma-separated subset of formats to run in `-m all`. |
+| `-t <s>` / `--timeout <s>` | Timeout in seconds. `0` = run until overflow/underflow (default). |
+| `-l <n>` / `--loop <n>` | Loop count. `1` = single pass (default; `0` is treated as 1); `-1` = infinite; `>1` = repeat the chain `n` times (hard cap 1,000,000). |
+| `-r <ms>` / `--refresh <ms>` | Monitor refresh interval in milliseconds. Default `0` (refresh every step); in `-m all` the default is `1000` ms. |
 
 ### Safety
 
-The tool refuses to start if:
+Hard exits (code `2`, stderr) on invalid input only:
 
-- You request `-l -1` without `-t` (infinite loop with no timeout is a DoS).
-- You request a factor extremely close to 1 (step explosion — walking would take more than the 120-bit safety limit).
-- You pass an unknown format name, a non-numeric start, or a negative timeout.
-- You pass a raw hex string longer than 32 hex chars (128-bit max) or containing non-hex characters.
-- User-supplied strings echoed in error messages are sanitized (ANSI escape sequences and C0 control characters stripped) to prevent terminal injection.
+- Zero, negative, NaN/Inf factor; unparseable start; unknown format/step/display flag; `--loop` outside `-1..1000000`; malformed `0x` pattern; conflicting special starts (`-s` vs `-a`, numeric vs named start).
 
-These are hard exits with a message on stderr, not silent failures.
+Non-fatal warnings gathered for confirmation in `-m all` (level-1 yellow `[!]`, level-2 red `[!!!]`; press `y` within 10 s or the run is `cancelled`):
+
+- `-l -1` together with `-t 0`: level-1 warning that CPU may peg at 100% (pair a timeout; this warns, it does not reject).
+- `-k < 1e-10`: level-1 warning that the walk may need very many steps.
+- Included DPD32/64/128: level-2 warning (pure software decimal-array arithmetic, roughly 20–30× slower); included Dec128: level-2 warning (UInt256 schoolbook coefficient multiply each step).
+
+User strings echoed in errors pass through `sanitize()`, stripping ANSI escapes and C0 control characters to prevent terminal injection.
 
 ## Exit reasons
 
-At the end of a walk, the tool prints one of:
+The driver records one of six enumerated reasons; the printed strings are:
 
 - `overflow->inf` — the next step would be infinity.
 - `underflow->0` — the next step would be zero (subnormal walked to zero).
-- `nan->nan` — the next step would be not-a-number (only reachable on native float/double paths; hand-rolled integer formats never produce NaN).
-- `identity(stopped)` — the next step equals the current value (no progress, e.g. `1.0 * 1.0`).
-- `safety-limit` — hit the built-in 2^120 step counter, protects against runaway loops.
+- `identity->stop` — the next step equals the current value (no progress, e.g. `1.0 * 1.0`).
+- `safety->limit` — hit the built-in step counter `2^120`, protecting against runaway loops.
 - `timeout` — the `-t` timer fired.
-- `cancelled` — the DPD warning confirmation timed out or was declined.
-- `sigint` — Ctrl+C received.
+- `nan->nan` — the next step would be NaN (native float/double paths; hand-rolled integer formats never produce NaN).
+
+Outer control messages (not part of the six enum reasons): `cancelled` (the DPD/dec128 start confirmation was declined or timed out) and `sigint` (Ctrl+C received).
 
 ## Limitations (known compromises)
 
-- x87 and FP128 software emulation still use compiler `__int128` for 128-bit intermediate arithmetic; a pure UInt256 path exists but is not the default.
-- DPD32/DPD64/DPD128 are excluded from `-m all` by default because their decimal complexity is 20-30x slower; they require explicit `-m dpd32` etc.
-- No MSVC support. The codebase uses GCC/Clang-specific attributes and `__int128`.
+- The step counter (`u128 = unsigned __int128`), and the 64×64 mantissa intermediate products of both x87 and fp128, use compiler `unsigned __int128`; this is integer counting/multiplication assistance, not a floating-point data type. The decimal dec128(BID) coefficient path uses the hand-rolled UInt256 (pure 64-bit-word schoolbook, no `__int128`); x87 stores a single 64-bit mantissa word plus a small integer exponent (no `long double`).
+- DPD32/DPD64/DPD128 and Dec128 are excluded from the default `-m all` chain (13 of 17 formats) because the pure-decimal paths are much slower; enable them explicitly with `--only`.
+- No MSVC support. The codebase uses GCC/Clang-specific attributes and `__int128` assistance.
 - g++ 16.2.0 has a known internal compiler error on this codebase; use Clang 16+ or g++ 13/14.
 - No GPU offload.
 - No WebAssembly target yet.
 
 ## Disclaimer
 
-This is an extreme microarchitecture stress tool. Running it with `-l -1` and no `-t` (blocked by the safety check, but bypassable with a timeout) will fully saturate every CPU core. Long full-load runs may cause thermal throttling, fan noise, hardware wear, or system instability. Ensure adequate cooling. You run this at your own risk.
+This is an extreme microarchitecture stress tool. Running it with `-l -1` and no `-t` (gated by a confirmation warning) will fully saturate every CPU core. Long full-load runs may cause thermal throttling, fan noise, hardware wear, or system instability. Ensure adequate cooling. You run this at your own risk.
 
 ## Architecture
 
 ```
 include/
-  base_types.h      Enums, u128 step counter, RunResult, global timeout atomic
-  lang.h / lang.cpp Bilingual tr() table
-  color.h           ANSI color constants
-  format_util.*     Bit-string to hex/bin, number formatting, parsing
-  drive.h / drive.cpp Core stepping driver template, reason/step name tables
-  fp_formats.h      SVal (bit-level), NativeF, x87 80-bit, fp128 112-bit
-  decimal.h         BID codec, DecNum (dec32/64), BigDec (dec128)
-  dpd.h             DPD triplet codec, DpdNum, pack/unpack
-  uint256.h         Hand-rolled 256-bit big integer, schoolbook multiply
-  runner.h          ALL concurrent mode: worker pool, monitor, summary table
-  platform.h / platform.cpp  OS abstraction: thread affinity, timer, core count
+  base_types.h        enums, u128 step counter, RunResult, global timeout atomic
+  common.h            standard headers + NativeF16/F32/F64 type aliases
+  lang.h              bilingual tr() table
+  color.h             ANSI color constants
+  format_util.*       bit-string <-> hex/bin, number formatting and parsing
+  drive.h             stepping driver template, reason_name(), SAFETY_LIMIT, quiet suppression
+  runner.h            -m all worker pool, monitor, summary table
+  platform.h          OS abstraction: thread affinity, timer, core count
+  uint128.h           hand-rolled UInt128 derived from UInt256
+  uint256.h           hand-rolled 256-bit big integer, schoolbook mul128, div10
+  dpd128.h            minimal DPD128 encoder for the dump header 0xC0 step_interval field
+  formats/
+    formats_all.h     aggregates the 17 format headers
+    engine_sim.h      parameterized bit-level engine (fp4/fp6/fp8/bf16/tf32)
+    engine_native.h   f16/f32/f64 native path
+    engine_bid_codec.h BID combo-5 pack/unpack codec
+    engine_decnum.h   BID decimal number on a UInt256 coefficient
+    engine_dpd_codec.h single declet (3 decimal digits -> 10 bits) Clarke lookup table
+    engine_dpd.h      DPD combo-5 + fixed-length bitstring pack/unpack + real round-trip self-check
+    fp4.h fp6.h fp8_e4m3.h fp8_e5m2.h bf16.h tf32.h
+    fp16.h fp32.h fp64.h
+    dec32.h dec64.h dec128.h
+    dpd32.h dpd64.h dpd128.h
+    x87.h fp128.h
 src/
-  float_inf_walk.cpp  main(), argument parsing, single-mode dispatch
+  float_inf_walk.cpp  main(), argv parsing, single-mode dispatch, 256-byte dump header + payload CRC-32
+  drive.cpp           reason_name() and other non-template definitions
+  lang.cpp format_util.cpp platform.cpp
+libeafrdt/            standalone C-ABI static library (no IO, threads, or globals)
+dump_inspect.py       interprets the 256-byte dump header and recomputes the payload CRC-32
 ```
 
 Key design choices:
@@ -259,8 +283,9 @@ Key design choices:
 - **Value-copy everything.** Worker threads receive a copy of `RunParams` and a copy of the format chain vector. They do not reference stack variables from `main`. No mutex is needed because workers write only to their own `WorkerSlot`.
 - **`alignas(64)` on `WorkerSlot`.** Each worker's status struct occupies exactly one cache line, eliminating false sharing between cores.
 - **Core pinning.** On Windows `SetThreadAffinityMask`, on Linux `pthread_setaffinity_np`. If pinning fails (container, VM, no permission), the worker runs unpinned and continues.
-- **Pure software formats.** `x87` and `fp128` are simulated in integer arithmetic (224-bit for fp128's 112-bit mantissa times 2). `dec128` uses `UInt256`. There is no dependency on `long double`, `__float128`, or libquadmath.
-- **DPD is independent.** The DPD path lives in `dpd.h` and does not share code with BID. It stores the coefficient as a `std::vector<int>` of decimal digits and does arithmetic on that array directly.
+- **Pure software formats.** `x87` and `fp128` are simulated in integer arithmetic (224-bit working width for fp128's 112-bit mantissa times 2). `dec128` uses `UInt256`. There is no dependency on `long double`, `__float128`, or libquadmath.
+- **Modular format headers.** Each of the 17 formats owns a thin header under `include/formats/`; shared engines live in `engine_*.h`.
+- **DPD is independent and self-checking.** The DPD path lives in `formats/engine_dpd.h` (codec in `engine_dpd_codec.h`) and stores the coefficient as a `std::vector<int>` of decimal digits; a fixed-length pack→unpack round-trip self-check validates sign, exponent, and padded digit string at startup.
 
 ## What the output looks like
 
@@ -273,6 +298,8 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
 [step 1234] x = 1.299...e+00 (hex=3F...C)
 [step 5678] overflow->inf  (42 ms)
 ```
+
+DPD single mode additionally prints a real `[DPD-SELFCHECK] OK` after the start header (a `MISMATCH` on stderr means the pack→unpack round-trip failed).
 
 Concurrent mode, live monitor (refreshed every 1 s):
 
@@ -305,9 +332,10 @@ Concurrent mode is a stress test, not a gentle benchmark. Read this before runni
 ## Repository layout
 
 ```
-include/   All headers (modular, no monolithic common.h in the include path beyond common.h itself)
+include/   shared engines + 17 per-format headers under include/formats/
 src/       main + non-template function definitions
-docs/      README_EN.md, WORKING_CN.md, WORKING_EN.md, MODE_SINGLE_CN/EN, MODE_ALL_CN/EN
+docs/      paired CN/EN documentation (README, PARAMETERS, IMPLEMENTATION, MODE_SINGLE, MODE_ALL, ...)
+libeafrdt/ standalone C-ABI static library
 .github/workflows/ci.yml   Build + smoke test
 CMakeLists.txt
 LICENSE    MIT, copyright rtsd5022s

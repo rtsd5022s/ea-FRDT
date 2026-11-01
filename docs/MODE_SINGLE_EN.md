@@ -1,10 +1,8 @@
 # Single-thread mode
 
-## What is single-thread mode
+## What single-thread mode is
 
-Single-thread mode runs one float format on one thread. No worker pool, no monitor thread, no thread scheduling overhead. The main loop runs on the main thread, step by step, printing each step until overflow or underflow.
-
-Without `-m all` on the command line, you're in single-thread mode:
+Without `-m all`, one format runs on the main thread: no worker pool, no monitor thread, no scheduling overhead. The loop walks step by step and prints each step until an exit reason fires.
 
 ```
 float_inf_walk 0 -m fp32
@@ -12,190 +10,120 @@ float_inf_walk 0 -m dec64 -k 1.5
 float_inf_walk 0 -m x87 -t 10
 ```
 
-Single-thread mode is simple and direct. No thread scheduling overhead, no cache-line-aligned WorkerSlot, no monitor thread. Just a for loop: multiply, check overflow, print, repeat.
+The first positional argument is `delay_ms` (per-step throttle, `0` = no throttle); the start value is always `-a`, never positional. A missing positional in single format prints help and exits `2`.
 
 ## Startup sequence
 
-What main does on entry:
+1. Windows: `timeBeginPeriod(1)`, UTF-8 console, ANSI virtual-terminal processing under `#ifdef _WIN32`; register the SIGINT (Ctrl+C) handler.
+2. Parse argv: flags plus the optional positional `delay_ms`.
+3. Select the format via `-m`, validate parameters, then call the format's drive function.
 
-1. On Windows: call `timeBeginPeriod(1)` to bump system timer to 1ms, set console to UTF-8, enable ANSI escape processing
-2. Register SIGINT handler (Ctrl+C)
-3. Parse command line arguments
-4. Select format based on `-m`
-5. Call the corresponding drive function to start walking
+## Arguments
 
-Argument parsing is in main, split into positional and optional. First positional arg is delay_ms (per-step throttle), rest are `-x value` optional args.
+**`-m <format>`**: select format; default `f32`. See the 17-format list in PARAMETERS.
 
-## Argument parsing
+**`-a <start>`**: start value; default `1.0`.
+- Plain number `-a 1.5`; scientific `-a 1.5e-3`; engineering; raw bits `-a 0x3F800000`.
+- Keywords: `min-normal`/`min` (smallest normal positive), `max-finite`/`max` (largest finite).
+- Negative values walk toward `-inf`; NaN/Inf rejected.
 
-Recognized arguments in single-thread mode:
+**`-s` / `--subnormal`**: start at the smallest subnormal positive; mutually exclusive with `-a`.
 
-**`-m <format>`**: Select format. Default f32. See format list for options.
+**`-k <factor>`**: per-step multiplier, default `1.02`; `>1` upward to overflow, `0<r<1` downward to zero; `0`/negative/NaN/Inf rejected; scientific notation accepted.
 
-**`-a <start>`**: Start point. Default 1.0. Can be:
-- Plain number: `-a 1.5`
-- Scientific: `-a 1.5e-3`
-- Hex raw: `-a 0x3f800000`
-- Keywords: `min-normal` (smallest normalized), `max-finite` (largest finite)
-- Negative: `-a -1`
+**`-g <mode>`**: step mode, default `x1.02` (alias `x102`).
+- `mululp`: multiply by `1 + 1 ULP`
+- `addulp`: add `1 ULP` to the mantissa
+- `subulp`: subtract `1 ULP` from the mantissa (descending)
 
-**`-k <factor>`**: Per-step factor. Default 1.02. >1 walks up to overflow, <1 walks down to underflow. Scientific notation supported.
+**`-f <fmt>`**: `eng` (default, exponent multiple of 3) / `sci` / `full`.
 
-**`-g <stepmode>`**: Step mode. Default multiplicative (×1.02). Options:
-- `mululp`: each step ×(1+1ULP)
-- `addulp`: each step +1ULP
+**`-d <n>` / `--digits <n>`**: sci/eng decimals; default `6`, `-1` = full, valid `-1` or `0..100`.
 
-When mululp or addulp is selected, the x1.02 factor display is hidden.
+**`--bits hex|bin|off`** (`--showbits`): parenthesized bit pattern; `bin` groups sign/exponent/coefficient; default `off`.
 
-**`-f <fmt>`**: Display format. Default engineering. Options:
-- `eng`: engineering notation, exponent multiples of 3
-- `sci`: scientific notation
-- `full`: full display, all significant digits
+**`-t <sec>`**: timeout seconds; default `0` (run until a termination reason); negative clamps to `0`.
 
-**`-d <n>`**: Decimal places. Default 6. Range 0 to 100. `-d -1` means full display.
+**`-l <n>`**: loop count; default `1`; `0` treated as `1`; `-1` infinite; `>1` repeats (cap 1,000,000); values `< -1` rejected.
 
-**`--bits <mode>`**: Bit display in parentheses. Default off. Options:
-- `hex`: hex bit pattern
-- `bin`: binary bit pattern, segmented
-- `off`: no display
+**`-q` / `--quiet`**: suppress the live per-step and finish lines; the result is still captured in `RunResult`. `--json`/`--dump` imply quiet.
 
-**`-t <sec>`**: Timeout seconds. Default 0 (no limit, walk until overflow/underflow).
+**`--json`**: one machine-readable object (format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp).
 
-**`-l <n>`**: Loop count. Default 1. `-l -1` infinite loop.
+**`--dump <file>`**: 256-byte header + records; payload CRC-32 at `0xE0`; see `dump_inspect.py`.
 
-**`-s`**: Start from smallest denormal.
-
-**`-q`**: Quiet mode, no live printing, print result only after done.
-
-**`--lang <zh|en>`**: UI language.
+**`--lang zh|en`**: UI language; default `zh`.
 
 ## Main loop
 
-The main loop is in the drive function. drive is a template function dispatched by format type.
-
-Pseudocode:
+The drive template loops: check timeout → compute next value → increment step → classify overflow/underflow/identity/NaN → render (unless quiet) → sleep `delay_ms`. Pseudocode:
 
 ```
-current = start
-steps = 0
-t0 = now
-while (not exited) {
-    if (timeout) break
-    old = current
-    current = current * factor    // or addulp/mululp
+current = start; steps = 0; t0 = now
+while (!exited) {
+    if (timeout_fired) { reason = timeout; break }
+    current = step(current)          // factor / mululp / addulp / subulp
     steps++
-    if (overflow) {
-        print overflow->inf
-        break
-    }
-    if (underflow) {
-        print underflow->0
-        break
-    }
-    if (per-step refresh) {
-        print current
-    }
-    if (delay_ms > 0) {
-        sleep(delay_ms)
-    }
+    classify(current)                 // overflow / underflow / identity / nan
+    if (!quiet) print(current)
+    if (delay_ms > 0) sleep(delay_ms)
 }
-print final result
+store result in RunResult
 ```
 
-## Overflow detection
+## Exit detection by path
 
-Each format detects overflow differently:
+- **Native (FP16/FP32/FP64)**: `std::isinf` after multiply; `x == 0` / subnormal floor for underflow; NaN reachable here only.
+- **Bit-level (FP4/FP6/FP8/BF16/TF32)**: exponent field all-ones = overflow; exponent all-zero with zero mantissa = zero; subnormal handled explicitly.
+- **x87 / FP128**: pure integer arithmetic; exponent compared against Emax/Emin; intermediate products use `__int128` helpers.
+- **BID dec32/64/128**: overflow uses top-digit exponent `exp10 + digits - 1 > Emax` (Emax 96 / 384 / 6144); underflow compares against Emin (−95 / −383 / −6143).
+- **DPD ×3**: same decimal boundary predicates, packed through the DPD codec; startup runs a pack→unpack self-check.
 
-**Native formats (FP16/FP32/FP64)**: After multiply, check `std::isinf(x)`. If inf, overflow.
+## Six enumerated exit reasons
 
-**Hand-rolled bit formats (FP4/FP6/FP8/BF16/TF32)**: Check if exponent field is all 1s. If exponent becomes all 1s after multiply, overflow. Or check if raw exceeds max finite raw.
+- `overflow->inf`, `underflow->0`, `identity->stop` (no progress), `safety->limit` (`2^120` counter), `timeout`, `nan->nan` (native only).
+- Non-enum outer messages: `cancelled` (confirmation declined/timed out, mainly `-m all`), `sigint` (Ctrl+C).
 
-**x87/FP128**: Pure software, check if exponent exceeds Emax. If exponent > Emax, mark overflow.
+## Timeout and loops
 
-**BID decimal**: Check `exp10 + digits - 1 > Emax`. Not simple exp10 compare, because coefficient can carry after multiply, need to add significant digits. Emax is 96 for Dec32, 384 for Dec64, 6144 for Dec128.
-
-**DPD decimal**: Same overflow check as BID, but encoding goes through DPD route.
-
-## Underflow detection
-
-Underflow means value is very small, approaching zero.
-
-**Native formats**: After multiply, check `x == 0` or smallest denormal. If value < smallest normalized, enter denormal range. Keep multiplying until zero.
-
-**Hand-rolled bit formats**: Check if exponent field is all 0s. If exponent all 0s and mantissa all 0s, it's zero.
-
-**Decimal formats**: Check if exp10 < emin. emin is -95 for Dec32, -383 for Dec64, -6143 for Dec128.
-
-## Print format
-
-Each step prints one line:
-
-```
-FP32: 1.234567e+10   4481 steps
-```
-
-Or with bit display:
-
-```
-FP32: 1.234567e+10   [3f800000]
-```
-
-Engineering notation mantissa has fixed 6 decimal places. Scientific doesn't force exponent to multiples of 3. Full display doesn't truncate.
-
-Quiet mode `-q` doesn't print intermediate steps, only prints a summary line at the end.
-
-## Timeout control
-
-`-t 10` means stop after 10 seconds. Timeout is checked at each loop start:
-
-```
-if (g_timeout_sec > 0) {
-    elapsed = now - t0
-    if (elapsed >= g_timeout_sec) break
-}
-```
-
-After timeout, print `timeout` exit reason, then print result.
-
-## Loops
-
-`-l 3` means run 3 passes. After each pass (overflow or underflow), reset current to start, start over. After 3 passes, print summary.
-
-`-l -1` infinite loop, must pair with `-t`.
+`-t 10` stops after 10 s; the atomic timeout flag is checked each iteration; on stop the reason is `timeout`. `-l 3` repeats the walk three times (reset to start after each pass); `-l -1` repeats indefinitely. Combined with `-t 0`, `-l -1` raises a level-1 confirmation warning in `-m all` (a warning, not a hard rejection); pairing a timeout is strongly recommended, especially over SSH.
 
 ## Ctrl+C
 
-On Ctrl+C, signal handler sets `g_sigint = true`. Main loop sees the flag at next step, prints "Program exited early (Ctrl+C received)", prints result, exits.
+The handler sets a sigint flag; the loop notices it on the next iteration, prints the bilingual early-exit message (`sigint`), stores the result, and exits.
 
-## Single-thread format chain
+## Reference baselines (×1.02 from 1.0, overflow steps)
 
-Single-thread mode runs one format at a time. To see results for multiple formats, run the command multiple times. This is the biggest difference from `-m all` concurrent mode.
+Approximate anchors, machine-dependent; see `BASELINE_EN.md` for the maintained table:
 
-## Performance
+| Format | Order of magnitude |
+|---|---|
+| FP4/FP6/FP8 | a handful to a few hundred steps |
+| FP16 | ~600 |
+| BF16/TF32/FP32 | a few thousand |
+| Dec32 / DPD32 | ~11,279 |
+| FP64 | tens of thousands |
+| Dec64 / DPD64 | ~44,767 |
+| x87 / FP128 | hundreds of thousands |
+| Dec128 / DPD128 | seven figures |
 
-Single-thread mode has no thread overhead, no locks, no cache-line alignment. Pure computation. The bottleneck is the float arithmetic itself.
+## Input validation (hard exits, code `2`, stderr)
 
-x87 and FP128 are pure software integer math, slower than native FP64. DPD formats use lookup tables and per-digit decimal arithmetic, with no hardware FPU acceleration.
+Unknown format/flag; unparseable start/factor; factor 0/negative/non-finite; `--loop < -1` or `> 1,000,000`; conflicting `-a`/`-s`; malformed `0x` pattern. Negative timeout clamps to `0` rather than rejecting; `--loop 0` is treated as `1`. Error strings pass through `sanitize()`.
 
-## Exit reasons
+## Exit codes
 
-On exit, prints an exit reason line:
+- `0`: normal end (any driver reason), `sigint`, or `cancelled`.
+- `2`: argument/validation error.
 
-- `overflow->inf`: overflowed to infinity
-- `underflow->0`: underflowed to zero
-- `timeout`: timed out
-- `cancelled`: DPD warning cancelled
-- `sigint`: Ctrl+C received
+## Choosing a format
+
+- Quick smoke: FP32/FP64; low precision: FP4/FP6/FP8; high precision: FP128/Dec128; decimal behavior: dec32/64/128 or DPD×3; 80-bit extended: x87.
+- `-q` suppresses flooding on very long formats; `--bits bin` inspects field transitions; `--dump` records every raw record for offline replay.
 
 ## Notes
 
-1. Single-thread mode prints every step by default. Formats with many steps (FP128 hundreds of thousands) will flood the screen. Add `-q` for quiet.
-2. `-k 1.02` from 1.0: FP32 takes 4481 steps to overflow. FP128 takes 570k steps.
-3. `-k 0.5` decreasing: from 1.0 underflows to 0 quickly.
-4. `-a max-finite` with `-k 0.5` walks down from max, measures steps from max to zero.
-5. `-s` starts from smallest denormal, walks through denormal range before normalized range.
-6. DPD formats show a warning on first run, press y to confirm.
-7. `-d -1` full display, no decimal truncation, good for exact values.
-8. `--bits bin` segmented binary display, sign/exponent/mantissa space-separated.
-9. Negative start with `-k 1.02` walks to -inf first.
-10. Single-thread mode doesn't pin cores, OS schedules automatically, may drift between cores.
+1. Without `-q`, long walks (FP128/Dec128) flood the screen; use `-q` or `-t`.
+2. `-g addulp` takes the most steps (one ULP per step); `-g mululp` grows step size with magnitude.
+3. `-a max-finite -k 0.5` measures descent from the largest finite value toward zero.
+4. Single mode does not pin cores; the OS may migrate the thread.

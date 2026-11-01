@@ -1,16 +1,18 @@
-# Baseline Test Results
+# Baseline Results (reference measurements)
 
-Test environment: i7-6700 (4C8T), Windows x86_64, clang64 Clang 23, `-Oz -flto=thin -static`.
-Command: `ea-FRDT.exe 0 -m <format> -q` (from 1.0 times 1.02 to overflow).
+Environment: i7-6700 (4C8T), Windows x86_64, MSYS2 clang64 Clang, release `-Oz -flto=thin -static`.
+Command: `float_inf_walk 0 -m <format> -q` (from 1.0 × 1.02 to overflow).
+
+> Steps and times below are **historical reference measurements of that build on that machine**. Steps are mostly determined by bit width and Emax and are fairly build-stable; wall times vary strongly with CPU, optimization level, and compiler and are not promised across machines/versions. When comparing BID vs DPD, focus on whether equal-width step counts agree, not on absolute milliseconds.
 
 ## Single-thread step baseline (1.0 × 1.02 → overflow)
 
-| Format | Steps | Time |
+| Format | Steps (ref.) | Time (ref.) |
 |---|---|---|
-| FP4 (E2M1) | 1 (identity) | 0 ms |
-| FP6 (E3M2) | 1 (identity) | 0 ms |
-| FP8 (E4M3) | 1 (identity) | 0 ms |
-| FP8 (E5M2) | 1 (identity) | 0 ms |
+| FP4 (E2M1) | 1 (`identity->stop`) | ~0 ms |
+| FP6 (E3M2) | 1 (`identity->stop`) | ~0 ms |
+| FP8 (E4M3) | 1 (`identity->stop`) | ~0 ms |
+| FP8 (E5M2) | 1 (`identity->stop`) | ~0 ms |
 | FP16 | 574 | 9 ms |
 | BF16 | 3913 | 16 ms |
 | TF32 | 4623 | 21 ms |
@@ -27,32 +29,27 @@ Command: `ea-FRDT.exe 0 -m <format> -q` (from 1.0 times 1.02 to overflow).
 
 ## Notes
 
-- FP4/FP6/FP8 hit identity(stopped) on the first step from 1.0 because 1.0×1.02 rounds back to 1.0 in these tiny formats.
-- Dec32/DPD32 match (11279), Dec64/DPD64 match (44767), Dec128/DPD128 match (714521), confirming BID and DPD produce identical results under the same arithmetic.
-- x87 and FP128 match (573521) because both have 15-bit exponent range.
-- Dec128 (BID) is slowest (12 seconds) due to pure-software UInt256 big-integer multiply. DPD128 is faster (4.9 seconds) because DPD uses decimal digit-by-digit arithmetic, faster than BID's big-integer multiply.
+- FP4/FP6/FP8 hit `identity->stop` on the first step from 1.0: 1.0×1.02 rounds back to 1.0 in these tiny formats.
+- Dec32/DPD32 match (11279), Dec64/DPD64 match (44767), Dec128/DPD128 match (714521): under the same decimal arithmetic, BID and DPD codecs agree on step counts.
+- x87 and FP128 measure close (573521) here; both are pure software at a 15-bit exponent scale, and time differences come from their wide-mantissa multiplies.
+- Dec128(BID) carries a 113-bit coefficient through UInt256 big-integer multiply and is the heaviest; DPD128 walks a decimal digit array declet by declet. On narrow widths DPD is slightly slower than BID due to lookup/per-digit overhead; which path wins shifts with coefficient width — trust local measurement.
 
-## Default -m all scope
+## Default `-m all` scope
 
-Default `-m all` includes 13 formats, excluding:
-- DPD32/DPD64/DPD128 (pure software decimal, 20-30x slower)
-- Dec128 (BID) (UInt256 big-integer multiply, 12 seconds)
+The default chain has 13 formats and excludes:
 
-Use `--only dpd32,dpd64,dpd128,dec128` to add them manually.
+- DPD32/DPD64/DPD128 (software decimal declets; the confirmation notes they are markedly slower than native paths)
+- Dec128(BID) (UInt256 wide-coefficient multiply; the confirmation notes it runs roughly 2–3× slower than DPD128)
 
-## Command-line argument tests
+Add them with `--only dpd32,dpd64,dpd128,dec128`; this confirmation gate exists only in `-m all`.
 
-- `-m fp32`: single format
-- `-m all`: concurrent all formats (default excludes DPD/Dec128)
-- `--only fp32,f64,dec128`: subset
-- `-g mululp` / `-g addulp`: ULP stepping
-- `-k 1.01`: custom factor
-- `-s 0x3f800000`: hex start
-- `-a max-finite`: max finite start
-- `-l 3`: loop 3 times
-- `-t 10`: 10 second timeout
-- `-j 1,3,5`: pin to specific cores
-- `-q`: quiet mode
-- `-lang cn/en`: language switch
+## Common parameter examples (see PARAMETERS_EN.md for semantics)
 
-The algorithm may misbehave occasionally.
+- `-m fp32` single; `-m all` concurrent default 13-chain (DPD×3 and Dec128 excluded)
+- `--only fp32,fp64`: subset
+- `-g x1.02` (default) / `-g mululp` / `-g addulp` / `-g subulp`
+- `-k 1.01` custom factor; `-a max-finite`; `-a min-normal`; `-s` smallest subnormal start
+- `-a 0x3f800000`: FP32 1.0 raw-bit start (hex start uses `-a`; `-s` takes no argument)
+- `-l 3` three passes; `-t 10` ten-second timeout
+- `-j 0,2`: cores, zero-based (first core is 0); `-q` quiet; `--dump f.bin` records with payload CRC-32 verified by `dump_inspect.py`
+- `--lang zh|en`: UI language (default `zh`)

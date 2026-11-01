@@ -10,45 +10,47 @@ This sounds simple, but every step does three things:
 
 1. **Compute the next value**: multiply the current value by the factor.
 2. **Check exit conditions**: is the next value infinity, zero, or identical to the current value (identity)?
-3. **Print the current value**: format it for display, optionally append the raw hex/bin bit pattern.
+3. **Print the current value**: format it for display, optionally append the raw hex/bin bit pattern via `--bits`.
 
 The difference between formats lives entirely in steps 1 and 2. Binary float uses the IEEE 754 sign/exponent/mantissa three-segment layout. Decimal float has two encodings, BID and DPD. Hand-rolled formats (FP4, FP8, etc.) are simulated directly in integer bit fields. ea-FRDT unifies all of these under a single driver.
 
 ## 2. The Unified Driver
 
-The core driver lives in `drive.h` as a template function `drive_core`. It takes five lambdas:
+The core driver lives in `drive.h` as a template function `drive_core`. It takes format-specific lambdas for:
 
 - `next(s)`: compute the next value `nxt`.
-- `isInf(nxt)`: check if it is infinity.
-- `isZero(nxt)`: check if it is zero.
+- `isInf(nxt)` / `isZero(nxt)` / identity check: exit predicates.
 - `render(s)`: render the current value to a string.
 - `extra(s)`: optional extra info (e.g. BID coefficient, DPD digit array).
 
-The driver has no idea which format it is running. It only loops: call `next`, check exit conditions, update the current value, print, sleep the delay, check timeout. All format-specific logic lives in the lambdas.
+The driver has no idea which format it is running. It only loops: call `next`, check exit conditions, update the current value, print, sleep the `delay_ms`, check timeout. All format-specific logic lives in the lambdas.
 
-The upside of this design: adding a new format does not require touching the driver, just write a set of lambdas and pass them in. The downside: template code bloat. Since each format is instantiated exactly once, the binary size impact is acceptable.
+The upside: adding a new format does not require touching the driver, just supply the lambdas. The downside: template code bloat; since each format is instantiated once, the binary size impact is acceptable.
 
-There are five exit reasons:
+There are six enumerated exit reasons:
 
 - `overflow->inf`: `next` returned infinity.
 - `underflow->0`: `next` returned zero.
-- `identity(stopped)`: `next` equals the current value (e.g. 1.0 * 1.0).
-- `safety-limit`: hit the built-in 2^120 step counter, runaway protection.
+- `identity->stop`: `next` equals the current value (no progress).
+- `safety->limit`: hit the built-in `2^120` step counter, runaway protection.
 - `timeout`: the global timeout atomic fired.
+- `nan->nan`: the next value became NaN (native paths only; hand-rolled integer formats never produce NaN).
 
-In quiet mode `-q`, the driver does not print each step, it only writes the result into a `RunResult` struct. In normal mode, each step uses `\r` carriage return plus `\033[K` clear-line to refresh in place; lines wider than the terminal wrap to a new line.
+Outer control messages `cancelled` (confirmation declined/timed out) and `sigint` (Ctrl+C) are not enum reasons.
+
+In quiet mode `-q`, the driver suppresses live/finish lines and writes the result into a `RunResult` struct (consumed by `--json`/summary). In normal mode, each step uses `\r` carriage return plus `\033[K` clear-line to refresh in place; lines wider than the terminal wrap to a new line.
 
 ## 3. Binary Float Formats
 
 ### 3.1 Native formats
 
-`fp16`, `fp32`, `fp64` use native C++ types. C++23 `<stdfloat>` provides `std::float16_t`, `std::float32_t`, `std::float64_t`. Clang does not understand `<stdfloat>`, so it falls back to `_Float16` and plain float/double.
+`fp16`, `fp32`, `fp64` use native C++ types: `_Float16` under Clang and `std::float16_t` under GCC for fp16, with plain `float`/`double` for fp32/fp64.
 
-The step logic is just `next = s * factor`, with exit checks via `std::isinf` and `s == 0.0`. ULP mode is slightly more complex: `mululp` is `s * (1.0 + epsilon)`, `addulp` increments the bit pattern by 1.
+The step logic is `next = s * factor`, with exit checks via `std::isinf` and `s == 0.0`. ULP modes: `mululp` multiplies by `1 + 1 ULP`; `addulp` adds one ULP to the mantissa; `subulp` subtracts one ULP (descending).
 
 ### 3.2 Hand-rolled bit-level formats
 
-`fp4` (E2M1), `fp6` (E3M2), `fp8-e4m3`, `fp8-e5m2`, `bf16`, `tf32` have no native hardware support (or the compiler does not expose them). They are simulated with a struct called `SVal`:
+`fp4` (E2M1), `fp6` (E3M2), `fp8-e4m3`, `fp8-e5m2`, `bf16`, `tf32` have no native hardware support (or the compiler does not expose them). They are simulated with a struct called `SVal` in `formats/engine_sim.h`:
 
 ```cpp
 struct SVal {
@@ -64,17 +66,13 @@ This is the hardest code in the project. It must correctly handle subnormals (ex
 
 ### 3.3 x87 80-bit extended precision
 
-The x87 80-bit format has 1 sign bit, 15 exponent bits, and 64 mantissa bits (note: there is no implicit leading 1, the mantissa is stored explicitly). ea-FRDT does not use `long double` (which is 64-bit on MSVC and 80-bit on GCC, non-portable). Instead it hand-rolls an 80-bit integer simulation.
-
-Internally it uses two 64-bit integers for the high mantissa and the exponent. Multiplication uses schoolbook: 64-bit times 64-bit yields 128 bits, then normalize.
+The x87 80-bit format has 1 sign bit, 15 exponent bits, and 64 mantissa bits (no implicit leading 1; the mantissa is stored explicitly). ea-FRDT does not use `long double` (its width differs across compilers and targets, non-portable); it hand-rolls an 80-bit integer simulation. The mantissa is one 64-bit word and the exponent a small integer; the 64×64 mantissa intermediate uses `unsigned __int128`, and multiplication normalizes after the product.
 
 ### 3.4 FP128 binary128
 
-binary128 has 1 sign bit, 15 exponent bits, and 112 mantissa bits. This is the most complex pure-software format. 112-bit mantissa times 112-bit mantissa yields a 224-bit product, which needs a 224-bit integer type.
+binary128 has 1 sign bit, 15 exponent bits, and 112 mantissa bits — the most complex pure-software format. The 112×112 mantissa product needs a wide intermediate; the implementation uses compiler `__int128` for the 64×64 intermediate products, split into 64-bit limbs, schoolbook-multiplied and accumulated by bit width. An early version used `v << sh` for left shift, which misbehaves when a high limb overflows; it was fixed by mask-split plus right-shift carry.
 
-The project uses `__int128` as the building block, stitching two `__int128`s together to simulate 224 bits. Multiplication splits into four 64-bit limbs, does schoolbook multiply, then accumulates by bit width. This multiplication had a serious bug: an early version used `v << sh` for left shift, but 128-bit left shift misbehaves when the high limb overflows. It was fixed by switching to mask-split plus right-shift carry.
-
-Normalization and rounding are another hard part. The 224-bit product must be rounded back to 112 bits. Round-half-up: look at the most significant dropped bit; if it is 1, add 1. The add-1 can itself carry into the top of the mantissa, which then requires adjusting the exponent. This whole chain lives in `q128_add128` and related functions.
+Normalization and rounding round the wide product back to 112 bits: inspect the most significant dropped bit; rounding-up can carry into the top of the mantissa, which then requires adjusting the exponent.
 
 ## 4. Decimal Float Formats
 
@@ -82,23 +80,21 @@ IEEE 754-2008 defines two decimal float encodings: BID (Binary Integer Decimal) 
 
 ### 4.1 BID path
 
-BID stores the coefficient as an ordinary binary integer. dec32 coefficient holds up to 7 decimal digits (~24 binary bits), dec64 up to 16 digits (~54 bits), dec128 up to 34 digits (~113 bits).
+BID stores the coefficient as an ordinary binary integer. dec32 holds up to 7 decimal digits (~24 binary bits), dec64 up to 16 digits (~54 bits), dec128 up to 34 digits (~113 bits).
 
-dec32 and dec64 coefficients fit in `uint64_t`, multiplication is direct. dec128's 113-bit coefficient does not fit in `uint64_t`, so the project wrote a `UInt256` big integer (`uint256.h`), pure `uint64_t` array, schoolbook multiply.
+dec32/dec64 coefficients fit in `uint64_t`; dec128's 113-bit coefficient uses the hand-rolled `UInt256` (`uint256.h`), a pure `uint64_t` array with schoolbook multiply.
 
-The BID bit layout is: 1 sign bit, a few exponent combination-field bits, and the rest coefficient. The combination field uses the first few bits to distinguish whether the top coefficient digit is 0-7 or 8-9. This is because a 113-bit binary integer can represent up to 8.1e33, while a 34-digit decimal number can represent up to 9.9e33; the two ranges overlap, and the combination field disambiguates.
+The BID bit layout: 1 sign bit, combination-field bits, and the rest coefficient. The combination field distinguishes the leading coefficient digit range because a 113-bit binary integer and a 34-digit decimal number have overlapping ranges; the field disambiguates NaN/infinity/finite and the leading-digit class.
 
-BID multiplication is: multiply the two big integers, then count how many decimal digits the result has, decide how to adjust the exponent, and whether to right-shift and round.
+BID multiplication: multiply the integers, count decimal digits of the result, adjust the exponent, and right-shift/round as needed.
 
 ### 4.2 DPD path
 
-DPD is the other encoding. It groups decimal digits in threes (0-999) and encodes each group into 10 binary bits. Why 10 bits? Because 0-999 has 1000 values, and 10 binary bits have 1024 values; the extra 24 code points handle the special case where a digit is 8 or 9.
+DPD groups decimal digits in threes (0–999) and encodes each group into 10 binary bits. Why 10 bits? 0–999 has 1000 values, 10 bits have 1024; the extra code points handle digits equal to 8 or 9.
 
-The DPD codec functions live in `dpd.h`. Encoding: three BCD digits d2 d1 d0 (4 bits each), check which digits are 8 or 9, look up the 10-bit DPD in the combination table. Decoding is the reverse.
+The single-declet codec lives in `formats/engine_dpd_codec.h`; multi-declet packing, the fixed-length symmetric pack/unpack sub-unit, and the startup pack→unpack self-check live in `formats/engine_dpd.h`. Encoding: three BCD digits d2 d1 d0 (4 bits each), check which digits are 8 or 9, look up the 10-bit DPD in the combination table; decoding reverses it.
 
-The `DpdNum` struct stores a decimal digit array (`std::vector<int>`), not a packed bit pattern. Multiplication works directly on the decimal array: multiply by a small integer (0-999), carry from low to high. Dividing by 10^k is right-shifting k digits; round-half-up looks at the most significant dropped digit.
-
-DPD bit layout packing and unpacking is done separately: at runtime arithmetic uses the decimal array, and only when printing hex/bin does it pack into 32/64/128 bits. This design makes arithmetic simple, but packing has overhead. DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
+`DpdNum` stores a decimal digit array (`std::vector<int>`), not a packed bit pattern. Arithmetic multiplies by a small integer with low-to-high carry; divide-by-10^k shifts digits right; rounding looks at the most significant dropped digit. Packing into 32/64/128 bits happens for hex/bin display and for `--dump` records; the symmetric pack/unpack sub-unit lets startup run a real pack→unpack round-trip self-check (`[DPD-SELFCHECK] OK`). DPD cannot use the hardware FPU, so weak CPUs stay loaded longer.
 
 ### 4.3 IEEE 754 boundary values
 
@@ -110,62 +106,54 @@ Decimal float Emax and Emin:
 | dec64 | 64 | 16 | 384 | -383 |
 | dec128 | 128 | 34 | 6144 | -6143 |
 
-Overflow check is not simply "exponent > Emax". It is "the exponent of the most significant digit": `exp10 + digits - 1 > Emax`. For example, dec32 coefficient 1234567 (7 digits), exp10=90: the top-digit exponent is 90+6=96, exactly equal to Emax, legal. If one multiply turns it into 12345670 (8 digits), even if you right-shift and round back to 7 digits, the top-digit exponent has already exceeded Emax and you must flag overflow. This detail was wrong in an early version and was fixed by aligning to the standard.
+Overflow is not simply "exponent > Emax"; it is the exponent of the most significant digit: `exp10 + digits - 1 > Emax`. Example: dec32 coefficient 1234567 (7 digits), exp10=90: top-digit exponent 90+6=96 equals Emax, legal. One multiply to 12345670 (8 digits) already exceeds Emax at the top digit even after right-shifting back to 7 digits, so overflow must be flagged.
 
 ## 5. UInt256 Big Integer
 
-`UInt256` in `uint256.h` is a 256-bit unsigned integer made of four `uint64_t`s. Multiplication uses schoolbook: two 4-limb numbers multiply to an 8-limb product, each partial product is added to its position, and carries propagate upward.
+`UInt256` in `uint256.h` is a 256-bit unsigned integer of four `uint64_t`s. Multiplication uses schoolbook: two 4-limb numbers yield an 8-limb product, partial products add to their positions, carries propagate upward. It deliberately does not depend on `__int128` (portable, undefined-behavior-free); `__int128` is reserved for the step counter and the x87/fp128 mantissa intermediate products, not for decimal coefficients. Under `-O2/-O3` the compiler may emit MULX/ADX for 64×64 on x86_64 without hand-written intrinsics.
 
-It deliberately does not depend on `__int128`, because the goal is portable, undefined-behavior-free code. Under O2 or O3, the compiler auto-generates MULX/ADX instructions for 64-bit times 64-bit on x86_64, no hand-written intrinsics needed.
-
-Divide-by-10 is used for decimal digit counting: divide from the top down, the remainder is the decimal digit at that position. dec128 uses this function to count how many decimal digits the coefficient has, and adjust the exponent accordingly.
+`div10` supports decimal digit counting: divide from the top down, the remainder is the digit at that position; dec128 uses it to size the coefficient and adjust the exponent.
 
 ## 6. Multi-threaded Concurrent Mode
 
-Single mode exits after one format. `-m all` is a different beast: it spawns N worker threads, each of which independently runs the default 13-format chain (DPD and Dec128 excluded, add with `--only`).
+Single mode exits after one format. `-m all` spawns N worker threads, each independently running the default 13-format chain (DPD32/64/128 and Dec128 excluded; add with `--only`).
 
 ### 6.1 WorkerSlot
 
-Each worker has an `alignas(64)` `WorkerSlot` struct holding current state: format ID, current value string, step counter (u128), elapsed time, done flag, exit reason. `alignas(64)` forces this struct to occupy exactly one CPU cache line, so when multiple cores access their own Slots they do not suffer false sharing. If two cores write to variables that happen to live in the same cache line, every write bounces the cache line between cores and performance collapses.
+Each worker has an `alignas(64)` `WorkerSlot`: format ID, current value string, step counter (u128), elapsed time, done flag, exit reason. `alignas(64)` forces one CPU cache line, eliminating false sharing when cores access their own slots.
 
 ### 6.2 Core pinning
 
-Windows uses `SetThreadAffinityMask`, Linux uses `pthread_setaffinity_np`. Each worker thread is pinned to its assigned core at startup. If pinning fails (container, VM, no permission), it is skipped and the worker runs unpinned.
-
-The point of pinning is not raw performance (the gain is limited in this pure-compute workload) but reducing scheduling jitter: the OS does not migrate the worker between cores, so the measured steps/sec is more stable.
+Windows uses `SetThreadAffinityMask`, Linux `pthread_setaffinity_np`; each worker pins at startup. On failure (container, VM, no permission) it degrades to unpinned. Pinning mainly reduces scheduling jitter (stable steps/sec), not raw throughput.
 
 ### 6.3 Value copy
 
-The worker thread receives a copy of `RunParams` and a copy of the format-chain vector. It references nothing on `main`'s stack. This avoids dangling references and removes the need for mutexes: workers only write to their own WorkerSlot, the monitor only reads WorkerSlots, there is no contention.
+The worker receives copies of `RunParams` and the format-chain vector; it references nothing on `main`'s stack. Workers write only their own WorkerSlot; the monitor only reads slots, so no mutex is needed.
 
 ### 6.4 Monitor
 
-The main thread runs a monitor loop that, at the `-r` interval (default 1 second), scans all WorkerSlots and prints `[wN] format: current value steps/s elapsed loop=X/Y`. Time display is layered: seconds for short runs, minutes:seconds for longer, hours:minutes:seconds for hours, and so on.
-
-The monitor uses `\r` to refresh in place. With many workers each gets its own line, no wrapping.
+The main-thread monitor loop scans all WorkerSlots at the `-r` interval (`1000` ms default in `-m all`) and prints `[wN] format: current value steps/s elapsed loop=X/Y`. Time display layers Y/M/D/H/M/S/ms; the monitor uses `\r` to refresh in place, one line per worker.
 
 ### 6.5 Summary table
 
-After all workers finish (or timeout fires), a summary table prints: one row per worker per format, with columns for steps, elapsed time, and exit reason. The last row is the global total steps and total throughput.
+After all workers finish (or timeout fires), a summary table prints one row per worker per format with steps, elapsed, and exit reason; the last row holds global total steps and throughput.
 
 ## 7. Input Validation and Safety
 
-The tool runs several layers of checks at startup:
+Startup layers:
 
-- Format name must be in the known list.
-- Factor cannot be 0 or negative.
-- `-l -1` must be paired with `-t`, otherwise a DoS risk warning is emitted.
-- A factor too close to 1 (e.g. 1.0000001) causes step explosion and will hit the 2^120 safety limit; this is warned early.
-- DPD formats print a yellow warning before running, wait 10 seconds for `y` confirmation, otherwise cancel.
+- Unknown format/flag, unparseable start, malformed `0x` pattern, conflicting special starts → hard exit `2` on stderr.
+- Factor 0 / negative / NaN / Inf → hard exit `2`.
+- `-l -1` together with `-t 0`: level-1 yellow confirmation warning in `-m all` (warns, does not reject; pair a timeout).
+- Factor `< 1e-10`: level-1 warning that the walk may need very many steps; the `2^120` safety counter is the backstop.
+- Included DPD×3 / Dec128: level-2 red `[!!!]` confirmation in `-m all`, up to 10 s for `y`, otherwise `cancelled`.
 
-These checks are not decorative. An early version did not validate `-l -1`, and someone left an infinite loop running without a timeout; after the SSH session dropped, the orphan process burned CPU all night.
+These checks matter: an early version lacked the infinite-loop guard; an orphan process once burned CPU all night after an SSH drop.
 
 ## 8. Bilingual UI and Color
 
-UI strings go through `tr(zh, en)`, which returns Chinese or English based on the global `g_lang`. ANSI color constants live in `color.h`: cyan banner, gray info, green normal, yellow warning, red error.
-
-The Windows console needs `SetConsoleOutputCP(65001)` and `ENABLE_VIRTUAL_TERMINAL_PROCESSING` to render UTF-8 and color escapes correctly. These are wrapped in `#ifdef _WIN32` in main.
+UI strings go through `tr(zh, en)`, selected by global `g_lang` (default `zh`). ANSI color constants live in `color.h`: cyan banner, gray info, green normal, yellow warning, red error. On Windows the console sets UTF-8 codepage and virtual-terminal processing under `#ifdef _WIN32`.
 
 ## 9. Summary
 
-The core idea of ea-FRDT is to push every float format to its physical limit and watch how it breaks. The driver unifies formats, templates remove code duplication, hand-rolled formats avoid vendor-library dependencies, and the multi-threaded worker pool stress-tests the system. It is not a gentle benchmark; it is a devil's pressure-test tool, designed to max out the CPU and make formats crash on demand.
+The core idea of ea-FRDT is to push every float format to its physical limit and watch how it breaks. The driver unifies formats, templates remove duplication, hand-rolled formats avoid vendor libraries, and the worker pool stress-tests the system. It is a devil's pressure-test tool, not a gentle benchmark: designed to max out the CPU and make formats break on demand.

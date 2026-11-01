@@ -2,7 +2,7 @@
 
 ## Why this exists
 
-The dec128 coefficient is a 110-bit binary integer (IEEE 754-2008 BID layout). Walking from `1.0` and multiplying by `1.02` at each step is equivalent to multiplying the coefficient by `102`, decrementing the exponent by 2, and then renormalizing. The problem: multiplying two 110-bit integers produces a 220-bit intermediate result. C++ has no built-in type wider than `uint64_t`; the compiler extension `__int128` exists in GCC and Clang but not in MSVC, and even it only holds 128 bits, still too narrow for 220 bits.
+The dec128 coefficient is a 110-bit binary integer (IEEE 754-2008 BID layout). Walking from `1.0` and multiplying by `1.02` at each step is equivalent to multiplying the coefficient by `102`, decrementing the exponent by 2, and then renormalizing. The problem: multiplying two 110-bit integers produces a 220-bit intermediate result. C++ has no built-in type wider than `uint64_t`; the compiler extension `__int128` is not universally available, and even it holds only 128 bits, still too narrow for 220 bits.
 
 So a big integer has to be built by hand. This project chose the thinnest possible interface: **UInt256**, four `uint64_t` words, 256 bits total. 256 bits holds a 110x110=220-bit product with 36 bits of headroom for carries. The interface is deliberately minimal: multiplication, divide-by-10, comparison, and read-low-word only. Addition, subtraction, shifting, serialization are not written — the dec128 walker doesn't need them, and less code means fewer bugs.
 
@@ -32,7 +32,7 @@ lo = (uint64_t)r;
 hi = (uint64_t)(r >> 64);
 ```
 
-This project does not use `__int128`. Three reasons: portability (this header must not break on a toolchain without `__int128`), pedagogy (splitting into 32-bit multiplies makes the 128-bit product visible), and on 64-bit x86 the compiler recognizes the 32-bit chain and emits the same `mulx` hardware instruction as hand-written `__int128`.
+UInt256 does not use `__int128`. Three reasons: portability (this header must not break on a toolchain without `__int128`), pedagogy (splitting into 32-bit multiplies makes the 128-bit product visible), and on 64-bit x86 the compiler recognizes the 32-bit chain and emits the same `mulx` hardware instruction as hand-written `__int128`.
 
 The split is textbook Schoolbook:
 
@@ -80,7 +80,7 @@ a*b = a_hi*b_hi * 2^192
     + a_lo*b_lo
 ```
 
-Three `mul64` calls (four actual calls because the middle band splits):
+Four `mul64` calls (the middle band splits into two contributions):
 
 1. `mul64(a_lo, b_lo, r.w[0], r.w[1])` — lowest product, fills `w[0]` and `w[1]`.
 2. `mul64(a_hi, b_lo, lo, hi)` — left half of the middle band, added into `w[1]`, carry into `w[2]`.
@@ -165,7 +165,7 @@ If any of the high three words is nonzero, the number is at least 2^64 and neces
 
 For 256-bit multiplication, Karatsuba reduces the four `mul64` calls to three (recursively). But 256 bits is too small: Karatsuba's overhead (extra adds, subtracts, temporaries) on n=4 words is slower than Schoolbook itself. Karatsuba only starts winning around n=16 words, Toom-Cook around n=100, and FFT (Schonhage-Strassen) is only worth it at thousands of bits.
 
-This project's 256-bit multiply runs once per step. The whole dec128 walker runs 714,521 steps, so 714,521 multiplications. At 30 instructions each, that is 21.3 million instructions, about 2.6 seconds on an i7-6700. Switching to Karatsuba might shave 5 instructions per multiply, saving 3.5 million instructions, about 0.4 seconds — but code complexity doubles and debugging time far exceeds 0.4 seconds. Not worth it.
+The 256-bit multiply runs once per step; Dec128 has a reference step count around 714k. The estimate below covers only the pure `mul128` instruction layer: ~30 instructions each, on the order of 21.3 million instructions and a few seconds of pure-multiply cycles. It excludes per-step `div10` normalization, rounding, display, and scheduling; the end-to-end measured time for Dec128(BID) is in BASELINE_EN.md (ten-second scale, well above the pure-multiply estimate). At n=4 words, Karatsuba's recursive adds/temporaries offset the saved instructions while doubling complexity and debug cost, so Schoolbook wins.
 
 ## Why no addition or shift
 
@@ -189,13 +189,13 @@ On an i7-6700 (Skylake with ADX), `mul64` compiles to roughly:
 
 About 11 instructions, 3 cycles latency, throughput one per cycle (pipelined `imul`).
 
-`mul128` calls `mul64` four times, plus carry propagation, about 40 instructions, ~15 cycles latency. 714,521 serial multiplications cost 10.7 million cycles, which at 3.4 GHz is 3.1 seconds — matches the measured 2.6 seconds (superscalar and cache hit shave a bit more).
+`mul128` calls `mul64` four times plus carry propagation: ~40 instructions, ~15 cycles latency. The cycle figures above are a pure-multiply theoretical (worst-case serial) estimate; they exclude `div10`, rounding, display, and scheduling. End-to-end Dec128(BID) timing is reported in BASELINE_EN.md.
 
 With `-O0`, the compiler does not fold the 32-bit multiply chain; it emits literal 32-bit `imul` sequences, about 3-5x slower. That is why the production build uses `-O2` and `-O0` is reserved for A/B comparison.
 
 ## Relationship to BID and DPD
 
-UInt256 serves only the BID dec128 path. DPD does not use big integers — DPD stores the coefficient as a `std::vector<int>` of decimal digits and does per-digit multiplication with carry. The two paths are independent: BID uses binary integer multiply (fast but needs big integers), DPD uses decimal array multiply (slower per digit but no big integer needed).
+UInt256 serves only the BID dec128 path. DPD does not use big integers — DPD stores the coefficient as a `std::vector<int>` of decimal digits and does per-digit multiplication with carry. The two paths are independent: BID uses binary-integer multiply (requiring a big integer), DPD uses a decimal digit array with per-digit multiply-add (no binary big integer). Which is faster depends on coefficient width and implementation, and cannot be stated universally.
 
 Measured on this machine, DPD128 is actually faster than BID Dec128 because UInt256 Schoolbook multiply, while using the hardware multiplier, still has higher latency per multiply than DPD's per-digit decimal lookup-and-add. This in itself shows that at the 110-bit scale, big-integer multiply is not always faster than decimal-array arithmetic.
 

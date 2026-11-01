@@ -135,7 +135,7 @@ Boundary: Wasm runs in a browser sandbox with JIT optimization. Speed is near-na
 
 ## 9. Why ea-FRDT does not depend on the ISA
 
-ea-FRDT's design is: native FP32/FP64 use C++ `float`/`double`, and the compiler picks the ISA; every other format (FP4/FP6/FP8/BF16/TF32/x87/FP128/Dec32/Dec64/Dec128/DPD) is software-emulated in integer registers, using no ISA-specific instructions.
+ea-FRDT splits into three tiers: native FP16/FP32/FP64 use compiler native types (`_Float16` under Clang, `std::float16_t` under GCC; `float`/`double` for fp32/fp64), with the compiler choosing ISA instructions; bit-level FP4/FP6/FP8E4M3/FP8E5M2/BF16/TF32 simulate over integer bit fields; the software/decimal tier x87, FP128, BID dec32/64/128, and DPD×3 runs on wide integer and decimal-digit arrays without any ISA-specific floating-point instruction.
 
 This means:
 
@@ -144,7 +144,7 @@ This means:
 - On WebAssembly, f32/f64 are native; other formats are software-emulated.
 - On GPUs, ea-FRDT does not run (it is a CPU tool).
 
-Step counts are a mathematical property of the format, independent of the ISA. FP32 from 1.0 times 1.02 to overflow is always 4,481 steps, whether you use an i7-6700, Apple M1, RISC-V, or WebAssembly. The ISA determines speed, not results.
+Step counts follow the format's mathematical boundaries (width, Emax, rounding) and are ISA-independent; cross-ISA comparison asks whether the same format reaches the same mathematical result, while milliseconds depend on ISA and microarchitecture. FP32 from 1.0 × 1.02 to overflow is around 4,481 reference steps (see BASELINE_EN.md): the mathematical step count agrees across i7-6700, Apple M1, and RISC-V, while wall time differs. The ISA sets speed, not the mathematical result.
 
 ## 10. Boundary traps
 
@@ -158,6 +158,4 @@ Every ISA has its own traps:
 - **WebAssembly no exceptions**: no floating-point exceptions; NaN/Inf produced silently.
 - **IBM POWER decimal hardware**: the only general-purpose ISA with a decimal FPU; everyone else is software.
 
-ea-FRDT's step counts match across all these ISAs because it depends on no proprietary instructions. Slowly, but correctly. That is the point of pure-software emulation: portable, auditable, not locked to any ISA.
-
-The algorithm may misbehave occasionally.
+ea-FRDT's step counts match across these ISAs because it depends on no proprietary instructions. Slowly, but correctly. That is the point of pure-software emulation: portable, auditable, not locked to any ISA.

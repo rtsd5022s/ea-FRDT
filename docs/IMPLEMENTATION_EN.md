@@ -2,23 +2,23 @@
 
 ## Project positioning
 
-ea-FRDT (Extreme Architecture - Floating-point Rigorous Devil Test) is a C++23 command-line floating-point stress tool. It starts from a floating-point value and steps repeatedly (multiply by a factor, multiply by relative ULP, or add absolute ULP), printing the result at each step until the format overflows to infinity, underflows to zero, hits a safety limit, or times out. The tool does not report GFLOPS. It answers one question: **at which step, with which bit pattern, and after how many operations does this format break**.
+ea-FRDT (Extreme Architecture - Floating-point Rigorous Devil Test) is a C++23 command-line floating-point stress tool. It starts from a floating-point value and steps repeatedly (multiply by a factor, multiply by relative ULP, add absolute ULP, or subtract absolute ULP), printing the result at each step (or staying quiet under `-q`) until the format overflows to infinity, underflows to zero, reaches the `2^120` safety counter, times out, or stops with no progress. The tool does not report GFLOPS. It answers one question: **at which step, with which bit pattern, and after how many operations does this format break**.
 
-It currently supports 17 floating-point formats across five paths: native hardware, hand-rolled bit-level simulation, pure-software binary extended precision, IEEE 754-2008 decimal BID, and IEEE 754-2008 decimal DPD. It supports a multi-threaded concurrent mode where each worker pins to a core and runs the full format chain independently.
+It supports 17 floating-point formats across five paths: native hardware, hand-rolled bit-level simulation, pure-software binary extended precision, IEEE 754-2008 decimal BID, and IEEE 754-2008 decimal DPD. Concurrent mode (`-m all`) pins one worker per core and runs the format chain independently on each.
 
 ## The 17 formats
 
-Formats execute in this fixed order in `-m all`:
+`-m all` iterates the fixed enum order below; the default chain omits entries 9, 12, 15, 16 (DPD32/64/128 and Dec128), i.e. 13 of 17, addable via `--only`.
 
 | # | Format | Width | Path | Notes |
 |---|---|---|---|---|
-| 0 | FP4 (E2M1) | 4 | Bit-level | Smallest experimental format, overflows in ~3 steps |
+| 0 | FP4 (E2M1) | 4 | Bit-level | Smallest experimental format |
 | 1 | FP6 (E3M2) | 6 | Bit-level | Same family |
 | 2 | FP8 E4M3 | 8 | Bit-level | OCP FP8 |
 | 3 | FP8 E5M2 | 8 | Bit-level | IEEE 8-bit float |
-| 4 | FP16 | 16 | Native | `std::float16_t` |
+| 4 | FP16 | 16 | Native | `_Float16` under Clang, `std::float16_t` under GCC |
 | 5 | BF16 | 16 | Bit-level | Brain Float, 8-bit exponent |
-| 6 | TF32 | 19 | Bit-level | TensorFloat-32 |
+| 6 | TF32 | 19 | Bit-level | TensorFloat-32, 8 exp + 10 mantissa |
 | 7 | FP32 | 32 | Native | float |
 | 8 | Dec32[BID] | 32 | BID | IEEE 754 decimal |
 | 9 | DPD32 | 32 | DPD | IEEE 754 densely packed decimal |
@@ -32,142 +32,147 @@ Formats execute in this fixed order in `-m all`:
 
 ## Module architecture
 
-The project is modularized into 13 headers and 5 source files, with no monolithic `common.h`:
+The codebase is modular: 11 top-level headers in `include/`, a `formats/` sub-module (6 shared engines + `formats_all.h` + 17 thin per-format headers), and 5 non-template source files in `src/`. There is no monolithic format header.
 
 ```
 include/
-  base_types.h    Enums (StepMode/DispFmt/StartKind/ShowBits/FmtId), u128 step counter,
-                  RunResult struct, global timeout atomic
-  lang.h/.cpp     Bilingual tr() table, cn/en switch
-  color.h         ANSI color constants (red/green/yellow/cyan/grey/reset)
-  format_util.h/.cpp  Bit-string to hex/bin, number formatting, argument parsing
-  drive.h/.cpp    Core stepping driver template, reason/step name tables
-  fp_formats.h    SVal (bit-level), NativeF (native float/double),
-                  x87 80-bit pure software, fp128 112-bit pure software
-  decimal.h       BID codec, DecNum (dec32/64), BigDec (dec128, uses UInt256)
-  dpd.h           DPD triplet codec, DpdNum, pack/unpack to 32/64/128 bits
-  uint256.h       Hand-rolled 256-bit big integer, schoolbook multiply, no __int128 dep
-  runner.h        ALL concurrent mode: worker pool, monitor, summary table, warning confirm
-  platform.h/.cpp OS abstraction: thread affinity, high-res timer, physical/logical cores
+  base_types.h      Enums (StepMode/DispFmt/StartKind/ShowBits/FmtId), u128 step
+                    counter, RunResult, global timeout atomic
+  common.h          Standard-library aggregation; NativeF16/F32/F64 aliases
+  lang.h            Bilingual tr() table (zh/en)
+  color.h           ANSI color constants
+  format_util.h    Bit-string to hex/bin, number formatting, parse_number
+  drive.h           Stepping driver template, reason/step name tables
+  runner.h          ALL mode: worker pool, monitor, summary table, warning confirm
+  platform.h        OS abstraction: affinity, high-res timer, core counts
+  uint128.h         Derived from UInt256 for 128-bit helpers
+  uint256.h         Hand-rolled 256-bit big integer, schoolbook multiply, div10
+  dpd128.h          Minimal DPD128 encoder for the dump header 0xC0 field only
+  formats/
+    formats_all.h
+    engine_sim.h    SVal bit-level engine (fp4/fp6/fp8/bf16/tf32)
+    engine_native.h Native float16/float/double engine
+    engine_bid_codec.h   BID combo5 pack/unpack codec
+    engine_decnum.h     BID dec32/64/dec128 coefficient arithmetic
+    engine_dpd_codec.h  Single declet (3 digits -> 10 bits) Clarke table
+    engine_dpd.h        combo5 + fixed-length symmetric pack/unpack, real
+                        pack->unpack self-check, run_dpd for dpd32/64/128
+    fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
+    dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   (17 thin headers)
 src/
-  float_inf_walk.cpp  main(), argument parsing, single-mode dispatch
+  float_inf_walk.cpp  main(), argv parsing, single-format dispatch,
+                      256-byte dump header + payload CRC-32 at 0xE0
+  drive.cpp           Non-template driver definitions (reason_name, ...)
+  lang.cpp format_util.cpp platform.cpp
 ```
 
 ## Core data structures
 
-**UInt256**: four `uint64_t` words, little-endian word order. Provides `mul64` (64x64->128, split into 32x32 quarters), `mul128` (128x128->256, three mul64 calls plus carry propagation), `div10` (divide by 10 with remainder, short division), `ge` (greater-or-equal compare), `to_lo` (read low 64 bits). No add/subtract/shift, implemented on demand.
+**UInt256**: four `uint64_t` words, little-endian word order. Provides `mul64` (64×64→128, split into 32×32 quarters), `mul128` (128×128→256 via mul64 calls plus carry propagation), `div10` (divide by 10 with remainder, short division), `ge` (greater-or-equal compare), `to_lo` (low 64 bits). No add/subtract/shift; added on demand.
 
-**DecNum** (BID dec32/64): stores `uint64_t coeff` and `int exp10`. Supports BID layout pack/unpack (combo5 joint encoding) and round-trip self-check.
+**DecNum** (BID dec32/64): `uint64_t coeff` + `int exp10`. BID layout pack/unpack (combo5 joint encoding) plus a round-trip self-check.
 
-**BigDec** (BID dec128): coefficient is `UInt256`, exponent is `int`. Multiplying by 1.02 equals coefficient times 102, exponent minus 2, then renormalize: if the coefficient exceeds 10^33-1, divide by 10 and increment exponent until back in range.
+**BigDec** (BID dec128): coefficient is `UInt256`, exponent is `int`. Multiplying by 1.02 = coefficient × 102, exponent − 2, then renormalize: if the coefficient exceeds `10^33 − 1`, divide by 10 and increment exponent until back in range.
 
-**DpdNum** (DPD all three): coefficient is a `std::vector<int>` of decimal digits. Multiplication is per-digit with carry in plain integer arithmetic. Packing encodes decimal triplets into DPD bit strings (3 decimal digits -> 10 binary bits).
+**DpdNum** (DPD ×3): coefficient is a `std::vector<int>` of decimal digits; multiplication is per-digit with carry in plain integer arithmetic. Packing encodes each decimal triplet into 10 DPD bits; the coefficient uses a fixed-length symmetric pack/unpack bitstring sub-unit, and startup runs a real pack→unpack round-trip self-check (`[DPD-SELFCHECK] OK`; a `MISMATCH` on stderr means the round-trip failed).
 
-**SVal** (bit-level): parameterized by `E` (exponent bits), `M` (mantissa bits), `bias`. Provides sign/exponent/mantissa get/set and overflow/underflow/normalize/subnormal detection. FP4/FP6/FP8/BF16/TF32 all use this struct.
+**SVal** (bit-level): parameterized by `E` (exponent bits), `M` (mantissa bits), `bias`; sign/exponent/mantissa get/set plus overflow/underflow/normalize/subnormal detection. FP4/FP6/FP8/BF16/TF32 use it.
 
-**WorkerSlot**: `alignas(64)` aligned to one cache line. Stores worker id, current format, current value string, step count, steps/s, elapsed ms, loop count, done flag. Each worker writes only its own slot, no locks.
+**WorkerSlot**: `alignas(64)`, one cache line; worker id, current format, current value string, step count, steps/s, elapsed ms, loop count, done flag. Each worker writes only its own slot; no locks.
 
-## Three step modes
+## Step modes
 
 | Mode | Flag | Behavior |
 |---|---|---|
-| x1.02 (default) | `-k 1.02` | Multiply by `factor` each step. factor<1 walks downward (underflow), factor=0 rejected |
+| x1.02 (default) | `-k 1.02` / `-g x1.02` | Multiply by `factor` each step; `factor<1` walks down; `0`/negative/non-finite rejected |
 | Relative ULP | `-g mululp` | Multiply by `1 + 1 ULP` each step |
-| Absolute ULP | `-g addulp` | Add `1 ULP` to mantissa each step |
+| Absolute ULP add | `-g addulp` | Add `1 ULP` to the mantissa each step |
+| Absolute ULP sub | `-g subulp` | Subtract `1 ULP` from the mantissa each step (descending) |
 
 ## Start values
 
 | Start | Flag | Notes |
 |---|---|---|
-| default | `-a default` | Start at 1.0 (or -1.0 if positional arg is negative) |
-| zero | `-a zero` | Start at 0 |
-| min | `-a min` | Start at smallest subnormal positive for the format |
-| max-finite | `-a max-finite` | Start at largest finite positive for the format |
-| positional arg | number/sci-notation/`0x` bit pattern | Any start; negative walks toward -inf |
+| Default | (none) | Start at `1.0` |
+| Numeric / raw | `-a <x>` | Number, scientific/engineering notation, or `0x` raw bit pattern; negatives walk toward `-inf`; NaN/Inf rejected |
+| Min normal | `-a min-normal` (`min`) | Smallest **normal** positive number |
+| Max finite | `-a max-finite` (`max`) | Largest finite positive number |
+| Min subnormal | `-s` / `--subnormal` | Smallest subnormal positive; mutually exclusive with `-a` |
+
+The first positional argument is `delay_ms` (throttle), not the start value.
 
 ## Concurrency model
 
 In `-m all`:
 
-1. Parse `--only` to decide the format chain (default all 17, but DPD32/64/128 excluded by default).
-2. If the chain contains DPD or dec128, print a yellow warning and wait 10 seconds for `y`; timeout cancels.
-3. Print CPU brand string (CPUID leaf 0x80000002-4), logical core count (`GetSystemInfo`), physical core count (`GetLogicalProcessorInformation`).
-4. Spawn worker threads per `-j` spec. `-j` supports comma and ranges: `1`, `1,3,5`, `1-4`, `1,3-5`. Hard cap is logical core count.
-5. Each worker pins to a core (Windows `SetThreadAffinityMask`, Linux `pthread_setaffinity_np`), receives value-copies of the format chain and parameters.
-6. Monitor refreshes every `-r` ms (default 1000ms in `-m all`). One line per worker: `[wN] Format: value steps/s elapsed loop=N`.
-7. `LIVE:` line reports aggregate throughput across workers for the current segment.
-8. After all workers finish, print a summary table: per-worker per-format step counts, exit reason, elapsed, total elapsed.
-9. Time display is layered: Y/M/D/H/M/S/ms, all layers shown as duration grows, not just the top two.
-10. Loop display: `-l 1` single pass omits loop=; `-l N` shows `loop=current/total`; `-l -1` infinite shows `loop=current`.
+1. Parse `--only`; otherwise build the default 13-format chain (DPD32/64/128 and Dec128 omitted).
+2. Gather warnings; if the chain includes DPD or Dec128, a level-2 red `[!!!]` confirmation prints and waits up to 10 s for `y`; other keys/timeout return `cancelled`. (This unified confirmation runs in `-m all`.)
+3. Print CPU brand (CPUID leaf `0x80000002–4`), logical core count; physical count via `GetLogicalProcessorInformation` on Windows, `0` (skipped) on Linux.
+4. Spawn workers per `-j` (`1`, `1,3,5`, `1-4`, `1,3-5`); empty spec = all logical cores; out-of-range ids dropped.
+5. Each worker pins to a core (Windows `SetThreadAffinityMask`, Linux `pthread_setaffinity_np`; failure degrades to unpinned) and receives value-copies of chain and parameters.
+6. Monitor refreshes every `-r` ms (`1000` default in `-m all`); one line per worker: `[wN] Format: value steps/s elapsed loop=N`.
+7. `LIVE:` aggregates current-segment throughput across workers.
+8. On completion, print a summary table: per-worker per-format step counts, exit reason, elapsed, total elapsed.
+9. Time display is layered Y/M/D/H/M/S/ms; all layers render as duration grows.
+10. Loop display: `-l 1` omits `loop=`; `-l N` shows `loop=current/total`; `-l -1` shows `loop=current`.
 
 ## BID path
 
-BID (Binary Integer Decimal) stores the decimal coefficient directly as a binary integer. dec32/64 use `uint64_t`; dec128 uses `UInt256`.
-
-Layout follows IEEE 754-2008: 1 sign bit, several combination field bits, remaining bits are exponent continuation plus coefficient. Top two bits of combination field: 11 = NaN, 10 = infinity, 00/01 = finite (decoded via the next few bits to extract bias).
-
-Multiplying by 1.02 = coefficient times 102 + exponent minus 2. After normalization the coefficient may exceed 34 decimal digits; divide by 10 and increment exponent repeatedly until back in range. Rounding is round-to-nearest ties-to-even, decided by the div10 remainder.
+BID (Binary Integer Decimal) stores the decimal coefficient as a binary integer: `uint64_t` for dec32/64, `UInt256` for dec128. Layout follows IEEE 754-2008: 1 sign bit, combination field, exponent continuation plus coefficient; the top combination bits encode NaN/infinity/finite. Multiplying by 1.02 = coefficient × 102, exponent − 2; normalization divides by 10 and increments exponent while the coefficient exceeds range; rounding (ties-to-even) is decided by the `div10` remainder.
 
 ## DPD path
 
-DPD (Densely Packed Decimal) encodes 3 decimal digits into 10 binary bits. The path is completely independent of BID: the coefficient is a `std::vector<int>` of decimal digits, and multiplication is per-digit.
-
-DPD32/64/128 do not run in `-m all` by default because they are pure software decimal-array arithmetic with no hardware acceleration. A yellow warning prints before start, press y to continue. The warning explains: x86 has no BCD instructions, ARM has no FDECVAL, no hardware FPU, weak CPUs stay loaded longer.
+DPD (Densely Packed Decimal) encodes 3 decimal digits into 10 binary bits. The path is independent of BID: coefficient = `std::vector<int>` digits, per-digit multiplication. DPD32/64/128 are absent from the default `-m all` chain (pure software, no hardware decimal FPU; roughly 20–30× slower). Inclusion raises a level-2 red confirmation. A single-declet Clarke table lives in `engine_dpd_codec.h`; multi-declet packing and the round-trip self-check live in `engine_dpd.h`.
 
 ## Pure-software binary formats
 
-**x87** (80-bit): 1 sign, 15 exponent, 64 mantissa bits (including 1 explicit leading bit). Pure integer simulation, no `long double`.
+**x87** (80-bit): 1 sign, 15 exponent, 64 mantissa bits (including the explicit leading bit); pure integer simulation, no `long double`.
 
-**FP128** (128-bit): 1 sign, 15 exponent, 112 mantissa bits. Pure integer simulation, multiplication uses a 224-bit intermediate product (112x2). No `__float128` or libquadmath dependency.
+**FP128** (128-bit): 1 sign, 15 exponent, 112 mantissa bits; pure integer simulation with a 224-bit intermediate product; no `__float128` or libquadmath.
 
-These two formats exist to escape compiler-extension dependence: GCC's `long double` is 80-bit on x86-64 but 128-bit on ARM; libquadmath is GCC-proprietary. Pure software implementation makes the tool behave consistently across all GNU targets.
+These exist to remove compiler-extension dependence: GCC `long double` is 80-bit on x86-64 but 128-bit on ARM; libquadmath is GCC-proprietary. Pure software keeps behavior consistent across GNU targets.
 
 ## Safety guards
 
-Before start, the tool validates:
+Hard exits (code `2`, stderr) only on invalid input: zero/negative/non-finite factor, unparseable start, unknown format/flag, `--loop` outside `-1..1000000`, malformed `0x` pattern, conflicting special starts.
 
-- `-l -1` (infinite loop) without `-t` (timeout) -> rejected, DoS guard.
-- Factor too close to 1 (step explosion) -> rejected, would hit the 2^120 safety limit.
-- Unknown format name, non-numeric start, negative timeout -> hard exit with stderr message.
-- DPD or dec128 in the chain -> yellow warning, 10-second y confirmation.
-- Ctrl+C -> prints "program exited early" message, bilingual.
+Non-fatal warnings gathered and confirmed in `-m all` (level-1 yellow `[!]`, level-2 red `[!!!]`, 10 s `y` gate):
 
-The step counter uses `unsigned __int128` (u128), theoretical cap 2^120, unreachable in practice.
+- `-l -1` with `-t 0`: level-1 warning (may peg CPU); a warning, not a rejection.
+- `-k < 1e-10`: level-1 warning (very many steps likely).
+- Included DPD×3 / Dec128: level-2 red confirmation.
+
+The step counter is `unsigned __int128` (`u128`); the driver safety limit is `2^120`, unreachable in ordinary runs. Ctrl+C surfaces the bilingual `sigint` message.
 
 ## Output formats
 
-- **Engineering notation** (default): `1.234560e+33`, 6 mantissa digits.
-- **Scientific notation**: `1.234560e33`.
-- **Full expansion**: `--digits -1` for full precision.
-- **hex/bin parentheses**: `-x` appends raw bit pattern in parentheses after the value; `-x hex` explicit hex; `-x bin` explicit binary with sign/exponent/mantissa grouped by spaces (4-segment layout).
-- **Bilingual**: `--lang zh` / `--lang en`. All text (including Ctrl+C message, warnings, errors) is split cn/en.
+- Engineering notation (default), 6 mantissa digits; `-f sci`, `-f full`; `-d`/`--digits` controls decimals (`-1` = full, range `0..100`).
+- `--bits hex|bin|off` (`--showbits`) appends the bit pattern in parentheses; `bin` groups sign/exponent/coefficient.
+- `--json` emits one machine-readable object (implies quiet); `--dump <file>` writes a 256-byte header plus records and stores the payload IEEE 802.3 CRC-32 at `0xE0` (little-endian), verifiable with `dump_inspect.py`.
+- Bilingual UI via `--lang zh|en` (default `zh`).
 
 ## Build
 
 ```bash
-# CMake
+# CMake (Release default, -Wall -Wextra, output float_inf_walk; CMake 3.20+)
 cmake -B build
 cmake --build build -j
 
-# Direct compile
-clang++ -std=c++23 -O2 -Iinclude src/*.cpp -lwinmm -o float_inf_walk.exe
+# Linux direct
+g++ -std=c++23 -O2 -Wall -Wextra -pthread -Iinclude src/*.cpp -o float_inf_walk
 
-# Static link
-clang++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk.exe
+# Windows MSYS2 clang64 release (recommended; thin LTO, section GC, static)
+C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
+    -ffunction-sections -fdata-sections -Wl,--gc-sections -static \
+    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
-Requires C++23 (GCC 13+ or Clang 16+). MSVC is not supported and intentionally excluded. No third-party dependencies: no libquadmath, no Boost, no Eigen.
-
-CI (GitHub Actions) builds on Ubuntu with GCC and Clang in two jobs, runs an fp32 smoke test, and fails on any warning.
+Requires C++23 (GCC 13+ or Clang 16+); MSVC unsupported. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) builds on Ubuntu with GCC and Clang, runs an fp32 smoke test, and fails on warnings.
 
 ## Known limitations
 
-- UInt256 has no add/subtract/shift; dec128 only needs multiply and divide-by-10.
-- DPD coefficient declet chaining now uses a fixed-length symmetric pack/unpack sub-unit with a real pack->unpack round-trip self-check (task #28 completed); the former "runs but not compact" debt is closed.
-- x87/FP128 pure-software paths still use `__int128` for 128-bit assistance, not yet replaced by UInt256.
-- OSS-Fuzz not yet integrated.
-- g++ 16.2.0 locally has an ICE (internal compiler error); Clang 18 builds cleanly. CI on Ubuntu GCC is unaffected.
-- Physical core count detection uses `GetLogicalProcessorInformation` on Windows; not yet implemented on Linux.
-
-<sub>The algorithm may misbehave occasionally.</sub>
+- UInt256 has no add/subtract/shift; dec128 needs only multiply and divide-by-10.
+- DPD declet chaining uses a fixed-length symmetric pack/unpack sub-unit with a real pack→unpack self-check (debt #28 closed); the former "runs but not compact" gap is closed.
+- The `u128` counter and the 64×64 mantissa intermediates of both x87 and fp128 use compiler `unsigned __int128`; dec128(BID) coefficients use hand-rolled UInt256 (pure 64-bit-word schoolbook, no `__int128`); x87 stores one 64-bit mantissa word plus a small integer exponent, no `long double`.
+- No MSVC, no GPU offload, no WebAssembly target; g++ 16.2.0 has a local ICE (use Clang).
+- Physical core count on Linux returns `0` (display skipped); Windows uses `GetLogicalProcessorInformation`.

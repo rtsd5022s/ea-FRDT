@@ -1,28 +1,54 @@
-# ea-FRDT
+# ea-FRDT — 中文总览
 
-**ea-FRDT**（Floating-point Rigorous Devil Test，面向硅片魔鬼高压硬件测试）是一个用 C++23 写的命令行工具，它让一个浮点数一步步往上走（或往下走），直到溢出、下溢或者撞到安全上限。支持 17 种浮点格式，覆盖二进制和十进制，含自写位级仿真，以及多线程压测模式——每个 worker 绑核后独立跑格式链（默认 13 种，DPD 三格式和 Dec128 需 `--only` 手动添加）。
+> **平台说明：** 预编译二进制仅 Windows x86_64；Linux/macOS 用 GCC 13+ 或 Clang 16+ 从源码构建。不支持 MSVC。
+>
+> **编译器要求：** C++23（`<stdfloat>`、`if consteval`）。推荐 Clang 17+ 或 GCC 13+；g++ 16.2.0 有已知 ICE，退回 Clang。CMake 3.20+。
+>
+> **MSYS2 前缀说明：** Windows 上用 **clang64**（`C:\msys64\clang64\bin\clang++.exe`，LLVM 原生、lld 链接器、支持 thin LTO）；**ucrt64** 的 Clang 仅 GCC 兼容、用 GNU ld，不支持 thin LTO 且产物更大。
 
-这不是一个报 GFLOPS 的基准测试。它是一个行走工具：从一个值出发，按固定步长（乘系数、乘 `1+1 ULP`、或加 `1 ULP`）走，每步打印结果（静默模式下最后才打印），直到格式再也表示不了这个数。目的是看清：一个格式到底在第几步、以什么十六进制位型、经过多少次运算后崩掉。
+**ea-FRDT**（Floating-point Rigorous Devil Test，面向硅片魔鬼高压硬件测试）是一个 C++23 命令行工具：让一个浮点数一步步往上（或往下）走，直到溢出、下溢或撞到安全上限。共支持 17 种浮点格式，覆盖二进制与十进制，含自写位级仿真，以及多线程压测模式——每个 worker 绑核后独立跑格式链。
+
+这不是报 GFLOPS 的基准测试，而是行走工具：从一个值出发，按固定步长（乘系数、乘 `1+1 ULP`、加 `1 ULP`、减 `1 ULP`）逐步推进，每步打印结果（静默模式下不打实时行），直到格式再也表示不了这个数。目的是看清：一个格式在第几步、以什么十六进制位型、经过多少次运算后崩掉。
+
+## 文档索引（同目录）
+
+### 中文
+
+- [本 README](README_CN.md) — 项目概述、命令行参数、退出原因
+- [参数完整参考](PARAMETERS_CN.md) — 每个命令行参数、默认值、取值范围，对照源码
+- [技术实现](IMPLEMENTATION_CN.md) — 17 种格式、模块、并发模型、BID/DPD 路径
+- [UInt256 技术原理](UINT256_CN.md) — 自研大整数设计、schoolbook 乘法、div10 短除法
+- [工作原理](WORKING_CN.md) — runner 和状态机如何工作
+- [单线程模式](MODE_SINGLE_CN.md) — 逐格式走路、步进模式、起点
+- [并发模式](MODE_ALL_CN.md) — worker 池、绑核、汇总表
+- [使用风险](RISKS_CN.md) — 散热、功耗、系统稳定性警告
+- [测试行业遮羞布](TESTING_DISHONESTY_CN.md) — 为什么行业基准测试隐藏边界情况
+- [指令集架构边界](ISA_BOUNDARIES_CN.md) — x86/ARM/RISC-V/MIPS/PowerPC/SPARC/GPU/Wasm 浮点支持
+- [项目诞生记](ORIGIN_CN.md) — 项目如何长成 17 格式压测工具
+- [FAQ](FAQ_CN.md) — 常见问题和边缘情况
+- [基线](BASELINE_CN.md) — 参考步数与已知良好锚点
+
+### English
+
+- [README](README_EN.md) · [Parameters](PARAMETERS_EN.md) · [Implementation](IMPLEMENTATION_EN.md) · [UInt256](UINT256_EN.md) · [Working](WORKING_EN.md) · [Single mode](MODE_SINGLE_EN.md) · [Concurrent mode](MODE_ALL_EN.md) · [Risks](RISKS_EN.md) · [Testing dishonesty](TESTING_DISHONESTY_EN.md) · [ISA boundaries](ISA_BOUNDARIES_EN.md) · [Origin](ORIGIN_EN.md) · [FAQ](FAQ_EN.md) · [Baseline](BASELINE_EN.md)
 
 ## 为什么要做这个东西
 
-标准浮点基准（SPEC CPU、MLPerf、各家 math 库 benchmark）测的是真实负载下的吞吐，输入都是行为良好的数。它们回答不了那些真正重要的工程问题——当你在验证编译器、调试微架构、审计十进制金融管线的时候：
+标准浮点基准（SPEC CPU、MLPerf、各家 math 库 benchmark）测的是良好输入下的吞吐，回答不了验证编译器、调试微架构、审计十进制金融管线时真正重要的问题：
 
-- 从 `1.0` 乘 `1.02` 走到 `binary128` 溢出，要多少步？
-- 对 `decimal64` BID 反复加 `1 ULP`，系数进位在哪一位十进制边界上翻？
-- 8 个线程绑 8 个核跑完整套格式链，操作系统调度还让不让你按 Ctrl+C？
-- 自写的 `fp8-e4m3` 仿真从 normal 翻到 subnormal 再翻到 infinity，位型长什么样？
-
-ea-FRDT 就是为了直接回答这些问题而存在的，中间不夹一层厂商库。
+- 从 `1.0` 乘 `1.02` 走到 `binary128` 溢出要多少步？
+- 对 `decimal64` BID 反复加 `1 ULP`，系数进位在哪一位十进制边界翻折？
+- 8 线程绑 8 核各跑完整格式链，操作系统还让不让你按 Ctrl+C？
+- 自写 `fp8-e4m3` 从 normal 翻到 subnormal 再翻到 infinity，位型长什么样？
 
 ## 构建
 
 ### 依赖
 
-- C++23 编译器：GCC 13+ 或 Clang 16+。MSVC 不支持，也故意不支持。
-- CMake 3.20+（推荐），或者直接手敲编译命令。
-- Windows 下需要 `winmm` 库（高精度定时器 `timeBeginPeriod`）。
-- 无第三方依赖。不需要 libquadmath、Boost、Eigen。所有东西都在 `include/` 和 `src/` 里。
+- C++23 编译器：GCC 13+ 或 Clang 16+；MSVC 故意不支持。
+- CMake 3.20+（推荐），或直接手敲编译命令。
+- Windows 下需要 `winmm`（高精度定时器 `timeBeginPeriod`）。
+- 无第三方依赖：不需要 libquadmath、Boost、Eigen；代码都在 `include/` 与 `src/`。
 
 ### CMake
 
@@ -31,181 +57,157 @@ cmake -B build
 cmake --build build -j
 ```
 
-二进制在 `build/` 里。
+CMake 默认 `Release`、开启 `-Wall -Wextra`，可执行文件名为 `float_inf_walk`。
 
 ### 直接编译
 
 ```bash
-g++ -std=c++23 -O2 -march=native \
-    -Iinclude \
-    src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
-    src/drive.cpp src/platform.cpp \
-    -o float_inf_walk
-```
+# Linux（需要 POSIX 线程库）
+g++ -std=c++23 -O2 -Wall -Wextra -pthread \
+    -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
+    src/drive.cpp src/platform.cpp -o float_inf_walk
 
-Windows 下加 `-lwinmm`。完全静态链接：
-
-```bash
-g++ -std=c++23 -O2 -static -static-libgcc -static-libstdc++ \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk.exe
-```
-
-推荐构建（clang64，最小体积）：
-
-```bash
+# Windows（MSYS2 clang64，推荐 release 参数）
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
-    -ffunction-sections -fdata-sections -Wl,--gc-sections \
-    -static \
-    -Iinclude src/*.cpp -lwinmm -o ea-FRDT.exe
+    -ffunction-sections -fdata-sections -Wl,--gc-sections -static \
+    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
-注意：clang64 用自带的 libc++/compiler-rt/lld，不要加 `-static-libgcc -static-libstdc++`（那是 GCC 的 flag，会引入 ucrt64 库）。ucrt64 的 Clang 只是兼容层，用 GNU ld，不支持 thin LTO，产物更大。
-
-### CI 构建矩阵
-
-GitHub Actions（`.github/workflows/ci.yml`）在 Ubuntu 上用 GCC 和 Clang 双 job 构建，跑 `fp32` smoke test，有 warning 就失败。
+clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libgcc -static-libstdc++`。`-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static` 这条 release 链接已做回归验证，静态产物约 0.8 MB。需要微架构定向时加 `-march=x86-64-v2`、`-march=x86-64-v3` 或 `-march=native`。
 
 ## 快速上手
 
 ```bash
-# 默认：binary32，从 1.0 起，每步乘 1.02，走到 +inf
+# 位置参数 = 每步延迟毫秒(0=不限速)；f32、起点 1.0、×1.02
 ./float_inf_walk 0
 
-# binary16，从 max-finite 起，每步乘 0.5，下溢到 0
+# binary16，max-finite 起点，×0.5，递减到 0
 ./float_inf_walk 0 -m fp16 -a max-finite -k 0.5
 
-# decimal64 BID，10 秒超时，静默（只出汇总表）
+# 最小非规格化起点（独立开关，与 -a 互斥）
+./float_inf_walk 0 -m fp32 -s
+
+# dec64 BID，10 秒超时，静默
 ./float_inf_walk 0 -m dec64 -t 10 -q
 
-# 全部 17 种格式并发，worker 绑 1~4 核
-./float_inf_walk 0 -m all -j 1-4
+# 括号内追加 hex / 分组二进制位表示
+./float_inf_walk 0 -m fp32 --bits hex
+./float_inf_walk 0 -m fp4 --bits bin
 
-# all 模式只跑 fp32 和 fp64，监视器每 500ms 刷新
-./float_inf_walk 0 -m all --only fp32,fp64 -r 500
+# 每步原始字节落盘：256 字节头 + 载荷，载荷 CRC-32 写在 0xE0
+./float_inf_walk 0 -m f64 --dump walk.bin
+
+# 默认链并发运行；-j 使用 0 起编的逻辑核号，本例绑 0~3 号核
+./float_inf_walk 0 -m all -j 0-3
 ```
 
 ## 支持的格式
 
-`-m all` 按这个顺序走：
-
 | 分组 | 格式 | 说明 |
 |---|---|---|
-| 原生 | `fp16` `fp32` `fp64` | 硬件支持，用 `std::float16_t` / float / double |
+| 原生 | `f16`/`fp16` `f32`/`fp32` `f64`/`fp64` | 硬件路径；Clang 下 `_Float16`、GCC 下 `std::float16_t`，外加 `float`/`double` |
 | 自写位级 | `fp4` `fp6` `fp8-e4m3` `fp8-e5m2` `bf16` `tf32` | 软件仿真 sign/exponent/mantissa，参数化 E/M/bias |
-| 纯软件 | `x87` `fp128` | 80 位 x87 扩展精度和 128 位 binary128，纯整数仿真，无 libquadmath |
-| 十进制 BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal；dec128 用自写 UInt256 大整数 |
-| 十进制 DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal；独立头文件，纯查表和十进制数组运算 |
+| 纯软件 | `x87` `fp128` | 80 位 x87 与 128 位 binary128，整数仿真，无 libquadmath |
+| 十进制 BID | `dec32` `dec64` `dec128` | IEEE 754-2008 二进制整数十进制；dec128 用自研 UInt256 |
+| 十进制 DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 密集打包十进制；数字数组运算，启动跑真实 pack→unpack 自检 |
 
-`-m all` 默认排除 DPD32/DPD64/DPD128 和 Dec128(BID)，因为它们是纯软件十进制运算，无硬件加速。要用就显式 `--only dpd32,dpd64,dpd128,dec128`，或者单格式模式 `-m dpd64`。DPD 或 `dec128` 启动前会弹黄色警告，等 10 秒按 `y` 才继续；按其他键或超时就取消。DPD 不能用硬件浮点单元，低端 CPU 满载时间更长。`dec128` 每步走自写 UInt256 schoolbook 大整数乘法，走到溢出要 12 秒。
+`-m all` 默认链为 **17 选 13**：排除 DPD32/DPD64/DPD128（纯软件十进制数组、无 FPU 加速）与 Dec128（BID，每步走自研 UInt256 系数乘法，较慢）。需要时用 `--only dpd32,dpd64,dpd128,dec128` 显式加入，或单格式模式 `-m dpd64`、`-m dec128`。确认门仅在 `-m all` 出现：纳入 DPD32/64/128 或 Dec128 时触发二级红色 `[!!!]`；一级黄色 `[!]` 用于其他情形（如 `-l -1` 未配 `-t`、倍率过小）。10 秒内按 `y` 继续，其他键或超时打印 `cancelled` 并退出 0；单格式模式不弹此门。
 
 ## 命令行参数
 
-第一个位置参数是起点数字字符串。用 `-a` 选命名起点。
-
-### 步进行
+### 位置参数
 
 | 参数 | 含义 |
 |---|---|
-| `-k <factor>` | 每步乘 `factor`。默认 `1.02`。`<1` 往下走（下溢）。`0` 被拒绝。 |
-| `-g mululp` | 每步乘 `1+1 ULP`（相对 ULP 步进）。 |
-| `-g addulp` | 每步尾数加 `1 ULP`（绝对 ULP 步进）。 |
+| `delay_ms` | 第一个位置实参：每步间隔毫秒；`0` = 不限速。**起点不是位置参数，用 `-a` 指定。** 单格式模式缺位置参数会打印帮助；`-m all` 默认延迟 10 ms。 |
 
 ### 起点
 
 | 参数 | 含义 |
 |---|---|
-| `-a default` | 从 `1.0` 起（第一个参数为负时从 `-1.0` 起）。 |
-| `-a zero` | 从 `0` 起。 |
-| `-a min` | 从该格式最小非规格化正数起。 |
-| `-a max-finite` | 从该格式最大有限正数起。 |
-| 第一个参数 | 数字、科学计数法、或 `0x` 原始位型。负值走向 `-inf`。 |
+| `-a <x>` / `--start <x>` | 起点 `x`（默认 `1.0`）：数字、科学/工程计数法，或 `0x` 原始位型；负值走向 `-inf`。 |
+| `-a min-normal` / `min` | 最小**正规格化**正数（兼容别名 `minnormal`/`normmin`）。 |
+| `-a max-finite` / `max` | 最大有限正数（兼容别名 `maxfinite`/`infmax`）。 |
+| `-s` / `--subnormal` | 最小非规格化正数；与 `-a` 互斥。 |
 
-### 显示和输出
-
-| 参数 | 含义 |
-|---|---|
-| `--digits <n>` | sci/eng 尾数小数位。`-1` 完整精度。默认 `6`。 |
-| `-f eng` | 工程计数法（默认）。 |
-| `-f sci` | 科学计数法。 |
-| `-f full` | 完整小数展开。 |
-| `-x` | 值后面括号里附原始位型。 |
-| `-x hex` | 显式 hex。 |
-| `-x bin` | 显式二进制，符号/指数/尾数用空格分组。 |
-| `-q` | 静默：不打每步输出，最后只出汇总表。 |
-| `--json` | 机器可读 JSON 输出。无 ANSI 颜色、无进度刷新，每次运行输出一行 JSON，供评测脚本和数据采集使用。 |
-| `--dump <file>` | 把每步的原始字节二进制序列化到文件，供离线分析、位级回放或对比两次运行。 |
-| `--dump-packed` | 紧凑记录宽度（tf32=3B 而非 4B）。 |
-| `--dump-endian <e>` | `--dump` 字节序：`little`（默认，x86 原生）或 `big`。 |
-| `--lang zh` | 中文界面。`--lang en` 英文（默认）。 |
-
-### 并发和控制
+### 步进模式
 
 | 参数 | 含义 |
 |---|---|
-| `-m all` | 并发模式：每个 worker 线程独立跑完整套格式链。 |
-| `-j <spec>` | worker/核心编号。支持逗号和范围：`-j 1`、`-j 1,3,5`、`-j 1-4`、`-j 1,3-5`。硬上限是逻辑核心数。 |
-| `-t <秒>` | 超时秒数。`0` = 跑到溢出/下溢。 |
-| `-l <n>` | 循环次数。`1` = 单遍（默认）。`-1` = 无限。`>1` = 重复格式链 n 遍。 |
-| `-r <ms>` | 监视器刷新间隔毫秒。默认 `0`（每步刷新）。`-m all` 下默认 `1000` ms。 |
-| `-d <ms>` | 每步延迟毫秒。`0` = 不延迟。看监视器时用，别把 CPU 烧了。 |
-| `--only <formats>` | `-m all` 里只跑指定格式，逗号分隔。 |
+| `-k <r>` / `--factor <r>` | 每步乘 `r`（默认 `1.02`）；`>1` 递增到 `+inf`，`0<r<1` 递减到 0；`0`/负数/NaN/Inf 拒绝。 |
+| `-g x1.02` / `x102` | 乘系数（默认步进）。 |
+| `-g mululp` | 每步乘 `1 + 1 ULP`。 |
+| `-g addulp` | 尾数每步加 `1 ULP`。 |
+| `-g subulp` | 尾数每步减 `1 ULP`（递减）。 |
+
+### 显示与输出
+
+| 参数 | 含义 |
+|---|---|
+| `-f eng`/`sci`/`full` | 显示记法；`eng` 默认。 |
+| `-d <n>` / `--digits <n>` | sci/eng 小数位；默认 `6`，`-1` 完整，范围 `0..100`。 |
+| `--bits hex`/`bin`/`off`（`--showbits`） | 括号内追加位表示；`bin` 按 sign/exponent/coefficient 空格分组；默认 `off`。 |
+| `-q` / `--quiet` | 抑制各单格式引擎的实时行与结束行，结果仍写入 `RunResult`；`--json`/`--dump` 隐式静默。 |
+| `--json` | 每次运行输出一个机器可读 JSON；无 ANSI、无进度。 |
+| `--dump <file>` | 256 字节头 + 载荷；载荷（offset `256..EOF`）按 IEEE 802.3 计算 CRC-32、小端写在 `0xE0`，可用 `dump_inspect.py` 独立对账。 |
+| `--dump-endian little`/`big` | 记录字节序；`little` 默认。 |
+| `--dump-packed` | 紧凑记录宽度（如 tf32=3 B）；默认自然宽度。 |
+| `--lang zh`/`en` | 界面语言；默认 `zh`。 |
+
+### 并发与控制
+
+| 参数 | 含义 |
+|---|---|
+| `-m all` | 并发模式：每个 worker 独立跑完整链。 |
+| `-j <spec>` / `--jobs <spec>` | 核心编号：单值、逗号、范围混合，如 `1`、`1,3`、`1-4`、`1,3-5`。 |
+| `--only <formats>` / `--modes <formats>` | `-m all` 的格式子集。 |
+| `-t <s>` / `--timeout <s>` | 超时秒数；`0` = 直到终止（默认）。 |
+| `-l <n>` / `--loop <n>` | `1` 默认（`0` 归 1），`-1` 无限，`>1` 重复（上限 1,000,000）。 |
+| `-r <ms>` / `--refresh <ms>` | 监视器刷新间隔；默认 `0`（每步），`-m all` 默认 `1000` ms。 |
 
 ### 安全保护
 
-以下情况工具拒绝启动：
-
-- `-l -1` 没配 `-t`（无限循环无超时，DoS）。
-- 系数太接近 1（步数爆炸，会撞 2^120 安全上限）。
-- 格式名不存在、起点非数字、超时为负。
-- 原始 hex 字符串超过 32 个字符（128 位上限）或含非十六进制字符。
-- 错误消息中输出用户输入时经过 sanitize() 过滤，去掉 ANSI 转义和 C0 控制字符，防终端注入。
-
-这些都是硬退出，stderr 打错误信息，不会静默跑飞。
+以下无效输入硬退出（`2`，stderr 报错）：倍率为 0/负/非有限、起点无法解析、未知格式/开关、`--loop` 越界、畸形 `0x` 位串、特殊起点互相冲突。非致命警告在 `-m all` 汇总确认（一级黄色 `[!]`、二级红色 `[!!!]`；10 秒内按 `y`，否则 `cancelled`）：`-l -1` 配 `-t 0`（一级，警告而非拒绝）、`-k < 1e-10`（一级）、纳入 DPD×3 与 Dec128（二级）。错误信息中的用户字符串经 sanitize 过滤（剥离 ANSI 转义与 C0 控制字符），防终端注入。
 
 ## 退出原因
 
-走完时打印一行：
+驱动记录六种枚举原因，打印文案为：
 
-- `overflow->inf` — 下一步就 infinity。
-- `underflow->0` — 下一步就 0（subnormal 走到 0）。
-- `nan->nan` — 下一步变成 NaN（仅 native float/double 路径可能；自写整数格式不产生 NaN）。
-- `identity(stopped)` — 下一步等于当前值（无进展，比如 `1.0 * 1.0`）。
-- `safety-limit` — 撞到内建 2^120 步数计数器，防跑飞。
-- `timeout` — `-t` 超时到了。
-- `cancelled` — DPD 警告确认超时或被拒绝。
-- `sigint` — 收到 Ctrl+C。
+- `overflow->inf`；`underflow->0`；`identity->stop`（无进展）；`safety->limit`（撞到 `2^120` 步数计数器）；`timeout`；`nan->nan`（仅原生路径）。
 
-## 架构
+外层控制文案（非枚举原因）：`cancelled`（DPD/dec128 确认被拒或超时）、`sigint`（收到 Ctrl+C）。
+
+## 已知妥协
+
+- 步数计数器（`u128`），以及 x87、fp128 的 64×64 尾数中间积，用编译器 `unsigned __int128`；dec128(BID) 系数走自研 UInt256（纯 64 位字、不用 `__int128`）；x87 存为单个 64 位尾数字加小整数指数，不用 `long double`。
+- 默认 `-m all` 链为 17 选 13，DPD×3 与 Dec128 需 `--only` 显式开启。
+- 不支持 MSVC；无 GPU offload；尚无 WebAssembly 目标；g++ 16.2.0 有已知 ICE（用 Clang）。
+
+## 架构（模块化布局）
 
 ```
 include/
-  base_types.h      枚举、u128 步数计数器、RunResult、全局超时 atomic
-  lang.h / lang.cpp 双语 tr() 表
-  color.h           ANSI 颜色常量
-  format_util.*     位串转 hex/bin、数字格式化、解析
-  drive.h / drive.cpp 核心步进驱动器模板、原因/步长名表
-  fp_formats.h      SVal（位级）、NativeF、x87 80位、fp128 112位
-  decimal.h         BID 编解码、DecNum（dec32/64）、BigDec（dec128）
-  dpd.h             DPD 三元组编解码、DpdNum、pack/unpack
-  uint256.h         自写 256 位大整数、schoolbook 乘法
-  runner.h          ALL 并发模式：worker 池、监视器、汇总表
-  platform.h / platform.cpp  操作系统抽象：线程绑核、定时器、核心数
+  base_types.h common.h lang.h color.h format_util.*
+  drive.h runner.h platform.h uint128.h uint256.h
+  dpd128.h                dump 头 0xC0 step_interval 用的极简 DPD128 编码器
+  formats/
+    formats_all.h
+    engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
+    engine_dpd_codec.h engine_dpd.h
+    fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
+    dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   （17 个格式头）
 src/
-  float_inf_walk.cpp  main()、参数解析、单模式分发
+  float_inf_walk.cpp      main、argv 解析、单格式分发、256 字节 dump 头 + 载荷 CRC-32
+  drive.cpp lang.cpp format_util.cpp platform.cpp
+libeafrdt/                独立 C ABI 静态库（无 IO/线程/全局量）
+dump_inspect.py           256 字节头解释器 + 载荷 CRC-32 重算对账
 ```
 
-关键设计选择：
+关键设计：热路径走 `enum` switch 分发（无 `std::function`）；每 worker 值拷贝 `RunParams` 与格式链；`alignas(64)` 的 `WorkerSlot` 消除伪共享；`SetThreadAffinityMask`/`pthread_setaffinity_np` 绑核、失败则降级不绑；不依赖 `long double`/`__float128`/libquadmath；DPD 系数存 `std::vector<int>` 十进制数字，启动执行真实 pack→unpack 往返自检。
 
-- **热路径不用 `std::function`**。worker 走 `enum FmtId` switch 分发，不走 lambda vector。避免捕获链开销，编译器能内联格式特定的步进。
-- **全部值拷贝**。worker 线程拿 `RunParams` 的副本和格式链 vector 的副本，不引用 `main` 的栈变量。不需要互斥锁，因为 worker 只写自己的 `WorkerSlot`。
-- **`alignas(64)` 包 `WorkerSlot`**。每个 worker 状态结构正好占一个缓存行，多核之间消除伪共享。
-- **绑核**。Windows 用 `SetThreadAffinityMask`，Linux 用 `pthread_setaffinity_np`。绑核失败（容器、虚拟机、没权限）就不绑，worker 照跑。
-- **纯软件格式**。`x87` 和 `fp128` 用整数仿真（fp128 的 112 位尾数乘 2 用 224 位）。`dec128` 用 `UInt256`。不依赖 `long double`、`__float128`、libquadmath。
-- **DPD 独立**。DPD 路线在 `dpd.h` 里，和 BID 不共享代码。系数存成 `std::vector<int>` 十进制数字数组，直接在数组上做运算。
+## 输出样例
 
-## 输出长什么样
-
-单模式，非静默：
+单模式非静默：
 
 ```
 Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
@@ -215,49 +217,8 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
 [step 5678] overflow->inf  (42 ms)
 ```
 
-并发模式，实时监视器（1 秒刷新）：
-
-```
-=== ALL modes: each worker runs the full format chain ===
-CPU: Intel(R) Core(TM) i7-6700 CPU @ 3.40GHz
-CPU cores(logical)=8 (physical=4)
-step=multiplied, x1.02, delay=10ms, workers=4, chain=13
-[w1] FP32:  2.30e+12   4143006 steps/s   1.241s   loop=1
-[w2] FP64:  5.10e+40   3891204 steps/s   1.241s   loop=1
-[w3] Dec64: 2.30e+363  1203300 steps/s   1.241s   loop=1
-[w4] x87:   1.10e+200  520300 steps/s    1.241s   loop=1
-LIVE: 9.76M steps/s (current segment)
-```
-
-每个 worker 一行：worker id、当前格式、当前值、步数/秒、已用时长、循环计数（单遍时不显示 loop=）。时间显示是逐层的（Y/M/D/H/M/S/ms），时长涨上去所有层都显示，不是只显示最高两层。`LIVE` 行汇总所有 worker 当前段的总吞吐。
-
-所有 worker 走完（或超时）后，打汇总表：每 worker 每格式步数，以及全局总吞吐。
+DPD 单模式额外打印 `[DPD-SELFCHECK] OK`；若 pack→unpack 往返不一致，stderr 报 `MISMATCH`。并发模式每 worker 实时一行吞吐，结束后出每 worker 每格式步数与全局汇总表。
 
 ## 并发模式的风险
 
-并发模式是压测，不是温和基准。在你在乎的机器上跑之前先读一遍：
-
-- **系统卡顿**。worker 绑核且提到实时优先级。8 核机器跑 8 个 worker，操作系统基本调度不动别的进程。想边用机器边跑，就少绑几个核（4 核 CPU 用 `-j 1-2`）。
-- **散热**。长时间 100% 负载会让笔记本和弱散热机箱降频。测出来的 steps/sec 会随温度掉。这是预期行为。
-- **DPD 满载时间更长**。DPD 是纯软件十进制数组运算，逐位乘法+查表，不能用硬件浮点单元。`-m all` 里带 DPD，那个 worker 满载时间更长，其他 worker 可能看到调度抖动。
-- **无限循环必须配超时**。`-l -1` 不配 `-t` 会永远跑。SSH 断了留个孤儿进程烧 CPU。永远一起配。
-- **别在生产跑**。这是测试机工具。生产服务器上跑会干扰业务。
-
-## 仓库结构
-
-```
-include/   所有头文件（模块化，common.h 本身只做聚合入口）
-src/       main + 非模板函数定义
-docs/      README_EN.md、README_CN.md、WORKING_CN/EN.md、MODE_SINGLE_CN/EN、MODE_ALL_CN/EN
-.github/workflows/ci.yml   构建 + smoke test
-CMakeLists.txt
-LICENSE    MIT，版权人 rtsd5022s
-```
-
-## 许可证
-
-MIT。见 `LICENSE`。
-
-<sub>算法可能会开小差。</sub>
-
-<sub><sub><sub><sub><sub><sub><sub><sub><sub><sub><sub>Extreme Architecture - Floating-point Rigorous Devil Test</sub></sub></sub></sub></sub></sub></sub></sub></sub></sub></sub>
+绑核 worker 可能挤占系统调度（小机器少绑核）；持续 100% 负载会触发热降频；纳入的 DPD worker 满载更久；`-l -1` 务必配 `-t`；本工具面向测试机，不建议在生产主机运行。
