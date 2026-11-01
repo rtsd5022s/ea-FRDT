@@ -6,6 +6,7 @@
 #include "runner.h"
 #ifdef _WIN32
 #include <windows.h>
+#include <intrin.h>
 #include <conio.h>
 #include <io.h>
 #include <cstdio>
@@ -211,6 +212,26 @@ int main(int argc, char** argv) {
             auto di = fw::DPD128::from_string(fbuf);
             std::memcpy(hdr+0xC0, di.data(), 16);
         }
+        // crc32 at 0xE0 (placeholder, payload CRC computed later)
+        std::uint32_t crc = 0;
+        std::memcpy(hdr+0xE0, &crc, 4);
+        // flags at 0xE4 (0 = no compression)
+        std::uint32_t flags = 0;
+        std::memcpy(hdr+0xE4, &flags, 4);
+        // cpu_brand_hash at 0xE8 (16 bytes)
+        {
+            int cpuinfo[4] = {0};
+            __cpuid(cpuinfo, 0);
+            char brand[13] = {0};
+            std::memcpy(brand, &cpuinfo[1], 4);
+            std::memcpy(brand+4, &cpuinfo[3], 4);
+            std::memcpy(brand+8, &cpuinfo[2], 4);
+            // simple hash of brand string -> 16 bytes
+            std::uint8_t chash[16] = {0};
+            for (int i = 0; i < 12; ++i) chash[i] = (std::uint8_t)(brand[i] * 31 + i);
+            std::memcpy(hdr+0xE8, chash, 16);
+        }
+        // reserved3 at 0xF8 = 0 (already zeroed)
         std::fwrite(hdr, 1, 256, g_dump_file);
         std::fflush(g_dump_file);
 #ifdef _WIN32
