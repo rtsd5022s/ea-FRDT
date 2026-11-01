@@ -562,7 +562,7 @@ int main(int argc, char** argv) {
         else if (mode=="dec128"||mode=="decimal128") { g_dump_format_id=15; g_dump_record_size=16; }
         else if (mode=="dpd128"||mode=="dpd-dec128") { g_dump_format_id=16; g_dump_record_size=16; }
     }
-    RunResult* q = (g_json || g_dump_file ? &g_result : nullptr);
+    RunResult* q = (quiet || g_json || g_dump_file ? &g_result : nullptr);
     if (mode == "f16" || mode == "fp16")            { run_fp16(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
     if (mode == "f32" || mode == "fp32")            { run_fp32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
     if (mode == "f64" || mode == "fp64")            { run_fp64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
