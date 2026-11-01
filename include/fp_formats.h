@@ -101,14 +101,12 @@ inline SVal step_subulp(SVal x, const Fmt& f) {
     SVal r = x;
     --r.man;
     if (r.man < (1ULL << f.M)) {
-        // borrow: exponent decreases, mantissa wraps to all-ones
         if (x.exp > emin(f)) {
             r.exp = x.exp - 1;
             r.man = (1ULL << (f.M + 1)) - 1;
         } else {
-            // already at emin: stay subnormal, man wraps to all-ones subnormal
+            // already subnormal: keep r.man (0..2^M-1), no wrap
             r.exp = emin(f);
-            r.man = (1ULL << f.M) - 1;
         }
     }
     return r;
