@@ -104,7 +104,7 @@ The optimized release link (`-Oz -flto=thin -ffunction-sections -fdata-sections 
 
 ### Build matrix in CI
 
-GitHub Actions (`.github/workflows/ci.yml`) builds on Ubuntu with both GCC and Clang, runs a smoke test on `fp32`, and fails the job on warnings.
+GitHub Actions (`.github/workflows/ci.yml`) builds on Ubuntu with both GCC and Clang and runs short smoke tests (`fp32`/`fp16`/`dec32`/`dec64`); the workflow sets no `-Werror`, so compiler warnings do not fail the job.
 
 ## Quick start
 
