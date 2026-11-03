@@ -30,7 +30,7 @@ PAIRS = [
     ("bf16_nat_le.bin", "bf16_nat_be.bin", 2, "engine_sim natural aligned 2B",            "rev"),
     ("t32pk_le.bin",    "t32pk_be.bin",    3, "engine_sim packed tight 3B odd width",    "rev"),
     ("fp8_le.bin",      "fp8_be.bin",      1, "engine_sim natural 1B (no endian effect)", "same"),
-    ("x87_le.bin",      "x87_be.bin",     10, "independent x87 fixed 10B dump_cb",        "rev"),
+    ("x87_le.bin",      "x87_be.bin",     16, "independent x87 fixed 16B slot (10B valid + 6B zero)", "rev"),
     ("fp128_le.bin",    "fp128_be.bin",   16, "independent fp128 fixed 16B dump_cb",      "rev"),
     ("dec32_le.bin",    "dec32_be.bin",    4, "decnum BID 32-bit 4B dump_cb",             "rev"),
     ("dpd32_le.bin",    "dpd32_be.bin",    4, "dpd32 tight 32-bit 4B dump_cb",            "rev"),

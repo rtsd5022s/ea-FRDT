@@ -597,7 +597,7 @@ int main(int argc, char** argv) {
         else if (mode=="f64"||mode=="fp64") { g_dump_format_id=10; g_dump_record_size=8; }
         else if (mode=="dec64"||mode=="decimal64") { g_dump_format_id=11; g_dump_record_size=8; }
         else if (mode=="dpd64"||mode=="dpd-dec64") { g_dump_format_id=12; g_dump_record_size=8; }
-        else if (mode=="x87")  { g_dump_format_id=13; g_dump_record_size=10; }
+        else if (mode=="x87")  { g_dump_format_id=13; g_dump_record_size=16; } // 16B slot: 10B valid + 6B zero padding
         else if (mode=="fp128"){ g_dump_format_id=14; g_dump_record_size=16; }
         else if (mode=="dec128"||mode=="decimal128") { g_dump_format_id=15; g_dump_record_size=16; }
         else if (mode=="dpd128"||mode=="dpd-dec128") { g_dump_format_id=16; g_dump_record_size=16; }
