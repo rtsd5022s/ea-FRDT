@@ -202,7 +202,7 @@ C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
-Requires C++23 (GCC 13+ or Clang 16+); MSVC unsupported. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) builds on Ubuntu with GCC and Clang, runs an fp32 smoke test, and fails on warnings.
+Requires C++23 (GCC 13+ or Clang 16+); MSVC unsupported. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) builds on Ubuntu with GCC and Clang, runs an fp32 smoke test, and fails on warnings. The CMake and direct-compile commands above build only the CLI `float_inf_walk`; `libeafrdt/` sits outside this build and CI and is built manually per `libeafrdt/README.md`.
 
 ## Known limitations
 

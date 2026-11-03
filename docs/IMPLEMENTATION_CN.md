@@ -202,7 +202,7 @@ C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
-要求 C++23（GCC 13+ 或 Clang 16+）；不支持 MSVC。无第三方依赖（无 libquadmath/Boost/Eigen）。CI（GitHub Actions）在 Ubuntu 用 GCC 与 Clang 构建，跑 fp32 smoke，出现 warning 即失败。
+要求 C++23（GCC 13+ 或 Clang 16+）；不支持 MSVC。无第三方依赖（无 libquadmath/Boost/Eigen）。CI（GitHub Actions）在 Ubuntu 用 GCC 与 Clang 构建，跑 fp32 smoke，出现 warning 即失败。上述 CMake 与直接编译命令只构建 CLI `float_inf_walk`；`libeafrdt/` 在该构建与 CI 之外，按 `libeafrdt/README.md` 手动构建。
 
 ## 已知局限
 

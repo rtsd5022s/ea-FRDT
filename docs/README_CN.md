@@ -57,7 +57,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake 默认 `Release`、开启 `-Wall -Wextra`，可执行文件名为 `float_inf_walk`。
+CMake 默认 `Release`、开启 `-Wall -Wextra`，可执行文件名为 `float_inf_walk`。根 CMake 只构建 CLI；`libeafrdt/` 是独立可选 C ABI 静态库，不纳入根 CMake 与 CI，手动构建命令与已知状态见 `libeafrdt/README.md`。
 
 ### 直接编译
 
@@ -200,7 +200,7 @@ include/
 src/
   float_inf_walk.cpp      main、argv 解析、单格式分发、schema v2 dump 头（头+载荷双 CRC-32、显式长度/记录几何）
   drive.cpp lang.cpp format_util.cpp platform.cpp
-libeafrdt/                独立 C ABI 静态库（无 IO/线程/全局量）
+libeafrdt/                独立可选 C ABI 静态库（不进根 CMake/CI，详见 libeafrdt/README.md；无 IO/线程/全局量）
 dump_inspect.py           schema v2 校验器：头/载荷双 CRC-32、长度与记录几何对账，带退出码与旧版容错
 ```
 

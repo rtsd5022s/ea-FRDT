@@ -69,7 +69,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake builds `Release` by default, enables `-Wall -Wextra`, and names the executable `float_inf_walk`.
+CMake builds `Release` by default, enables `-Wall -Wextra`, and names the executable `float_inf_walk`. It builds only the CLI; `libeafrdt/` is a separate optional C-ABI static library outside root CMake and CI (manual build and status: `libeafrdt/README.md`).
 
 ### Raw compiler
 
@@ -212,7 +212,7 @@ include/
 src/
   float_inf_walk.cpp (main, argv, dispatch, schema v2 dump header: header+payload dual CRC-32, explicit length/geometry)
   drive.cpp lang.cpp format_util.cpp platform.cpp
-libeafrdt/                standalone C-ABI static library
+libeafrdt/                standalone optional C-ABI static library (outside root CMake/CI; see libeafrdt/README.md)
 dump_inspect.py           schema v2 validator: header+payload dual CRC-32, size and record-geometry checks, exit codes, legacy tolerance
 ```
 

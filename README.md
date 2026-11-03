@@ -75,7 +75,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake produces an executable named `float_inf_walk` (see `CMakeLists.txt`); the CMake build defaults to `Release` and enables `-Wall -Wextra`.
+CMake produces an executable named `float_inf_walk` (see `CMakeLists.txt`); the CMake build defaults to `Release` and enables `-Wall -Wextra`. It builds only the CLI: `libeafrdt/` is a separate optional C-ABI static library, not built by CMake or CI; see `libeafrdt/README.md` for its manual build and status.
 
 ### Raw compiler
 
@@ -273,7 +273,7 @@ src/
   float_inf_walk.cpp  main(), argv parsing, single-mode dispatch, schema v2 dump header (header+payload dual CRC-32, explicit length/geometry)
   drive.cpp           reason_name() and other non-template definitions
   lang.cpp format_util.cpp platform.cpp
-libeafrdt/            standalone C-ABI static library (no IO, threads, or globals)
+libeafrdt/            standalone optional C-ABI static library; not built by root CMake/CI (see libeafrdt/README.md)
 dump_inspect.py       schema v2 validator: header+payload dual CRC-32, size/record-geometry checks, exit codes, legacy tolerance
 ```
 
@@ -335,7 +335,7 @@ Concurrent mode is a stress test, not a gentle benchmark. Read this before runni
 include/   shared engines + 17 per-format headers under include/formats/
 src/       main + non-template function definitions
 docs/      paired CN/EN documentation (README, PARAMETERS, IMPLEMENTATION, MODE_SINGLE, MODE_ALL, ...)
-libeafrdt/ standalone C-ABI static library
+libeafrdt/ standalone optional C-ABI static library (manual build; outside root CMake/CI)
 .github/workflows/ci.yml   Build + smoke test
 CMakeLists.txt
 LICENSE    MIT, copyright rtsd5022s
