@@ -27,10 +27,11 @@
 - [项目诞生记](ORIGIN_CN.md) — 项目如何长成 17 格式压测工具
 - [FAQ](FAQ_CN.md) — 常见问题和边缘情况
 - [基线](BASELINE_CN.md) — 参考步数与已知良好锚点
+- [运算复杂度](COMPLEXITY_CN.md) — 17 种格式单步软件成本（FP32=1× 基准）；结构档位、渐近阶与循环内速率锚点
 
 ### English
 
-- [README](README_EN.md) · [Parameters](PARAMETERS_EN.md) · [Implementation](IMPLEMENTATION_EN.md) · [UInt256](UINT256_EN.md) · [Working](WORKING_EN.md) · [Single mode](MODE_SINGLE_EN.md) · [Concurrent mode](MODE_ALL_EN.md) · [Risks](RISKS_EN.md) · [Testing dishonesty](TESTING_DISHONESTY_EN.md) · [ISA boundaries](ISA_BOUNDARIES_EN.md) · [Origin](ORIGIN_EN.md) · [FAQ](FAQ_EN.md) · [Baseline](BASELINE_EN.md)
+- [README](README_EN.md) · [Parameters](PARAMETERS_EN.md) · [Implementation](IMPLEMENTATION_EN.md) · [UInt256](UINT256_EN.md) · [Working](WORKING_EN.md) · [Single mode](MODE_SINGLE_EN.md) · [Concurrent mode](MODE_ALL_EN.md) · [Risks](RISKS_EN.md) · [Testing dishonesty](TESTING_DISHONESTY_EN.md) · [ISA boundaries](ISA_BOUNDARIES_EN.md) · [Origin](ORIGIN_EN.md) · [FAQ](FAQ_EN.md) · [Baseline](BASELINE_EN.md) · [Complexity](COMPLEXITY_EN.md)
 
 ## 为什么要做这个东西
 

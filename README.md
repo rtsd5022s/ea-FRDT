@@ -31,6 +31,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 - [Origin story](docs/ORIGIN_EN.md) — how ea-FRDT grew from a 20-line script to a 17-format stress tool
 - [FAQ](docs/FAQ_EN.md) — common questions and edge cases
 - [Baseline](docs/BASELINE_EN.md) — reference step counts and known-good anchors
+- [Complexity](docs/COMPLEXITY_EN.md) — per-step software cost of all 17 formats, FP32 = 1× baseline; structural tiers, asymptotic order, in-loop throughput anchors
 
 ### 中文
 
@@ -47,6 +48,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 - [项目诞生记](docs/ORIGIN_CN.md) — ea-FRDT 如何从二十行脚本长成 17 格式压测工具
 - [FAQ](docs/FAQ_CN.md) — 常见问题和边缘情况
 - [基线](docs/BASELINE_CN.md) — 参考步数与已知良好锚点
+- [运算复杂度](docs/COMPLEXITY_CN.md) — 17 种格式单步软件成本（FP32=1× 基准）；结构档位、渐近阶与循环内速率锚点
 
 ## Why this exists
 
