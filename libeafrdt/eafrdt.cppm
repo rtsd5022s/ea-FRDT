@@ -25,13 +25,16 @@ struct Fmt { int E, M, bias; };
 struct SVal { bool sign=false; int exp=0; std::uint64_t man=0; bool inf=false; };
 struct X87 { bool sign=false; int exp=0; std::uint64_t man=0; bool inf=false; };
 struct Q128 { bool sign=false; int exp=0; std::uint64_t hi=0, lo=0; bool inf=false; };
-struct DecFmt { int sig, emax; };
+struct DecFmt { int sig, emax, bias; };
 struct DecNum { bool neg=false; std::uint64_t coeff=0; int exp10=0; bool inf=false; };
+struct BigDec { bool neg=false; UInt256 coeff; int exp10=0; bool inf=false; };
 struct DpdFmt { int exp_bits, coeff_bits, digits; long long bias; };
 struct DpdNum { bool neg=false, inf=false; int exp10=0; std::uint8_t digits[34]; int ndigits=0; };
 
 export long long walk_binary(const Fmt& f, double start, double mult,
                              double timeout_sec, int* reason);
+export long long walk_f32(float start, float mult, double timeout_sec, int* reason);
+export long long walk_f64(double start, double mult, double timeout_sec, int* reason);
 export long long walk_x87(double start, double mult, double timeout_sec, int* reason);
 export long long walk_q128(double start, double mult, double timeout_sec, int* reason);
 export long long walk_bid(const DecFmt& f, double start, double mult,

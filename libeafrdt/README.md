@@ -74,9 +74,10 @@ Implemented:
 - UInt256: pure schoolbook 64-bit arithmetic, no `__int128`; x87/q128 (fp128) use UInt256 and do not rely on `unsigned __int128`.
 - DPD/BID walks produce correct relative step counts (dec32=11279, dec64=44767, matching the recorded baseline).
 
-Known limitation (do not treat as CLI parity):
+Status versus the CLI (measured with `start=1.0`, `factor=1.02`, default X102 multiply walk, `timeout=0`):
 
-- `f32`/`f64` in this library currently route through the parameterized SVal emulator rather than the hardware-native `float`/`double` path used by the CLI; their absolute step counts are not yet aligned with the main program's native walk and should be compared only as relative/structural results.
+- `f32`/`f64` use hardware-native `float`/`double` (`walk_f32`/`walk_f64`), not the SVal emulator, and match the CLI exactly: f32 = 4481 steps and f64 = 35843 steps; both exit on overflow.
+- Remaining structural differences (not claimed as bit-level parity): x87/fp128 are pure-software simulations sharing one integer path; BID/DPD decimal walks are structural step counts using different coefficient representations, so BID128 and DPD128 counts differ slightly.
 
 Platform:
 

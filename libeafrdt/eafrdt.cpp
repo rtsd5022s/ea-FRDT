@@ -421,7 +421,7 @@ long long walk_bid128(double start, double mult, double timeout_sec, int* reason
 // ---------------------------------------------------------------------------
 // DPD dpd32/64/128
 // ---------------------------------------------------------------------------
-static unsigned dpd_encode3(unsigned d2, unsigned d1, unsigned d0) {
+[[maybe_unused]] static unsigned dpd_encode3(unsigned d2, unsigned d1, unsigned d0) {
     unsigned a3=d2>>3, a2=(d2>>2)&1, a1=(d2>>1)&1, a0=d2&1;
     unsigned b3=d1>>3, b2=(d1>>2)&1, b1=(d1>>1)&1, b0=d1&1;
     unsigned c3=d0>>3, c2=(d0>>2)&1, c1=(d0>>1)&1, c0=d0&1;
