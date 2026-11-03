@@ -149,7 +149,7 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
           },
           [](X87 v) { return v.inf; },
           [](X87 v) { return !v.inf && v.man == 0 && v.exp == 0; },
-          [](X87 v) { return false; },  // X87 never produces NaN
+          [](X87) { return false; },  // X87 never produces NaN
           [&](const X87& v) { return x87_format(v, df, digits); },
           delay_ms, x87_extra, quiet, refresh_ms,
           std::function<void(const X87&)>(x87_dump));

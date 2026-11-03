@@ -4,7 +4,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
+#ifdef _MSC_VER
 #pragma comment(lib, "winmm.lib")
+#endif
 
 namespace fw::plat {
 

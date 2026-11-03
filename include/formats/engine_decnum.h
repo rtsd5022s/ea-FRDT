@@ -70,7 +70,7 @@ inline DecNum dec_subulp(const DecNum& v, const DecFmt& f) {
     DecNum r = v;
     if (r.inf || r.coeff == 0) return r;
     r.coeff -= 1;
-    unsigned long long maxc = dec_pow10(f.sig);
+    [[maybe_unused]] unsigned long long maxc = dec_pow10(f.sig);
     if (r.coeff == 0) { r.exp10 -= 1; }  // underflow
     if (r.exp10 + (int)std::to_string(r.coeff).size() - 1 < 1 - f.emax) r.coeff = 0;
     return r;
@@ -195,7 +195,7 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
           },
           [](DecNum v) { return v.inf; },
           [](DecNum v) { return v.coeff == 0; },
-          [](DecNum v) { return false; },  // DecNum never produces NaN
+          [](DecNum) { return false; },  // DecNum never produces NaN
           [&](const DecNum& v) { return dec_fmt_text(std::to_string(v.coeff), v.exp10, v.neg, df, digits); },
           delay_ms, dec_extra, quiet, refresh_ms, std::function<void(const DecNum&)>(dec_dump));
 }

@@ -28,7 +28,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
                 std::int64_t refresh_ms = 0,
                 std::function<void(const S&)> dump_cb = nullptr) {
     static const u128 SAFETY_LIMIT = ((u128)1 << 120);
-    constexpr size_t INPLACE_MAX = 110;
+    [[maybe_unused]] constexpr size_t INPLACE_MAX = 110;
     constexpr u128 SLOW_INTERVAL = 256;
     u128 step = 0;
     u128 last_slow = 0;

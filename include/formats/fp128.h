@@ -184,7 +184,7 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
           },
           [](Q128 v) { return v.inf; },
           [](Q128 v) { return !v.inf && v.hi == 0 && v.lo == 0 && v.exp == 0; },
-          [](Q128 v) { return false; },  // Q128 never produces NaN
+          [](Q128) { return false; },  // Q128 never produces NaN
           [&](const Q128& v) { return q128_format(v, df, digits); },
           delay_ms, q_extra, quiet, refresh_ms,
           std::function<void(const Q128&)>(q128_dump));

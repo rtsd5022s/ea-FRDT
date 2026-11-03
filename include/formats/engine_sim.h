@@ -192,7 +192,7 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
           },
           [](SVal v) { return v.inf; },
           [](SVal v) { return !v.inf && v.man == 0 && v.exp == 0; },
-          [](SVal v) { return false; },  // SVal never produces NaN (inf flag covers overflow)
+          [](SVal) { return false; },  // SVal never produces NaN (inf flag covers overflow)
           [&](SVal v) { return to_double(v, f); },
           delay_ms, df, digits, sim_extra, quiet, refresh_ms,
           std::function<void(const SVal&)>(sim_dump));

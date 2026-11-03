@@ -88,7 +88,7 @@ inline BigDec big_addulp(const BigDec& v, int sig, int emax) {
     return r;
 }
 
-inline BigDec big_subulp(const BigDec& v, int sig, int emax) {
+inline BigDec big_subulp(const BigDec& v, [[maybe_unused]] int sig, int emax) {
     BigDec r = v;
     if (r.inf || r.coeff == "0") return r;
     std::string c = r.coeff;
@@ -192,7 +192,7 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
           },
           [](BigDec v) { return v.inf; },
           [](BigDec v) { return v.coeff.empty() || v.coeff == "0"; },
-          [](BigDec v) { return false; },  // BigDec never produces NaN
+          [](BigDec) { return false; },  // BigDec never produces NaN
           [&](const BigDec& v) { return dec_fmt_text(v.coeff, v.exp10, v.neg, df, digits); },
           delay_ms, big_extra, quiet, refresh_ms, std::function<void(const BigDec&)>(big_dump));
 }
