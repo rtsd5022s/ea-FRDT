@@ -18,7 +18,7 @@ pwsh tests/run_tests.ps1
 
 | 文件 | 作用 | 退出码 |
 |---|---|---|
-| `run_tests.ps1` | 编排器：5 个 TU 编译 → 生成 26 个样本形态 → 调用两个校验器，汇总成败 | 0 全绿 / 1 失败 |
+| `run_tests.ps1` | 编排器：5 个 TU 编译 → 生成 36 个样本形态（30 个 LE/BE 对样本 + 6 个裸流/`-m all` 形态）→ 调用两个校验器，汇总成败 | 0 全绿 / 1 失败 |
 | `verify_endian.py` | 字节序/宽度几何对拍：LE/BE 互逆、1B 不翻转、模数对齐、无头 magic、首记录位恒等 | 0 无 FAIL / 1 有 FAIL |
 | `verify_raw.py` | 裸流行为：`--dump-raw` 与 `--dump-no-header` 字节等价、无 magic、packed 3B 模数、`-m all` 删除空文件、普通 all 留 256B 空壳，并复用 `dump_inspect.py` 校验 v2/all_v2 | 0 无 FAIL / 1 有 FAIL |
 
@@ -38,6 +38,11 @@ pwsh tests/run_tests.ps1
 | fp128_le/be | 独立 `dump_cb` | 16 | rev | 互逆、%16 |
 | dec32_le/be | BID decnum | 4 | rev | 互逆、%4、无 magic |
 | dpd32_le/be | DPD 紧凑 | 4 | rev | 共同前缀互逆（条数随性能波动，不断言等长） |
+| fp16_le/be | `drive.h` 原生 `_Float16` | 2 | rev | 互逆、%2、无 magic |
+| dec64_le/be | BID `engine_decnum` Decimal64 | 8 | rev | 共同前缀互逆、%8、无 magic |
+| dec128_le/be | BigDec BID128 `dump_cb` | 16 | rev | 共同前缀互逆、%16、无 magic |
+| dpd64_le/be | `engine_dpd` DPD64 | 8 | rev | 共同前缀互逆、%8、无 magic |
+| dpd128_le/be | `engine_dpd` DPD128 | 16 | rev | 共同前缀互逆、%16、无 magic |
 
 裸流专项：`v2.bin`（普通头+载荷、inspect 通过）、`raw_le.bin` ≡ `raw_nh.bin`（两别名逐字节相同）、`raw_tf32pack.bin`（%3）、`allraw.bin`（应不存在）、`all_v2.bin`（恰 256B、magic、inspect 通过）。
 
@@ -45,17 +50,11 @@ pwsh tests/run_tests.ps1
 
 样本由 `-t 1` 限时生成，记录数随主机频率、调度与十进制纯软件算法速度波动（例如 dpd32 LE/BE 条数可不同）。因此校验器**只断言与机器性能无关的不变量**：模数对齐、字节序互逆/相同、别名等价、magic 有无、空壳长度与检查和；不对绝对文件大小/条数写死阈值，避免 flaky。
 
-## 尚未单独造对拍样本（复用同一 swap 循环，待补）
+## 覆盖口径：独立对拍对与模板代表
 
-下列位宽与上表共用同一套字节交换路径，当前未单独生成 LE/BE 对、未纳入本脚本断言；补齐时只需在 `verify_endian.py` 的 `PAIRS` 增加一行，并在 `run_tests.ps1` 增加对应生成命令：
-
-| 格式 | 位宽 B | 模板来源 |
-|---|---:|---|
-| fp16（native） | 2 | engine_sim natural |
-| dec64（BID） | 8 | engine_decnum |
-| dec128（BID） | 16 | engine_decnum/BigDec |
-| dpd64 | 8 | engine_dpd |
-| dpd128 | 16 | engine_dpd |
+- 独立 LE/BE 对共 **15 对（30 个文件）**，覆盖全部 ≥2B 记录宽度与三类写盘路径：原生 `drive.h`（f32/f64/fp16）、`engine_sim`（tf32 自然/packed、bf16、fp8）、各独立 `dump_cb`（x87、fp128、`engine_decnum`/BigDec、`engine_dpd`）。
+- **1B 无字节序效应族由 `fp8` 的 same 断言代表**：`fp4 / fp6 / fp8_e4m3 / fp8_e5m2` 均走 `engine_sim` 自然 1B，`rec_bytes=1` 时字节交换循环执行 0 次、LE≡BE，与 `fp8_le/be` 同一模板，不再重复造样本；若日后要逐格式留痕，在 `verify_endian.py` 的 `PAIRS` 加一行、`run_tests.ps1` 加对应生成命令即可。
+- `dec64/dec128/dpd64/dpd128` 为纯软件十进制，条数受主机速度影响波动（LE/BE 不等长属正常），故只锁共同前缀互逆与 `%宽度==0`，不写死绝对大小。
 
 ## 失败排查
 

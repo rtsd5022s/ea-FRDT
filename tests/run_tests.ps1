@@ -57,6 +57,16 @@ Run 'dec32_le'     @('1','-t','1','-m','dec32','--dump',(Join-Path $tmp 'dec32_l
 Run 'dec32_be'     @('1','-t','1','-m','dec32','--dump',(Join-Path $tmp 'dec32_be.bin'),'--dump-raw','--dump-endian','big')
 Run 'dpd32_le'     @('1','-t','1','-m','dpd32','--dump',(Join-Path $tmp 'dpd32_le.bin'),'--dump-raw')
 Run 'dpd32_be'     @('1','-t','1','-m','dpd32','--dump',(Join-Path $tmp 'dpd32_be.bin'),'--dump-raw','--dump-endian','big')
+Run 'fp16_le'      @('1','-t','1','-m','fp16','--dump',(Join-Path $tmp 'fp16_le.bin'),'--dump-raw')
+Run 'fp16_be'      @('1','-t','1','-m','fp16','--dump',(Join-Path $tmp 'fp16_be.bin'),'--dump-raw','--dump-endian','big')
+Run 'dec64_le'     @('1','-t','1','-m','dec64','--dump',(Join-Path $tmp 'dec64_le.bin'),'--dump-raw')
+Run 'dec64_be'     @('1','-t','1','-m','dec64','--dump',(Join-Path $tmp 'dec64_be.bin'),'--dump-raw','--dump-endian','big')
+Run 'dec128_le'    @('1','-t','1','-m','dec128','--dump',(Join-Path $tmp 'dec128_le.bin'),'--dump-raw')
+Run 'dec128_be'    @('1','-t','1','-m','dec128','--dump',(Join-Path $tmp 'dec128_be.bin'),'--dump-raw','--dump-endian','big')
+Run 'dpd64_le'     @('1','-t','1','-m','dpd64','--dump',(Join-Path $tmp 'dpd64_le.bin'),'--dump-raw')
+Run 'dpd64_be'     @('1','-t','1','-m','dpd64','--dump',(Join-Path $tmp 'dpd64_be.bin'),'--dump-raw','--dump-endian','big')
+Run 'dpd128_le'    @('1','-t','1','-m','dpd128','--dump',(Join-Path $tmp 'dpd128_le.bin'),'--dump-raw')
+Run 'dpd128_be'    @('1','-t','1','-m','dpd128','--dump',(Join-Path $tmp 'dpd128_be.bin'),'--dump-raw','--dump-endian','big')
 
 # 4) Raw / header / -m all behaviour.
 Run 'v2'           @('1','-t','1','-m','f32','--dump',(Join-Path $tmp 'v2.bin'))

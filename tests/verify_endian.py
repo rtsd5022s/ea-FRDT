@@ -34,6 +34,11 @@ PAIRS = [
     ("fp128_le.bin",    "fp128_be.bin",   16, "independent fp128 fixed 16B dump_cb",      "rev"),
     ("dec32_le.bin",    "dec32_be.bin",    4, "decnum BID 32-bit 4B dump_cb",             "rev"),
     ("dpd32_le.bin",    "dpd32_be.bin",    4, "dpd32 tight 32-bit 4B dump_cb",            "rev"),
+    ("fp16_le.bin",     "fp16_be.bin",     2, "native drive.h sizeof(_Float16)=2",        "rev"),
+    ("dec64_le.bin",    "dec64_be.bin",    8, "decnum BID Decimal64 fixed 8B dump_cb",    "rev"),
+    ("dec128_le.bin",   "dec128_be.bin",  16, "BigDec BID128 fixed 16B dump_cb",          "rev"),
+    ("dpd64_le.bin",    "dpd64_be.bin",    8, "engine_dpd DPD64 fixed 8B dump_cb",        "rev"),
+    ("dpd128_le.bin",   "dpd128_be.bin",  16, "engine_dpd DPD128 fixed 16B dump_cb",      "rev"),
 ]
 
 
