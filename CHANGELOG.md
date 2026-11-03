@@ -2,14 +2,30 @@
 
 ## Unreleased (main)
 
-### Changed
-- Modular refactor: the 17 formats moved to dedicated headers under `include/formats/`, with shared logic extracted into `engine_*.h` modules (`engine_sim`, `engine_native`, `engine_bid_codec`, `engine_decnum`, `engine_dpd_codec`, `engine_dpd`).
-- `-q` now suppresses the live/finish output uniformly for every single-format engine; `--json` and `--dump` imply quiet as well.
-- DPD coefficient path: fixed-length symmetric pack/unpack bitstring sub-unit; startup runs a real pack→unpack round-trip self-check, replacing the former hardcoded placeholder `OK` (long-standing debt #28 closed).
+## v1.0.6 (2026-11-03)
 
 ### Added
-- Dump files use schema v2 (fixed 256-byte header, multi-byte integers little-endian): magic `EAFRDT2`; header CRC-32 at `0x10`, payload CRC-32 at `0x14`; explicit payload bytes / record count / record size at `0x18` / `0x20` / `0x28`; format, step mode, start kind/value, exit reason, and a run snapshot (timestamp, elapsed, timeout, loops, delay). `--dump` applies to single-format mode only; `-m all` writes only a flags bit2=empty stub with no records. `dump_inspect.py` returns exit codes 0/1/2/3, recomputes both CRCs and record geometry, and tolerates legacy or non-dump files without crashing.
-- Release build regression verified under `-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static` (≈0.8 MB static Windows binary).
+- Dump schema v2: fixed 256-byte header (magic `EAFRDT2`, version, format id, endian, total steps, record size, flags, CPU brand hash, DPD128 step interval); header CRC-32 at `0x10` and payload CRC-32/IEEE at `0xE0`; explicit payload bytes / record count / record size; format, step mode, start kind/value, exit reason, and a run snapshot (timestamp, elapsed, timeout, loops, delay). `--dump` applies to single-format mode only; `-m all` writes only a flags bit2=empty stub with no records.
+- `--dump-raw` / `--dump-no-header`: emit the continuous raw bit stream from offset 0 without the 256-byte header (single format only).
+- `dump_inspect.py`: header interpreter, full 256-byte hex dump with every field decoded, exit codes 0/1/2/3, recomputation of both CRCs and record geometry, tolerant of legacy or non-dump files.
+- `UInt128` derived from `UInt256` (`w[2]`, `mul64`, `div10`).
+- `-q` now suppresses live/finish output uniformly for every single-format engine; `--json` and `--dump` imply quiet as well.
+- DPD coefficient path: fixed-length symmetric pack/unpack declet sub-unit; startup runs a real pack→unpack round-trip self-check, replacing the former hardcoded placeholder `OK` (long-standing debt #28 closed).
+- Release build regression verified under `-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static` (≈0.6 MB stripped static Windows binary).
+
+### Changed
+- Modular refactor: the 17 formats moved to dedicated headers under `include/formats/`, with shared logic extracted into `engine_*.h` modules (`engine_sim`, `engine_native`, `engine_bid_codec`, `engine_decnum`, `engine_dpd_codec`, `engine_dpd`).
+- `--dump-endian` unified across all formats; self-written paths no longer reverse endian logic.
+- Repository hygiene: stray runtime log removed, orphan experiment header deleted, deterministic byte-order/raw round-trip regressions pinned under `tests/` with a unified coverage matrix; Markdown docs corrected to current source facts and paired CN/EN.
+- libeafrdt documentation records that native f32/f64 use hardware `float`/`double` and match the CLI X102 walk exactly (f32=4481, f64=35843, both overflow); module declaration surface (`eafrdt.cppm`) synced with `eafrdt.h`.
+
+### Fixed
+- `step_subulp` subnormal branch: no longer wraps the mantissa back to all-ones when already at emin.
+- x87 dump record width is 10 bytes (not 16); JSON subulp label and `step_name` SUB_ULP case corrected.
+- DPD step title wording unified and timeout exit reason corrected.
+- CI `__cpuid` cross-platformized so Linux g++/clang++ build succeeds.
+- Benign compiler warnings silenced under `-Wall -Wextra` without any algorithm, count, or ABI change; CI wording corrected to reflect that the workflow sets no `-Werror` (warnings do not fail the job).
+- libeafrdt: unused static `dpd_encode3` codec marked `[[maybe_unused]]`; archive rebuilds warning-free with unchanged smoke counts.
 
 ### Removed
 - `-g mululp-down` was removed. Valid step modes are `x1.02` (default), `mululp`, `addulp`, `subulp`.
