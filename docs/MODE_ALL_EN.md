@@ -128,3 +128,4 @@ Binding removes migration; `alignas(64)` removes false sharing; value copies rem
 - **Resource footprint**: slots are kilobytes; memory is not the bottleneck, CPU is. Some platforms have hardware watchdogs reacting to prolonged pegging.
 - **Do not run in production**: this is a stress tool, not a production workload.
 - **Accuracy**: pure-software integer formats reproduce the same step counts as single-core runs; divergence suggests binding failure or external interference.
+- **`--dump` in all mode**: concurrent workers use mixed, interleaved record widths, so no records are serialized in all mode; even with `--dump`, only a 256-byte flags bit2=empty stub is written (`payload_bytes=0`, `record_count=0`, `record_size=0`, `reason=0xFF`). Use single-format `-m <fmt> --dump` for per-step binary records.

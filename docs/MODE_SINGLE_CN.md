@@ -50,7 +50,7 @@ float_inf_walk 0 -m x87 -t 10
 
 **`--json`**：输出一个机器可读对象（format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp）。
 
-**`--dump <file>`**：256 字节头 + 记录，载荷 CRC-32 写在 `0xE0`，用 `dump_inspect.py` 对账。
+**`--dump <file>`**：仅单格式模式可用。schema v2 固定 256 字节头（头部 CRC-32 + 载荷 CRC-32 + 显式载荷长度/记录几何/运行参数快照）后接逐步记录；用 `python dump_inspect.py <file>` 做双 CRC 与长度对账。`-m all` 为并发多格式、不序列化记录，仅生成 flags bit2=empty 的空头部；完整偏移表见 `IMPLEMENTATION_CN.md` 的 dump 小节。`--dump-packed`/`--dump-endian` 控制记录宽度与字节序。
 
 **`--lang zh|en`**：界面语言，默认 `zh`。
 

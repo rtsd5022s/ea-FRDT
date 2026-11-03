@@ -60,9 +60,10 @@
 | `--bits <m>` | `--showbits` | `off` | `hex` / `bin` / `off`（或 `none`） | 值后面括号内附原始位型；`bin` 按 sign/exponent/coefficient 分段空格分组。 |
 | `--quiet` | `-q` | 关 | 无值 | 抑制单格式引擎的实时行与结束行；结果仍写入 `RunResult` 供 `--json`/汇总使用。`--json`、`--dump` 隐式静默。 |
 | `--json` | 无 | 关 | 无值 | 机器可读 JSON，自动静默；每次运行一个对象（format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp）。 |
-| `--dump <file>` | 无 | 关 | 文件路径 | `wb+` 二进制日志：256 字节头 + 逐步记录；offset `256` 到 EOF 的载荷按 IEEE 802.3 计算 CRC-32、小端写在 `0xE0`，可用 `python dump_inspect.py <file>` 独立对账。自动静默。 |
-| `--dump-packed` | 无 | 关 | 无值 | 紧凑记录宽度（如 tf32=3 B 而非 4 B）。 |
-| `--dump-endian <e>` | 无 | `little` | `little`（别名 `le`/`cpu`）/ `big`（别名 `be`） | 记录字节序；默认小端，`big` 写入前翻字节。 |
+| `--dump <file>` | 无 | 关 | 文件路径 | `wb+` 二进制日志，**仅单格式模式生效**：schema v2 固定 256 字节头（`0x10` 头部 CRC-32、`0x14` 载荷 CRC-32、`0x18` 载荷字节数、`0x20` 记录数、`0x28` 记录宽度）后接 offset `256..EOF` 的记录；用 `python dump_inspect.py <file>` 复算双 CRC 与 `记录数×记录宽度=载荷字节数` 几何。`-m all` 不写记录，仅产出 flags bit2=empty 空头部。自动静默。完整布局见 `IMPLEMENTATION_CN.md`。 |
+| `--dump-packed` | 无 | 关 | 无值 | 紧凑记录宽度（如 tf32=3 B 而非 4 B）；仅作用于单格式 `--dump`，宽度写入 `0x28`。 |
+| `--dump-endian <e>` | 无 | `little` | `little`（别名 `le`/`cpu`）/ `big`（别名 `be`） | 记录字节序；默认小端，`big` 写入前翻字节；值写入 `0x0A`。仅作用于单格式 `--dump`。 |
+| `--dump-raw` / `--dump-no-header` | 无 | 关 | 无值 | `--dump` 裸流修饰符（两别名等价）：省略 256 字节 v2 头，文件从偏移 0 直接写连续原始位流（无 u128 步数前缀、无 CRC/长度/参数字段）；仅单格式，记录宽度沿用 `--dump-packed`、字节序沿用 `--dump-endian`；`-m all` 不支持、直接放弃输出文件。裸流无 magic，`dump_inspect.py` 不校验，请用 hexdump 或外部按记录宽度解析。 |
 | `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | 界面语言；帮助、错误、警告、汇总跟随。 |
 
 ## 并发（-m all）
@@ -116,5 +117,5 @@ float_inf_walk 0 -m all --only fp32,dec128 -j 0,2 -q
 float_inf_walk 0 -m all -l 3 -t 10              # 循环 3 次，每次最多 10s
 float_inf_walk 0 -m fp32 --bits hex             # 括号内 hex 位型
 float_inf_walk 0 -m f32 --json                   # JSON 输出供脚本采集
-float_inf_walk 0 -m f64 --dump walk.bin          # dump，含载荷 CRC-32
+float_inf_walk 0 -m f64 --dump walk.bin          # 单格式 dump：v2 头（头+载荷双 CRC-32、显式长度/记录几何）
 ```

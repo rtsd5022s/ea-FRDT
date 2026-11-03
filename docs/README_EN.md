@@ -106,7 +106,7 @@ clang64 uses its own libc++/compiler-rt/lld; do not add GCC-only `-static-libgcc
 ./float_inf_walk 0 -m fp32 --bits hex
 ./float_inf_walk 0 -m fp4 --bits bin
 
-# dump every step; 256-byte header + payload, payload CRC-32 at 0xE0
+# dump every step (single format); 256-byte schema v2 header (header+payload dual CRC-32, explicit length/geometry) + payload
 ./float_inf_walk 0 -m f64 --dump walk.bin
 
 # default chain concurrently; -j uses 0-based core ids, here cores 0..3
@@ -161,9 +161,10 @@ The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are exc
 | `--bits hex`/`bin`/`off` (`--showbits`) | Append bit representation; `bin` groups sign/exponent/coefficient; default `off`. |
 | `-q` / `--quiet` | Suppress live/finish lines for every single format; results still captured. `--json`/`--dump` imply quiet. |
 | `--json` | One machine-readable JSON object per run; no ANSI/progress. |
-| `--dump <file>` | 256-byte header + payload; payload (offset `256..EOF`) IEEE 802.3 CRC-32 at `0xE0` (little-endian), verifiable with `dump_inspect.py`. |
-| `--dump-endian little`/`big` | Record byte order; `little` default. |
-| `--dump-packed` | Compact record width (e.g. tf32 = 3 B); default natural width. |
+| `--dump <file>` | Single-format only: fixed 256-byte schema v2 header (`0x10` header CRC-32, `0x14` payload CRC-32, `0x18` payload bytes, `0x20` record count, `0x28` record size) + records at `256..EOF`; `dump_inspect.py` recomputes both CRCs and the `count×size=payload_bytes` geometry. `-m all` emits only a flags bit2=empty stub, no records. |
+| `--dump-endian little`/`big` | Record byte order; `little` default; single-format `--dump` only, stored at `0x0A`. |
+| `--dump-packed` | Compact record width (e.g. tf32 = 3 B); default natural width; single-format `--dump` only, width stored at `0x28`. |
+| `--dump-raw` / `--dump-no-header` | Raw-stream modifier for `--dump` (two equivalent aliases): omit the 256B header, write a continuous bit stream from offset 0 (no u128 step prefix, no CRC/length header); single format only, width follows packed and order follows endian; unsupported in `-m all` (file discarded); no magic, not validated by `dump_inspect.py`. |
 | `--lang zh`/`en` | UI language; default `zh`. |
 
 ### Concurrency and control
@@ -201,7 +202,7 @@ Outer control messages (not enum reasons): `cancelled` (DPD/dec128 confirmation 
 include/
   base_types.h common.h lang.h color.h format_util.*
   drive.h runner.h platform.h uint128.h uint256.h
-  dpd128.h                minimal DPD128 encoder for the dump header 0xC0 field
+  dpd128.h                early minimal DPD encoder header; no longer referenced by the v2 writer (kept); DPD128 engine in formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
@@ -209,10 +210,10 @@ include/
     fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
     dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   (17 format headers)
 src/
-  float_inf_walk.cpp (main, argv, dispatch, dump header + payload CRC-32)
+  float_inf_walk.cpp (main, argv, dispatch, schema v2 dump header: header+payload dual CRC-32, explicit length/geometry)
   drive.cpp lang.cpp format_util.cpp platform.cpp
 libeafrdt/                standalone C-ABI static library
-dump_inspect.py           256-byte header interpreter + payload CRC-32 recompute
+dump_inspect.py           schema v2 validator: header+payload dual CRC-32, size and record-geometry checks, exit codes, legacy tolerance
 ```
 
 Key choices: enum switch dispatch in the hot path (no `std::function`); value-copied `RunParams` and chain per worker; `alignas(64)` `WorkerSlot` (cache-line isolation); `SetThreadAffinityMask`/`pthread_setaffinity_np` with graceful unpinned fallback; no `long double`/`__float128`/libquadmath; DPD keeps a `std::vector<int>` digit coefficient and runs a real pack→unpack self-check at startup.

@@ -47,7 +47,7 @@ include/
   platform.h        OS abstraction: affinity, high-res timer, core counts
   uint128.h         Derived from UInt256 for 128-bit helpers
   uint256.h         Hand-rolled 256-bit big integer, schoolbook multiply, div10
-  dpd128.h          Minimal DPD128 encoder for the dump header 0xC0 field only
+  dpd128.h          Early minimal DPD encoder header; no longer referenced by the v2 writer (kept on disk). The DPD128 engine lives in formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h    SVal bit-level engine (fp4/fp6/fp8/bf16/tf32)
@@ -61,7 +61,7 @@ include/
     dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   (17 thin headers)
 src/
   float_inf_walk.cpp  main(), argv parsing, single-format dispatch,
-                      256-byte dump header + payload CRC-32 at 0xE0
+                      256-byte schema v2 dump header (header+payload dual CRC-32, explicit length/record geometry/run snapshot)
   drive.cpp           Non-template driver definitions (reason_name, ...)
   lang.cpp format_util.cpp platform.cpp
 ```
@@ -148,8 +148,43 @@ The step counter is `unsigned __int128` (`u128`); the driver safety limit is `2^
 
 - Engineering notation (default), 6 mantissa digits; `-f sci`, `-f full`; `-d`/`--digits` controls decimals (`-1` = full, range `0..100`).
 - `--bits hex|bin|off` (`--showbits`) appends the bit pattern in parentheses; `bin` groups sign/exponent/coefficient.
-- `--json` emits one machine-readable object (implies quiet); `--dump <file>` writes a 256-byte header plus records and stores the payload IEEE 802.3 CRC-32 at `0xE0` (little-endian), verifiable with `dump_inspect.py`.
+- `--json` emits one machine-readable object (implies quiet); `--dump <file>` applies to single-format mode only: it writes a 256-byte schema v2 fixed header plus per-step records, with a header CRC-32, a payload CRC-32, and explicit payload length/record geometry; `python dump_inspect.py <file>` verifies both CRCs and length. `-m all` runs concurrent mixed-width workers and does not serialize records; it emits only an empty header stub with flags bit2=empty.
 - Bilingual UI via `--lang zh|en` (default `zh`).
+
+## Dump file format (schema v2, fixed 256 bytes; multi-byte integers little-endian)
+
+Records follow the header at offset `256 .. EOF`. The layout below is what `dump_inspect.py` uses to recompute header CRC, payload CRC, and record geometry.
+
+| Offset | Type | Field | Meaning |
+|---|---|---|---|
+| 0x00 | char[8] | magic | `"EAFRDT2\0"` |
+| 0x08 | u8 | schema_version | fixed 2; 0x09 reserved zero |
+| 0x0A | u8 | payload_endian | 0=little (x86 native), 1=big |
+| 0x0B | u8 | packed | 0=natural width, 1=tight (e.g. tf32=3B instead of 4B) |
+| 0x0C | u32 | flags | bit2 (0x4)=empty (no records, e.g. `-m all` or an aborted run) |
+| 0x10 | u32 | header_crc32 | IEEE 802.3 reflected polynomial; this 4-byte slot counts as zero while computing |
+| 0x14 | u32 | payload_crc32 | over `[256, 256+payload_bytes)`; compatible with Python `binascii.crc32` |
+| 0x18 | u64 | payload_bytes | authoritative payload length in bytes |
+| 0x20 | u64 | record_count | payload_bytes/record_size when record_size > 0 |
+| 0x28 | u32 | record_size | authoritative bytes per record; tight width under packed |
+| 0x2C | u8 | format_id | 0..16 per the format table |
+| 0x2D | u8 | step_mode | 0=x1.02, 1=mululp, 2=addulp, 3=subulp |
+| 0x2E | u8 | start_kind | 0=numeric default, 1=subnormal, 2=min-normal, 3=max-finite |
+| 0x2F | u8 | reason | 0 overflow, 1 underflow, 2 identity, 3 safety, 4 timeout, 5 nan, 0xFF=unknown/not run |
+| 0x30 | f64 | start_value | IEEE binary64 start value |
+| 0x38 | f64 | factor | IEEE binary64 step factor |
+| 0x40 | i64 | timestamp_unix_s | Unix seconds (UTC) |
+| 0x48 | u64 | elapsed_us | wall-clock microseconds of the run |
+| 0x50 | u32 | timeout_sec | timeout limit in seconds (0=unlimited) |
+| 0x54 | i32 | loop_count | repetitions (-1=infinite) |
+| 0x58 | f64 | delay_ms | per-step throttle milliseconds |
+| 0x60 | char[32] | format_name | NUL-padded, max 31 chars |
+| 0x80 | char[32] | tool_version | e.g. `v1.0.6` |
+| 0xA0..0xFF | bytes | reserved | reserved zero padding |
+
+`dump_inspect.py` exit codes: `0`=header/payload CRC, file size, and record geometry all consistent; `1`=readable but a CRC mismatches, or file size / `record_count×record_size` disagrees with payload_bytes; `2`=not v2 (too short, bad magic, legacy v1 layout); `3`=cannot open/parse. The legacy v1 layout (`0xC0` DPD factor bits, `0xE0` payload CRC, `0xE8` ad-hoc CPU hash) is no longer parsed; old samples are reported as unsupported instead of crashing.
+
+**Raw-stream mode `--dump-raw` / `--dump-no-header`** (a modifier for `--dump`; two equivalent aliases): the 256-byte header above is omitted — no header reserve/write, no CRC, no length alignment; the file receives a continuous raw bit stream appended from offset 0. No u128 step prefix is stored (the step count still feeds the terminal display and `--json`). Record width still follows `--dump-packed` and byte order still follows `--dump-endian`. Single format only; `-m all` (mixed interleaved widths) is unsupported and closes/deletes the output file. The stream has no magic and no length, so `dump_inspect.py` does not recognize it (exit code 2, treated as non-v2); parse externally by fixed record width or hex dump.
 
 ## Build
 

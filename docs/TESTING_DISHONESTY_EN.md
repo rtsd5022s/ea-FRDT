@@ -22,7 +22,7 @@ Peak GFLOPS assumes full vectors, warm L1, no mispredicts, no misses; many bench
 
 ### Fig leaf three: bit patterns never shown
 
-Decimal output alone cannot tell you which bit changed on a tiny error. ea-FRDT uses `--bits hex|bin` (`bin` groups sign/exponent/coefficient) to append the bit pattern per step; `--dump` records every raw record, verified offline by `dump_inspect.py` against a payload CRC-32.
+Decimal output alone cannot tell you which bit changed on a tiny error. ea-FRDT uses `--bits hex|bin` (`bin` groups sign/exponent/coefficient) to append the bit pattern per step; `--dump` records every raw record under the schema v2 header (header+payload dual CRC-32 and record geometry), verified offline by `dump_inspect.py`.
 
 ### Fig leaf four: compiler optimization differences ignored
 

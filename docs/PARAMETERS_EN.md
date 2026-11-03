@@ -60,9 +60,10 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 | `--bits <m>` | `--showbits` | `off` | `hex` / `bin` / `off` (or `none`) | Append raw bit pattern in parentheses after the value. `hex` = hexadecimal; `bin` = binary grouped into sign/exponent/coefficient fields. |
 | `--quiet` | `-q` | off | no value | Suppress live per-step and finish lines for the single-format engine; the result is still captured into `RunResult` for `--json`/summary. `--json` and `--dump` imply quiet. |
 | `--json` | none | off | no value | Machine-readable JSON. Auto-enables quiet. One object per run (format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp). |
-| `--dump <file>` | none | off | file path | `wb+` binary log: 256-byte header followed by per-step records; payload bytes from offset `256` to EOF get an IEEE 802.3 CRC-32, little-endian, stored at `0xE0`; verify independently with `python dump_inspect.py <file>`. Auto-enables quiet. |
-| `--dump-packed` | none | off | no value | Compact record width (e.g. tf32 = 3 B instead of 4 B). |
-| `--dump-endian <e>` | none | `little` | `little` (aliases `le`/`cpu`) / `big` (alias `be`) | Record byte order for `--dump`. Default little-endian; `big` flips bytes before writing. |
+| `--dump <file>` | none | off | file path | `wb+` binary log, **single-format mode only**: fixed 256-byte schema v2 header (`0x10` header CRC-32, `0x14` payload CRC-32, `0x18` payload bytes, `0x20` record count, `0x28` record size) followed by records at `256..EOF`; run `python dump_inspect.py <file>` to recompute both CRCs and the `count×size=payload_bytes` geometry. `-m all` writes no records, only a flags bit2=empty stub. Auto-enables quiet. Full layout in `IMPLEMENTATION_EN.md`. |
+| `--dump-packed` | none | off | no value | Compact record width (e.g. tf32 = 3 B instead of 4 B); single-format `--dump` only; width stored at `0x28`. |
+| `--dump-endian <e>` | none | `little` | `little` (aliases `le`/`cpu`) / `big` (alias `be`) | Record byte order; default little-endian, `big` flips bytes before writing; value stored at `0x0A`. Single-format `--dump` only. |
+| `--dump-raw` / `--dump-no-header` | none | off | no value | Modifier for `--dump` (two equivalent aliases): omit the 256-byte v2 header and write a continuous raw bit stream from offset 0 (no u128 step prefix, no CRC/length/parameter fields); single format only; record width follows `--dump-packed` and byte order follows `--dump-endian`; unsupported in `-m all`, where the output file is discarded. The stream has no magic, so `dump_inspect.py` does not validate it; use a hex viewer or parse externally by record width. |
 | `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | UI language. Help, errors, warnings, and summary follow. |
 
 ## Concurrency (-m all)
@@ -116,5 +117,5 @@ float_inf_walk 0 -m all --only fp32,dec128 -j 0,2 -q
 float_inf_walk 0 -m all -l 3 -t 10              # loop 3x, max 10s each
 float_inf_walk 0 -m f32 --bits hex             # hex bits in parentheses
 float_inf_walk 0 -m f32 --json                  # JSON for scripts
-float_inf_walk 0 -m f64 --dump walk.bin         # dump with payload CRC-32
+float_inf_walk 0 -m f64 --dump walk.bin          # single-format dump: v2 header (header+payload dual CRC-32, explicit length/geometry)
 ```

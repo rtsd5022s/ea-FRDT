@@ -51,5 +51,5 @@
 - `-k 1.01`：自定义倍率；`-a max-finite`：最大有限值起点；`-a min-normal`：最小正规格起点；`-s`：最小非规格起点
 - `-a 0x3f800000`：FP32 的 1.0 Raw 位起点（hex 起点必须用 `-a`，`-s` 无参数）
 - `-l 3`：循环 3 遍；`-t 10`：10 秒超时
-- `-j 0,2`：指定核心（0-based，第一核为 0）；`-q`：静默；`--dump f.bin`：落盘记录（载荷 CRC-32，用 `dump_inspect.py` 对账）
+- `-j 0,2`：指定核心（0-based，第一核为 0）；`-q`：静默；`--dump f.bin`：落盘记录（schema v2 头，头+载荷双 CRC-32 与记录几何用 `dump_inspect.py` 对账；仅单格式模式，`-m all` 只出 empty 空头部）
 - `--lang zh|en`：界面语言（默认 `zh`）

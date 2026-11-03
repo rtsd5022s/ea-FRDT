@@ -51,5 +51,5 @@ Add them with `--only dpd32,dpd64,dpd128,dec128`; this confirmation gate exists 
 - `-k 1.01` custom factor; `-a max-finite`; `-a min-normal`; `-s` smallest subnormal start
 - `-a 0x3f800000`: FP32 1.0 raw-bit start (hex start uses `-a`; `-s` takes no argument)
 - `-l 3` three passes; `-t 10` ten-second timeout
-- `-j 0,2`: cores, zero-based (first core is 0); `-q` quiet; `--dump f.bin` records with payload CRC-32 verified by `dump_inspect.py`
+- `-j 0,2`: cores, zero-based (first core is 0); `-q` quiet; `--dump f.bin` records under schema v2 (header+payload dual CRC-32 and record geometry checked by `dump_inspect.py`; single-format mode only; `-m all` emits only an empty stub)
 - `--lang zh|en`: UI language (default `zh`)

@@ -8,7 +8,7 @@
 - DPD coefficient path: fixed-length symmetric pack/unpack bitstring sub-unit; startup runs a real pack→unpack round-trip self-check, replacing the former hardcoded placeholder `OK` (long-standing debt #28 closed).
 
 ### Added
-- Dump header `0xE0` stores the payload (offset `256..EOF`) IEEE 802.3 CRC-32, little-endian; `dump_inspect.py` recomputes it independently and reports `MATCH`/`MISMATCH`.
+- Dump files use schema v2 (fixed 256-byte header, multi-byte integers little-endian): magic `EAFRDT2`; header CRC-32 at `0x10`, payload CRC-32 at `0x14`; explicit payload bytes / record count / record size at `0x18` / `0x20` / `0x28`; format, step mode, start kind/value, exit reason, and a run snapshot (timestamp, elapsed, timeout, loops, delay). `--dump` applies to single-format mode only; `-m all` writes only a flags bit2=empty stub with no records. `dump_inspect.py` returns exit codes 0/1/2/3, recomputes both CRCs and record geometry, and tolerates legacy or non-dump files without crashing.
 - Release build regression verified under `-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static` (≈0.8 MB static Windows binary).
 
 ### Removed

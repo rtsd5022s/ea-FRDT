@@ -30,7 +30,7 @@ ea-FRDT 不挑最好情况，一次走到头。并发模式下多个 worker 各�
 
 传统基准只给十进制表示，不告诉你内存里的 hex 位型、符号位、指数与尾数分布；出现微小误差时无法定位是哪一位变了。
 
-ea-FRDT 用 `--bits hex|bin` 在每步追加位模式（`bin` 按 sign/exponent/coefficient 分组）。当 DPD 与 BID 对同一十进制数给出不同编码位型时，你看到的是编码层差异；`--dump` 还能把每条原始记录落盘、由 `dump_inspect.py` 用 CRC-32 对账。
+ea-FRDT 用 `--bits hex|bin` 在每步追加位模式（`bin` 按 sign/exponent/coefficient 分组）。当 DPD 与 BID 对同一十进制数给出不同编码位型时，你看到的是编码层差异；`--dump` 还能把每条原始记录落盘（schema v2 头，含头/载荷双 CRC-32 与记录几何），由 `dump_inspect.py` 复算对账。
 
 ### 遮羞布四：不区分编译器优化差异
 

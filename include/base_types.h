@@ -46,11 +46,17 @@ inline double g_json_delay_ms = 0;
 inline int g_json_loop = 1;
 #include <cstdio>
 inline std::FILE* g_dump_file = nullptr;
+inline bool g_dump_records_enabled = false; // record writes on; disabled for -m all (mixed-width concurrent)
 inline int g_dump_endian = 0; // 0=little (native x86), 1=big
 inline int g_dump_packed = 0; // 0=natural width (default), 1=packed tight (tf32=3B not 4B)
+inline bool g_dump_raw = false; // 1=omit 256B header; continuous raw bit stream from offset 0 (single format only)
+inline const char* g_dump_path = nullptr; // open path; discarded when -m all rejects raw
 inline long g_dump_bytes_written = 0;
 inline int g_dump_record_size = 0;   // bytes per record (set per format)
 inline int g_dump_format_id = 0;     // format identifier (set per format)
-inline double g_dump_factor = 1.02;  // step factor for header step_interval
+inline double g_dump_factor = 1.02;  // step factor for header (IEEE binary64)
+inline int g_dump_start_kind = 0;    // 0=numeric/default,1=subnormal,2=min-normal,3=max-finite
+inline int g_dump_step_mode = 0;      // 0=x1.02,1=mululp,2=addulp,3=subulp
+inline double g_dump_start_value = 1.0; // numeric start value, IEEE binary64
 
 } // namespace fw

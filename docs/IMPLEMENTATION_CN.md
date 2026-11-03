@@ -47,7 +47,7 @@ include/
   platform.h        OS 抽象：绑核、高精度定时器、核心数
   uint128.h         由 UInt256 派生的 128 位辅助
   uint256.h         自研 256 位大整数、schoolbook 乘法、div10
-  dpd128.h          仅用于 dump 头 0xC0 字段的极简 DPD128 编码器
+  dpd128.h          早期极简 DPD 编码器头；v2 写头已不再引用（文件保留未删），DPD128 运行引擎在 formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h    SVal 位级引擎（fp4/fp6/fp8/bf16/tf32）
@@ -61,7 +61,7 @@ include/
     dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   （17 个薄头）
 src/
   float_inf_walk.cpp  main、argv 解析、单格式分发、
-                      256 字节 dump 头 + 0xE0 载荷 CRC-32
+                      256 字节 schema v2 dump 头（头+载荷双 CRC-32、显式长度/记录几何/参数快照）
   drive.cpp           非模板驱动定义（reason_name 等）
   lang.cpp format_util.cpp platform.cpp
 ```
@@ -148,8 +148,43 @@ DPD（Densely Packed Decimal）把 3 个十进制数字编成 10 位二进制，
 
 - 工程计数法（默认）6 位尾数；`-f sci`、`-f full`；`-d`/`--digits` 控制小数位（`-1` 完整，范围 `0..100`）。
 - `--bits hex|bin|off`（`--showbits`）在括号内附位型；`bin` 按 sign/exponent/coefficient 分组。
-- `--json` 输出一个机器可读对象（隐式静默）；`--dump <file>` 写 256 字节头 + 记录，载荷 IEEE 802.3 CRC-32 小端存于 `0xE0`，可用 `dump_inspect.py` 对账。
+- `--json` 输出一个机器可读对象（隐式静默）；`--dump <file>` 仅对单格式模式生效：写 256 字节 schema v2 固定头 + 逐步记录，头自身带 CRC-32、载荷带 CRC-32，并显式记录载荷字节数与记录几何，用 `python dump_inspect.py <file>` 做头/载荷双 CRC 与长度对账。`-m all` 为并发多格式、记录宽度不一，不序列化记录，只写出 flags bit2=empty 的空头部。
 - `--lang zh|en` 双语界面（默认 `zh`）。
+
+## dump 文件格式（schema v2，固定 256 字节，多字节整数一律小端）
+
+记录紧随头部（偏移 `256 .. EOF`）。下表为头部布局；`dump_inspect.py` 按此复算头部 CRC、载荷 CRC 与记录几何。
+
+| 偏移 | 类型 | 字段 | 说明 |
+|---|---|---|---|
+| 0x00 | char[8] | magic | `"EAFRDT2\0"` |
+| 0x08 | u8 | schema_version | 固定 2；0x09 保留为 0 |
+| 0x0A | u8 | payload_endian | 0=小端（x86 原生），1=大端 |
+| 0x0B | u8 | packed | 0=自然宽度，1=紧凑（如 tf32=3B 而非 4B） |
+| 0x0C | u32 | flags | bit2(0x4)=empty（无记录，如 `-m all` 或被中止运行） |
+| 0x10 | u32 | header_crc32 | IEEE 802.3 反射多项式；计算该值时本 4 字节槽保持 0 |
+| 0x14 | u32 | payload_crc32 | 覆盖区间 `[256, 256+payload_bytes)`，与 Python `binascii.crc32` 兼容 |
+| 0x18 | u64 | payload_bytes | 权威载荷字节数 |
+| 0x20 | u64 | record_count | record_size>0 时等于 payload_bytes/record_size |
+| 0x28 | u32 | record_size | 权威每记录字节数；packed 下取实际紧凑宽度 |
+| 0x2C | u8 | format_id | 0..16，对应下方格式表 |
+| 0x2D | u8 | step_mode | 0=x1.02，1=mululp，2=addulp，3=subulp |
+| 0x2E | u8 | start_kind | 0=数值默认，1=subnormal，2=min-normal，3=max-finite |
+| 0x2F | u8 | reason | 0 overflow，1 underflow，2 identity，3 safety，4 timeout，5 nan，0xFF=unknown/未运行 |
+| 0x30 | f64 | start_value | IEEE binary64 起点数值 |
+| 0x38 | f64 | factor | IEEE binary64 倍率 |
+| 0x40 | i64 | timestamp_unix_s | Unix 秒（UTC） |
+| 0x48 | u64 | elapsed_us | 本次运行墙钟微秒 |
+| 0x50 | u32 | timeout_sec | 超时上限（秒，0=不限） |
+| 0x54 | i32 | loop_count | 重复次数（-1=无限） |
+| 0x58 | f64 | delay_ms | 每步限速毫秒 |
+| 0x60 | char[32] | format_name | NUL 填充，最长 31 字符 |
+| 0x80 | char[32] | tool_version | 如 `v1.0.6` |
+| 0xA0..0xFF | bytes | reserved | 保留零填充 |
+
+`dump_inspect.py` 退出码：`0`=头/载荷 CRC、文件长度与记录几何全部一致；`1`=文件可读但 CRC 不符，或文件长度、`record_count×record_size` 与载荷字节数不一致；`2`=非 v2（过短、magic 不符、旧 v1 遗留布局）；`3`=无法打开/解析异常。旧 v1 布局（`0xC0` DPD 倍率位串、`0xE0` 载荷 CRC、`0xE8` 自制 CPU hash）不再被该工具解析，旧样本会被判为不支持而非崩溃。
+
+**裸流模式 `--dump-raw` / `--dump-no-header`（`--dump` 的修饰符，两别名等价）**：省略上述 256 字节头——不预留、不写头、不算 CRC、不做长度对齐；文件从偏移 0 直接追加连续原始位流。流中不写 u128 步数前缀（步数仍只进入终端显示与 `--json`）。记录宽度仍由 `--dump-packed` 决定、字节序仍由 `--dump-endian` 决定。该模式仅单格式；`-m all` 因宽度交织不支持，会关闭并删除输出文件。裸流无 magic、无长度，`dump_inspect.py` 不识别（按退出码 2 判为非 v2），需外部按固定记录宽度或 hexdump 解析。
 
 ## 构建
 

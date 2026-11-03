@@ -128,3 +128,4 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32
 - **资源占用**：Slot 仅 KB 级，内存非瓶颈、CPU 才是；部分平台看门狗对长时间满载敏感。
 - **勿用于生产**：这是压测工具，不是生产负载。
 - **结果准确性**：纯软件整数格式步数与单核一致；出现分歧先查绑核失败或外部干扰。
+- **`--dump` 在 all 模式的行为**：并发 worker 的记录宽度不一且互相交织，故 all 模式不序列化任何记录；即便传了 `--dump`，也只写出 flags bit2=empty 的 256 字节空头部（`payload_bytes=0`、`record_count=0`、`record_size=0`、`reason=0xFF`）。需要逐步二进制记录请改用单格式 `-m <fmt> --dump`。

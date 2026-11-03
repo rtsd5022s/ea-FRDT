@@ -1,7 +1,6 @@
 // float_inf_walk.cpp — Overflow walk: grow from 1.0 step-by-step until overflow to +inf
 #include "common.h"
 #include "formats/formats_all.h"
-#include "dpd128.h"
 #include "runner.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -79,6 +78,11 @@ static std::uint32_t crc32_payload(std::FILE* f, long base, long n) {
     return crc ^ 0xFFFFFFFFu;
 }
 
+// CRC-32/IEEE 802.3 over an in-memory buffer (used for the header itself).
+static std::uint32_t crc32_buffer(const unsigned char* p, std::size_t n) {
+    return crc32_update(0xFFFFFFFFu, p, n) ^ 0xFFFFFFFFu;
+}
+
 static void print_help() {
     if (g_lang == Lang::EN) {
     std::cout <<
@@ -116,6 +120,7 @@ static void print_help() {
 "  --dump <file>      binary serialize every step raw bytes to file\n"
 "  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
 "  --dump-packed      packed mode: tf32=3B not 4B (default natural width)\n"
+"  --dump-raw / --dump-no-header  omit the 256B header; continuous raw bit stream from offset 0 (single format only)\n"
 "  -lang <zh|en>      UI language (default zh)\n"
 "\n"
 "\033[33mConcurrency (-m all):\033[0m\n"
@@ -174,6 +179,7 @@ static void print_help() {
 "  --dump <file>      二进制序列化每步原始字节到文件\n"
 "  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
 "  --dump-packed      紧凑模式：tf32写3字节而非4字节（默认自然宽度）\n"
+"  --dump-raw / --dump-no-header  省略256字节头：从偏移0直接写连续原始位流（仅单格式）\n"
 "  -lang <zh|en>      界面语言（默认 zh）\n"
 "\n"
 "\033[33m并发选项（-m all）:\033[0m\n"
@@ -209,70 +215,75 @@ int main(int argc, char** argv) {
     std::signal(SIGINT, on_sigint);
     std::atexit([](){ if (g_dump_file) {
         std::fflush(g_dump_file);
-        // CRC-32/IEEE over payload (offset 256 .. EOF) before rewriting the header
-        std::uint32_t payload_crc = crc32_payload(g_dump_file, 256, g_dump_bytes_written);
-        // write header at offset 0
+        if (g_dump_raw) { std::fclose(g_dump_file); g_dump_file = nullptr; return; } // raw: no header/CRC; flush and close only
+        long payload_n = g_dump_bytes_written;
+        // payload CRC-32/IEEE over records at offset 256 .. EOF
+        std::uint32_t payload_crc = crc32_payload(g_dump_file, 256, payload_n);
+
+        // ---- v2 fixed 256-byte header, all integers little-endian ----
+        // 0x00 char[8] magic "EAFRDT2\0"
+        // 0x08 u8 schema=2 (fixed 256B header) ; 0x09 reserved
+        // 0x0A u8 payload_endian(0 LE/1 BE) ; 0x0B u8 packed(0 natural/1 tight)
+        // 0x0C u32 flags(bit2=empty) ; 0x10 u32 header_crc32 ; 0x14 u32 payload_crc32
+        // 0x18 u64 payload_bytes ; 0x20 u64 record_count ; 0x28 u32 record_size
+        // 0x2C u8 format_id ;0x2D u8 step_mode ;0x2E u8 start_kind ;0x2F u8 reason(0xFF=unknown)
+        // 0x30 f64 start_value ; 0x38 f64 factor
+        // 0x40 i64 timestamp_unix_s ; 0x48 u64 elapsed_us
+        // 0x50 u32 timeout_sec ;0x54 i32 loop_count ;0x58 f64 delay_ms
+        // 0x60 char[32] format_name ; 0x80 char[32] tool_version ; 0xA0..0xFF reserved zero
         std::rewind(g_dump_file);
-        char hdr[256] = {0};
-        // magic 8 bytes
-        std::memcpy(hdr+0x00, "ea-FRDT", 8);
-        // version_utf8 at 0x08, version_len at 0x88
-        const char* ver = "v1.0.6";
-        std::memcpy(hdr+0x08, ver, std::strlen(ver));
-        hdr[0x88] = (char)std::strlen(ver);
-        // timestamp at 0x90
-        std::uint64_t ts = (std::uint64_t)std::time(nullptr);
-        std::memcpy(hdr+0x90, &ts, 8);
-        // format_id at 0x98
-        hdr[0x98] = (char)g_dump_format_id;
-        // endianness at 0x99
-        hdr[0x99] = (char)g_dump_endian;
-        // payload_align at 0x9A = 16
-        hdr[0x9A] = 16;
-        // total_steps at 0xA0 (16 bytes = UInt128, little-endian)
-        std::uint64_t total_steps = (std::uint64_t)(g_dump_bytes_written / g_dump_record_size);
-        std::memcpy(hdr+0xA0, &total_steps, 8);
-        // header_size at 0xB0 = 256
-        std::uint64_t hsize = 256;
-        std::memcpy(hdr+0xB0, &hsize, 8);
-        // record_size at 0xD0 (16 bytes)
-        std::uint64_t rsize = g_dump_record_size;
-        std::memcpy(hdr+0xD0, &rsize, 8);
-        // step_interval at 0xC0 (DPD128, 16 bytes)
+        unsigned char hdr[256] = {0};
+        std::memcpy(hdr+0x00, "EAFRDT2", 7);
+        hdr[0x08] = 2;  // schema v2: fixed 256-byte header; 0x09 reserved zero
+        hdr[0x0A] = (unsigned char)g_dump_endian;
+        hdr[0x0B] = (unsigned char)g_dump_packed;
         {
-            char fbuf[32];
-            std::snprintf(fbuf, sizeof(fbuf), "%.15g", g_dump_factor);
-            auto di = fw::DPD128::from_string(fbuf);
-            std::memcpy(hdr+0xC0, di.data(), 16);
+            std::uint32_t flags = (payload_n == 0) ? 0x4u : 0u;  // bit2: empty (no records)
+            std::memcpy(hdr+0x0C, &flags, 4);
         }
-        // crc32 at 0xE0: CRC-32/IEEE over payload (offset 256..EOF), little-endian
-        std::memcpy(hdr+0xE0, &payload_crc, 4);
-        // flags at 0xE4 (0 = no compression)
-        std::uint32_t flags = 0;
-        std::memcpy(hdr+0xE4, &flags, 4);
-        // cpu_brand_hash at 0xE8 (16 bytes)
+        std::memcpy(hdr+0x14, &payload_crc, 4);
+        std::uint64_t payload_bytes = (std::uint64_t)payload_n;
+        std::memcpy(hdr+0x18, &payload_bytes, 8);
+        std::uint32_t rsize = (std::uint32_t)g_dump_record_size;
+        std::uint64_t record_count = (rsize > 0) ? (std::uint64_t)(payload_n / (long)rsize) : 0ull;
+        std::memcpy(hdr+0x20, &record_count, 8);
+        std::memcpy(hdr+0x28, &rsize, 4);
+        hdr[0x2C] = (unsigned char)g_dump_format_id;
+        hdr[0x2D] = (unsigned char)g_dump_step_mode;
+        hdr[0x2E] = (unsigned char)g_dump_start_kind;
+        hdr[0x2F] = (payload_n > 0) ? (unsigned char)g_result.reason : (unsigned char)0xFF;
         {
-            int cpuinfo[4] = {0};
-#ifdef _WIN32
-            __cpuid(cpuinfo, 0);
-#elif defined(__GNUC__) || defined(__clang__)
-            __get_cpuid(0u, (unsigned*)&cpuinfo[0], (unsigned*)&cpuinfo[1],
-                        (unsigned*)&cpuinfo[2], (unsigned*)&cpuinfo[3]);
-#endif
-            char brand[13] = {0};
-            std::memcpy(brand, &cpuinfo[1], 4);
-            std::memcpy(brand+4, &cpuinfo[3], 4);
-            std::memcpy(brand+8, &cpuinfo[2], 4);
-            // simple hash of brand string -> 16 bytes
-            std::uint8_t chash[16] = {0};
-            for (int i = 0; i < 12; ++i) chash[i] = (std::uint8_t)(brand[i] * 31 + i);
-            std::memcpy(hdr+0xE8, chash, 16);
+            double sv = g_dump_start_value;
+            double fac = g_dump_factor;
+            std::memcpy(hdr+0x30, &sv, 8);
+            std::memcpy(hdr+0x38, &fac, 8);
+            std::int64_t ts = (std::int64_t)std::time(nullptr);
+            std::memcpy(hdr+0x40, &ts, 8);
+            std::uint64_t elapsed_us = (std::uint64_t)(g_result.elapsed_ms * 1000.0);
+            std::memcpy(hdr+0x48, &elapsed_us, 8);
+            std::uint32_t timeout_s = (std::uint32_t)g_timeout_sec.load();
+            std::memcpy(hdr+0x50, &timeout_s, 4);
+            std::int32_t loop = g_json_loop;
+            std::memcpy(hdr+0x54, &loop, 4);
+            double delay_ms = g_json_delay_ms;
+            std::memcpy(hdr+0x58, &delay_ms, 8);
         }
-        // reserved3 at 0xF8 = 0 (already zeroed)
+        {
+            std::memset(hdr+0x60, 0, 32);
+            std::size_t nc = g_fmt_name.size() < 31 ? g_fmt_name.size() : 31;
+            std::memcpy(hdr+0x60, g_fmt_name.data(), nc);
+            const char* ver = "v1.0.6";
+            std::memset(hdr+0x80, 0, 32);
+            std::memcpy(hdr+0x80, ver, std::strlen(ver));
+        }
+        // header CRC32 over the 256 bytes with the header_crc slot (0x10..0x13) kept zeroed
+        std::uint32_t header_crc = crc32_buffer(hdr, 256);
+        std::memcpy(hdr+0x10, &header_crc, 4);
+
         std::fwrite(hdr, 1, 256, g_dump_file);
         std::fflush(g_dump_file);
 #ifdef _WIN32
-        _chsize(_fileno(g_dump_file), 256 + g_dump_bytes_written);
+        _chsize(_fileno(g_dump_file), 256 + payload_n);
 #endif
         std::fclose(g_dump_file); g_dump_file = nullptr; } });
     std::atexit([](){
@@ -460,9 +471,11 @@ int main(int argc, char** argv) {
         if (a == "--json") { g_json = true; quiet = true; continue; }
         if (a == "--dump") {
             if (i + 1 >= argc) { std::cerr << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
-            g_dump_file = std::fopen(argv[++i], "wb+"); // wb+: truncate/write, but re-readable for payload CRC at exit
+            g_dump_path = argv[++i];
+            g_dump_file = std::fopen(g_dump_path, "wb+"); // wb+: truncate/write, but re-readable for payload CRC at exit
             if (!g_dump_file) { std::cerr << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
-            std::fseek(g_dump_file, 256, SEEK_SET);  // reserve header space
+            // header-space reserve (if any) is applied after parsing, once g_dump_raw is finalized
+            g_dump_records_enabled = true;            // single-format path writes records
             quiet = true;
             continue;
         }
@@ -475,6 +488,7 @@ int main(int argc, char** argv) {
             continue;
         }
         if (a == "--dump-packed") { g_dump_packed = 1; continue; }
+        if (a == "--dump-raw" || a == "--dump-no-header") { g_dump_raw = true; continue; }
         if (a == "-lang" || a == "--lang" || a == "--language") {
             if (i + 1 >= argc) { std::cerr << "usage: -lang zh|en\n"; return 2; }
             std::string l = argv[++i];
@@ -510,6 +524,10 @@ int main(int argc, char** argv) {
     g_json_digits = digits;
     g_json_delay_ms = delay_ms;
     g_json_loop = loop_count;
+    // v2 dump header metadata
+    g_dump_step_mode = (int)step_mode;
+    g_dump_start_kind = (int)start_kind;
+    g_dump_start_value = std::isnan(start_val) ? 1.0 : start_val;
 
     // Collect all warnings for unified confirmation
     // level: 0=[?] blue info, 1=[!] yellow warn, 2=[!!!] red critical
@@ -543,6 +561,20 @@ int main(int argc, char** argv) {
     }
     if (mode == "all") {
         if (!confirm_warnings(warns)) return 0;
+        if (g_dump_file) {
+            g_dump_records_enabled = false; // mixed-width concurrent workers would interleave incompatible record sizes
+            if (g_dump_raw) {
+                // raw stream has no header to fall back on; discard the empty file rather than leave a zero-byte stub
+                std::fclose(g_dump_file); g_dump_file = nullptr;
+                std::remove(g_dump_path);
+                std::cerr << tr("提示：-m all 为并发多格式模式，不支持 --dump-raw/--dump-no-header 裸流（记录宽度交织），已放弃该输出文件。\n",
+                                "note: -m all is concurrent multi-format; --dump-raw/--dump-no-header stream is unsupported (mixed record widths); the output file was discarded.\n");
+            } else {
+                // v2 mode: keep the file as an empty header stub (flags bit2=empty, payload_bytes=0)
+                std::cerr << tr("提示：-m all 为并发多格式模式，--dump 不序列化记录（避免不同记录宽度交织），仅写出空头部。\n",
+                                "note: -m all is concurrent multi-format; --dump records are not serialized (mixed record widths); only an empty header stub is written.\n");
+            }
+        }
         if (!refresh_explicit) refresh_ms = 1000;
         int hw = (int)std::thread::hardware_concurrency();
         auto jobs_list = parse_jobs(jobs_spec, hw);
@@ -551,6 +583,7 @@ int main(int argc, char** argv) {
     }
     // dump metadata: format_id and record_size
     if (g_dump_file) {
+        if (!g_dump_raw) std::fseek(g_dump_file, 256, SEEK_SET); // reserve v2 header space; raw stream starts at offset 0
         if (mode=="fp4")       { g_dump_format_id=0;  g_dump_record_size=1; }
         else if (mode=="fp6") { g_dump_format_id=1;  g_dump_record_size=1; }
         else if (mode=="fp8"||mode=="fp8-e4m3") { g_dump_format_id=2; g_dump_record_size=1; }

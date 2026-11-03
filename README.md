@@ -125,7 +125,7 @@ GitHub Actions (`.github/workflows/ci.yml`) builds on Ubuntu with both GCC and C
 ./float_inf_walk 0 -m fp32 --bits hex
 ./float_inf_walk 0 -m fp4 --bits bin
 
-# serialize every step's raw bytes; 256-byte header + payload, payload CRC-32 at 0xE0
+# serialize every step's raw bytes (single format); 256-byte schema v2 header (header+payload dual CRC-32, explicit length/geometry) + payload
 ./float_inf_walk 0 -m f64 --dump walk.bin
 
 # default 13-format chain concurrently; -j uses 0-based core ids, e.g. cores 0..3
@@ -185,9 +185,9 @@ Formats are walked in this order in `-m all`:
 | `--bits hex` / `bin` / `off` (`--showbits`) | Append the raw bit representation after the value: `hex`, `bin` (sign/exponent/coefficient grouped by spaces), or `off` (default). |
 | `-q` / `--quiet` | Quiet: suppress the live per-step monitor and the engine's live/finish lines for every single format; results are still captured in `RunResult`. `--json` and `--dump` imply quiet. |
 | `--json` | Machine-readable JSON output. No ANSI colors, no progress. One JSON object per run (format, steps, elapsed, steps/sec, reason, final value, params, system info, timestamp), suitable for benchmark scripts. |
-| `--dump <file>` | Binary-serialize every step's raw bytes. Writes a fixed 256-byte header followed by the payload; the payload (offset 256..EOF) carries an IEEE 802.3 CRC-32 stored little-endian at `0xE0`, recomputable offline with `dump_inspect.py`. |
-| `--dump-endian little\|big` | Byte order for `--dump` records: `little`/`le`/`cpu` (default, x86 native) or `big`/`be`. |
-| `--dump-packed` | Compact record width (e.g. tf32 = 3 B instead of 4 B); default is natural width. |
+| `--dump <file>` | Single-format mode only: binary-serialize every step's raw bytes into a fixed 256-byte schema v2 header (`0x10` header CRC-32, `0x14` payload CRC-32, `0x18` payload bytes, `0x20` record count, `0x28` record size) followed by records at `256..EOF`; `dump_inspect.py` recomputes both CRCs and the count×size=payload geometry. `-m all` emits only a flags bit2=empty stub and writes no records. |
+| `--dump-endian little\|big` | Byte order for `--dump` records: `little`/`le`/`cpu` (default, x86 native, stored at `0x0A`) or `big`/`be`; single-format only. |
+| `--dump-packed` | Compact record width (e.g. tf32 = 3 B instead of 4 B); default natural width; single-format only, width stored at `0x28`. |
 | `--lang zh` / `en` | UI language. Default `zh`; `--lang en` for English. |
 
 ### Concurrency and control
@@ -255,7 +255,7 @@ include/
   platform.h          OS abstraction: thread affinity, timer, core count
   uint128.h           hand-rolled UInt128 derived from UInt256
   uint256.h           hand-rolled 256-bit big integer, schoolbook mul128, div10
-  dpd128.h            minimal DPD128 encoder for the dump header 0xC0 step_interval field
+  dpd128.h            early minimal DPD encoder header; unused by the v2 writer (kept on disk); the DPD128 engine lives in formats/dpd128.h
   formats/
     formats_all.h     aggregates the 17 format headers
     engine_sim.h      parameterized bit-level engine (fp4/fp6/fp8/bf16/tf32)
@@ -270,11 +270,11 @@ include/
     dpd32.h dpd64.h dpd128.h
     x87.h fp128.h
 src/
-  float_inf_walk.cpp  main(), argv parsing, single-mode dispatch, 256-byte dump header + payload CRC-32
+  float_inf_walk.cpp  main(), argv parsing, single-mode dispatch, schema v2 dump header (header+payload dual CRC-32, explicit length/geometry)
   drive.cpp           reason_name() and other non-template definitions
   lang.cpp format_util.cpp platform.cpp
 libeafrdt/            standalone C-ABI static library (no IO, threads, or globals)
-dump_inspect.py       interprets the 256-byte dump header and recomputes the payload CRC-32
+dump_inspect.py       schema v2 validator: header+payload dual CRC-32, size/record-geometry checks, exit codes, legacy tolerance
 ```
 
 Key design choices:

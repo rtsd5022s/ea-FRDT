@@ -78,7 +78,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             if (quiet) { quiet->steps = step; quiet->reason = RunResult::SAFETY; }
             break;
         }
-        if (g_dump_file) {
+        if (g_dump_file && g_dump_records_enabled) {
             if (dump_cb) {
                 dump_cb(s);
             } else {

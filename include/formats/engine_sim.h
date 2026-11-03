@@ -176,6 +176,7 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
         if (g_dump_endian == 0) {
             for (int i = 0; i < rec_bytes/2; ++i) std::swap(buf[i], buf[rec_bytes-1-i]);
         }
+        g_dump_record_size = rec_bytes;  // authoritative width only when records are actually written
         std::fwrite(buf, 1, rec_bytes, g_dump_file);
         g_dump_bytes_written += rec_bytes;
     };

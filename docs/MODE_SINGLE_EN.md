@@ -50,7 +50,7 @@ The first positional argument is `delay_ms` (per-step throttle, `0` = no throttl
 
 **`--json`**: one machine-readable object (format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp).
 
-**`--dump <file>`**: 256-byte header + records; payload CRC-32 at `0xE0`; see `dump_inspect.py`.
+**`--dump <file>`**: single-format mode only. Fixed 256-byte schema v2 header (header CRC-32 + payload CRC-32 + explicit payload length/record geometry/run snapshot) followed by per-step records; verify both CRCs and length with `python dump_inspect.py <file>`. `-m all` runs concurrent mixed-width workers and does not serialize records; it emits only a flags bit2=empty stub. Full offset table: the dump section in `IMPLEMENTATION_EN.md`. `--dump-packed`/`--dump-endian` control record width and byte order.
 
 **`--lang zh|en`**: UI language; default `zh`.
 

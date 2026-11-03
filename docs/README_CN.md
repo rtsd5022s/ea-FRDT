@@ -94,7 +94,7 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 ./float_inf_walk 0 -m fp32 --bits hex
 ./float_inf_walk 0 -m fp4 --bits bin
 
-# 每步原始字节落盘：256 字节头 + 载荷，载荷 CRC-32 写在 0xE0
+# 单格式每步原始字节落盘：256 字节 schema v2 头（头+载荷双 CRC-32、显式长度/记录几何）+ 载荷
 ./float_inf_walk 0 -m f64 --dump walk.bin
 
 # 默认链并发运行；-j 使用 0 起编的逻辑核号，本例绑 0~3 号核
@@ -149,9 +149,10 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 | `--bits hex`/`bin`/`off`（`--showbits`） | 括号内追加位表示；`bin` 按 sign/exponent/coefficient 空格分组；默认 `off`。 |
 | `-q` / `--quiet` | 抑制各单格式引擎的实时行与结束行，结果仍写入 `RunResult`；`--json`/`--dump` 隐式静默。 |
 | `--json` | 每次运行输出一个机器可读 JSON；无 ANSI、无进度。 |
-| `--dump <file>` | 256 字节头 + 载荷；载荷（offset `256..EOF`）按 IEEE 802.3 计算 CRC-32、小端写在 `0xE0`，可用 `dump_inspect.py` 独立对账。 |
-| `--dump-endian little`/`big` | 记录字节序；`little` 默认。 |
-| `--dump-packed` | 紧凑记录宽度（如 tf32=3 B）；默认自然宽度。 |
+| `--dump <file>` | 仅单格式模式：256 字节 schema v2 头（`0x10` 头 CRC-32、`0x14` 载荷 CRC-32、`0x18` 载荷长度、`0x20` 记录数、`0x28` 记录宽度）+ offset `256..EOF` 记录；`dump_inspect.py` 复算双 CRC 与 `记录数×宽度=载荷字节数` 几何。`-m all` 仅产出 flags bit2=empty 空头部、不写记录。 |
+| `--dump-endian little`/`big` | 记录字节序；`little` 默认；仅单格式 `--dump`，值写 `0x0A`。 |
+| `--dump-packed` | 紧凑记录宽度（如 tf32=3 B）；默认自然宽度；仅单格式 `--dump`，宽度写 `0x28`。 |
+| `--dump-raw` / `--dump-no-header` | `--dump` 裸流修饰（两别名等价）：省略 256B 头、偏移 0 直接写连续位流（无 u128 步数前缀、无 CRC/长度头）；仅单格式，宽度沿用 packed、字节序沿用 endian；`-m all` 不支持、放弃文件；无 magic，`dump_inspect.py` 不校验。 |
 | `--lang zh`/`en` | 界面语言；默认 `zh`。 |
 
 ### 并发与控制
@@ -189,7 +190,7 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 include/
   base_types.h common.h lang.h color.h format_util.*
   drive.h runner.h platform.h uint128.h uint256.h
-  dpd128.h                dump 头 0xC0 step_interval 用的极简 DPD128 编码器
+  dpd128.h                早期极简 DPD 编码器头；v2 写头已不再引用（保留未删），DPD128 引擎在 formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
@@ -197,10 +198,10 @@ include/
     fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
     dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   （17 个格式头）
 src/
-  float_inf_walk.cpp      main、argv 解析、单格式分发、256 字节 dump 头 + 载荷 CRC-32
+  float_inf_walk.cpp      main、argv 解析、单格式分发、schema v2 dump 头（头+载荷双 CRC-32、显式长度/记录几何）
   drive.cpp lang.cpp format_util.cpp platform.cpp
 libeafrdt/                独立 C ABI 静态库（无 IO/线程/全局量）
-dump_inspect.py           256 字节头解释器 + 载荷 CRC-32 重算对账
+dump_inspect.py           schema v2 校验器：头/载荷双 CRC-32、长度与记录几何对账，带退出码与旧版容错
 ```
 
 关键设计：热路径走 `enum` switch 分发（无 `std::function`）；每 worker 值拷贝 `RunParams` 与格式链；`alignas(64)` 的 `WorkerSlot` 消除伪共享；`SetThreadAffinityMask`/`pthread_setaffinity_np` 绑核、失败则降级不绑；不依赖 `long double`/`__float128`/libquadmath；DPD 系数存 `std::vector<int>` 十进制数字，启动执行真实 pack→unpack 往返自检。
