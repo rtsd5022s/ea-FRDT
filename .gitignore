@@ -24,6 +24,12 @@ test_all.ps1
 prot.json
 notes.txt
 
+# 调试运行日志快照（终端输出，不入库；本地文件可保留在磁盘）
+t1.txt
+
+# 测试目录：仅提交脚本，样本 bin 与临时构建产物不入库
+tests/tmp/
+
 # 备份目录
 backup/
 
