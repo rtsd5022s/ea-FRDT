@@ -17,13 +17,19 @@ using namespace fw;
 
 // Unified warning confirmation: collect all warnings, show once, press y to continue
 // level: 0=info([?] blue), 1=warn([!] yellow), 2=critical([!!!] red)
+static void print_warnings(const std::vector<std::pair<int,std::string>>& warns, std::ostream& os) {
+    for (auto& [lvl, msg] : warns) {
+        if (lvl == 0)      os << clr::BLU << "[?] " << msg << "\n" << clr::RST;
+        else if (lvl == 2) os << clr::RED << "[!!!] " << msg << "\n" << clr::RST;
+        else               os << clr::YEL << "[!] " << msg << "\n" << clr::RST;
+    }
+}
+
 static bool confirm_warnings(std::vector<std::pair<int,std::string>>& warns) {
     if (warns.empty()) return true;
-    for (auto& [lvl, msg] : warns) {
-        if (lvl == 0)      std::cout << clr::BLU << "[?] " << msg << "\n" << clr::RST;
-        else if (lvl == 2) std::cout << clr::RED << "[!!!] " << msg << "\n" << clr::RST;
-        else               std::cout << clr::YEL << "[!] " << msg << "\n" << clr::RST;
-    }
+    // Diagnostic warnings go to stderr so a machine-readable stdout (--json) stays pure JSON.
+    if (g_assume_yes) { print_warnings(warns, std::cerr); return true; }
+    print_warnings(warns, std::cerr);
     std::cout << clr::YEL << tr("    按 y 继续，10 秒内未操作自动取消... ", "    Press y to continue, auto-cancel in 10s... ") << clr::RST << std::flush;
     bool confirmed = false;
 #ifdef _WIN32
@@ -119,7 +125,7 @@ static void print_help() {
 "  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
 "  --dump <file>      binary serialize every step raw bytes to file\n"
 "  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
-"  --dump-packed      packed mode: tf32=3B not 4B (default natural width)\n"
+"  --dump-packed      request tight records; flag set only when width actually shrinks (e.g. tf32 3B<4B)\n"
 "  --dump-raw / --dump-no-header  omit the 256B header; continuous raw bit stream from offset 0 (single format only)\n"
 "  -lang <zh|en>      UI language (default zh)\n"
 "\n"
@@ -130,7 +136,8 @@ static void print_help() {
 "\n"
 "\033[33mControl:\033[0m\n"
 "  -t, --timeout <s>  timeout seconds, 0=until inf/underflow (default)\n"
-"  -l, --loop <n>     loops: -1=infinite, 1=off(default), >1=N times\n"
+"  -l, --loop <n>     loops (-m all only): -1=infinite, 1=off(default), >1=N times\n"
+"  -y, --yes          skip interactive critical-warning confirmation (non-interactive/CI)\n"
 "  -s, --subnormal    start from min subnormal (mutually exclusive with -a)\n"
 "\n"
 "\033[33mExamples:\033[0m\n"
@@ -178,7 +185,7 @@ static void print_help() {
 "  --json             机器可读 JSON 输出（无 ANSI，供评测脚本采集）\n"
 "  --dump <file>      二进制序列化每步原始字节到文件\n"
 "  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
-"  --dump-packed      紧凑模式：tf32写3字节而非4字节（默认自然宽度）\n"
+"  --dump-packed      请求紧凑记录；仅在实际缩宽时置位（如 tf32 写3字节<4字节，整字宽格式不缩减）\n"
 "  --dump-raw / --dump-no-header  省略256字节头：从偏移0直接写连续原始位流（仅单格式）\n"
 "  -lang <zh|en>      界面语言（默认 zh）\n"
 "\n"
@@ -189,7 +196,8 @@ static void print_help() {
 "\n"
 "\033[33m控制选项:\033[0m\n"
 "  -t, --timeout <s>  超时停止(秒)，0=直到inf/下溢(默认)\n"
-"  -l, --loop <n>     循环次数：-1=无限，1=关闭(默认)，>1=N次\n"
+"  -l, --loop <n>     循环次数（仅 -m all 有效）：-1=无限，1=关闭(默认)，>1=N次\n"
+"  -y, --yes          跳过 critical 警告交互确认（非交互/CI 用）\n"
 "  -s, --subnormal    从最小非规格化数开始（与 -a 互斥）\n"
 "\n"
 "\033[33m示例:\033[0m\n"
@@ -236,7 +244,7 @@ int main(int argc, char** argv) {
         std::memcpy(hdr+0x00, "EAFRDT2", 7);
         hdr[0x08] = 2;  // schema v2: fixed 256-byte header; 0x09 reserved zero
         hdr[0x0A] = (unsigned char)g_dump_endian;
-        hdr[0x0B] = (unsigned char)g_dump_packed;
+        hdr[0x0B] = (unsigned char)g_dump_packed_active;
         {
             std::uint32_t flags = (payload_n == 0) ? 0x4u : 0u;  // bit2: empty (no records)
             std::memcpy(hdr+0x0C, &flags, 4);
@@ -467,6 +475,7 @@ int main(int argc, char** argv) {
             else { std::cerr << tr("错误：未知步进 '", "error: unknown step '") << sanitize(s) << tr("'\n", "'\n"); return 2; }
             continue;
         }
+        if (a == "-y" || a == "--yes") { g_assume_yes = true; continue; }
         if (a == "-q" || a == "--quiet") { quiet = true; continue; }
         if (a == "--json") { g_json = true; quiet = true; continue; }
         if (a == "--dump") {
@@ -515,6 +524,21 @@ int main(int argc, char** argv) {
     if (factor == 0.0) { std::cerr << tr("错误：倍率不能为 0\n", "error: factor cannot be 0\n"); return 2; }
     if (factor < 0.0) { std::cerr << tr("错误：倍率必须为正数\n", "error: factor must be positive\n"); return 2; }
     if (!std::isfinite(factor)) { std::cerr << tr("错误：倍率必须为有限正数\n", "error: factor must be finite positive\n"); return 2; }
+
+    // Mode-compatibility guards: --loop / --only / --jobs are consumed only by -m all.
+    // Reject them early in single mode instead of silently ignoring (or misreporting) them.
+    if (mode != "all" && loop_count != 1) {
+        g_json = false; // suppress the atexit single-format JSON shell for an early rejection
+        std::cerr << tr("错误：--loop/-l 仅在 -m all 并发模式有效；单格式请移除 -l\n",
+                        "error: --loop/-l applies only to -m all; remove -l for a single format\n");
+        return 2;
+    }
+    if (mode != "all" && (!only_csv.empty() || !jobs_spec.empty())) {
+        g_json = false; // suppress the atexit single-format JSON shell for an early rejection
+        std::cerr << tr("错误：--only 与 --jobs/-j 仅在 -m all 并发模式有效；单格式请移除\n",
+                        "error: --only and --jobs/-j apply only to -m all; remove them for a single format\n");
+        return 2;
+    }
     if (!std::isnan(start_val) && !std::isfinite(start_val)) { std::cerr << tr("错误：起点必须为有限数值\n", "error: start must be a finite number\n"); return 2; }
 
     g_json_factor = factor;
@@ -523,7 +547,7 @@ int main(int argc, char** argv) {
     g_json_step_mode = (int)step_mode;
     g_json_digits = digits;
     g_json_delay_ms = delay_ms;
-    g_json_loop = loop_count;
+    g_json_loop = (mode == "all") ? loop_count : 1; // loop executes only in -m all; single format reports honest 1
     // v2 dump header metadata
     g_dump_step_mode = (int)step_mode;
     g_dump_start_kind = (int)start_kind;
@@ -560,7 +584,7 @@ int main(int argc, char** argv) {
                                "dec128 each step uses UInt256 schoolbook big-integer multiply, performance drops 2-3x vs DPD128.")});
     }
     if (mode == "all") {
-        if (!confirm_warnings(warns)) return 0;
+        if (!confirm_warnings(warns)) return 1; // non-zero: a cancelled run must not look like success in CI
         if (g_dump_file) {
             g_dump_records_enabled = false; // mixed-width concurrent workers would interleave incompatible record sizes
             if (g_dump_raw) {
@@ -581,6 +605,9 @@ int main(int argc, char** argv) {
         run_all(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, jobs_list, only_csv, refresh_ms, loop_count, quiet);
         return 0;
     }
+    // Single-format path: surface collected warnings (e.g. DPD/dec128 slow engine) to stderr
+    // without the interactive confirmation gate used by -m all.
+    if (mode != "all" && !warns.empty()) print_warnings(warns, std::cerr);
     // dump metadata: format_id and record_size
     if (g_dump_file) {
         if (!g_dump_raw) std::fseek(g_dump_file, 256, SEEK_SET); // reserve v2 header space; raw stream starts at offset 0

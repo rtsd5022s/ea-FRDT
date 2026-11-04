@@ -134,7 +134,8 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
                     + "  (" + std::to_string((int)elapsed_ms) + " ms)");
     }
     if (quiet) {
-        slow_update();
+        // Do NOT call slow_update() here: it re-renders s and would overwrite the terminal value set
+        // by the exit branch (e.g. UNDERFLOW -> "0"). Only refresh elapsed/counters below.
         auto t1 = std::chrono::steady_clock::now();
         quiet->elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         quiet->cur_steps = step;

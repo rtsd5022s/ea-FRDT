@@ -48,7 +48,9 @@ inline int g_json_loop = 1;
 inline std::FILE* g_dump_file = nullptr;
 inline bool g_dump_records_enabled = false; // record writes on; disabled for -m all (mixed-width concurrent)
 inline int g_dump_endian = 0; // 0=little (native x86), 1=big
-inline int g_dump_packed = 0; // 0=natural width (default), 1=packed tight (tf32=3B not 4B)
+inline int g_dump_packed = 0; // 0=natural width (default), 1=request packed tight
+inline int g_dump_packed_active = 0; // 1 only when packed actually shrinks a record (e.g. tf32 3B<4B); else 0
+inline bool g_assume_yes = false; // --yes/-y: skip interactive critical-warning confirmation (non-interactive/CI)
 inline bool g_dump_raw = false; // 1=omit 256B header; continuous raw bit stream from offset 0 (single format only)
 inline const char* g_dump_path = nullptr; // open path; discarded when -m all rejects raw
 inline long g_dump_bytes_written = 0;

@@ -51,6 +51,13 @@ std::string format_value(double v, DispFmt fmt, int digits) {
             int e = (int)std::floor(std::log10(std::fabs(v)));
             int e3 = (int)std::floor(e / 3.0) * 3;
             double m = v / std::pow(10.0, e3);
+            if (!std::isfinite(m)) {
+                // 10^e3 underflows to 0 in double for extremely small magnitudes (e.g. f64 denorm),
+                // making m=inf; fall back to SCI so the value never renders as a broken "infe-324".
+                if (digits == -1) std::snprintf(buf, sizeof buf, "%.17e", v);
+                else { std::snprintf(spec, sizeof spec, "%%.%de", digits); std::snprintf(buf, sizeof buf, spec, v); }
+                break;
+            }
             if (digits == -1) std::snprintf(buf, sizeof buf, "%ge%d", m, e3);
             else { std::snprintf(spec, sizeof spec, "%%.%dfe%%d", digits); std::snprintf(buf, sizeof buf, spec, m, e3); }
             break;

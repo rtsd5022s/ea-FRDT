@@ -142,17 +142,20 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
     }
     // dump callback: write bit-pattern bytes
     int total_bits = 1 + f.E + f.M;
+    int b = (total_bits + 7) / 8;
+    int nat_bytes;
+    if (b <= 1) nat_bytes = 1;
+    else if (b <= 2) nat_bytes = 2;
+    else if (b <= 4) nat_bytes = 4;
+    else if (b <= 8) nat_bytes = 8;
+    else nat_bytes = 16;
     int rec_bytes;
     if (g_dump_packed) {
         rec_bytes = (total_bits + 7) / 8;  // tight packed
+        g_dump_packed_active = (rec_bytes < nat_bytes) ? 1 : 0;
     } else {
-        // natural width: pad up to 1/2/4/8/16
-        int b = (total_bits + 7) / 8;
-        if (b <= 1) rec_bytes = 1;
-        else if (b <= 2) rec_bytes = 2;
-        else if (b <= 4) rec_bytes = 4;
-        else if (b <= 8) rec_bytes = 8;
-        else rec_bytes = 16;
+        rec_bytes = nat_bytes;
+        g_dump_packed_active = 0;
     }
     auto sim_dump = [&f, rec_bytes](const SVal& v) {
         std::string b;
