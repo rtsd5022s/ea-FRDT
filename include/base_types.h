@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace fw {
 
@@ -25,7 +26,7 @@ inline std::string to_string_u128(u128 v) {
 
 struct RunResult {
     u128 steps = 0;
-    enum Reason { OVERFLOW, UNDERFLOW, IDENTITY, SAFETY, TIMEOUT, NOT_A_NUMBER } reason = OVERFLOW;
+    enum Reason { OVERFLOW, UNDERFLOW, IDENTITY, SAFETY, TIMEOUT, NOT_A_NUMBER, FIXED_STEPS } reason = OVERFLOW;
     double elapsed_ms = 0;
     std::string cur_value;
     u128 cur_steps = 0;
@@ -45,6 +46,21 @@ inline int g_json_digits = 6;
 inline double g_json_delay_ms = 0;
 inline int g_json_loop = 1;
 #include <cstdio>
+inline std::string g_compare_path;   // --compare <baseline.json>: deterministic steps/reason anchor (A1)
+inline std::string g_compare_key;     // format token used to locate the anchor record
+inline u128 g_fixed_steps = 0;        // --steps N: stop after exactly N steps (0=disabled, natural termination)
+inline int  g_pin_core = -1;          // --pin <core>: single-format optional affinity opt-in (-1=unset)
+inline bool g_boost_enabled = false;  // --boost: single-format optional priority raise opt-in
+inline std::FILE* g_events_file = nullptr; // --dump-events <file>: JSONL start/exit event trace (single format)
+inline std::atomic<int> g_max_seconds{0};  // --max-seconds <s>: hard wall-clock cap (0=off); fires TIMEOUT, independent of -t
+inline bool g_iron_preset = false;         // --preset iron / --iron: boost-on + safety cap; never auto-pins, single format only
+// W3-B5: --sample-window <ms> throughput distribution over wall-clock segments (0=off; quiet/JSON path only).
+inline long long g_sample_window_ms = 0;
+inline std::vector<double> g_rate_segments;
+inline double g_seg_prev_ms = 0.0;
+inline u128   g_seg_prev_steps = 0;
+inline double g_rate_min = 0.0, g_rate_avg = 0.0, g_rate_p95 = 0.0, g_rate_max = 0.0;
+inline int    g_rate_n = 0;
 inline std::FILE* g_dump_file = nullptr;
 inline bool g_dump_records_enabled = false; // record writes on; disabled for -m all (mixed-width concurrent)
 inline int g_dump_endian = 0; // 0=little (native x86), 1=big

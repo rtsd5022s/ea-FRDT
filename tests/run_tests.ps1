@@ -104,5 +104,15 @@ if ($e1 -ne 0 -or $e2 -ne 0) {
     Write-Host ("FAILED endian={0} raw={1}" -f $e1, $e2)
     exit 1
 }
+
+# 6) CLI behavioral contract: exit-code guards, pure JSON stream, warning routing,
+#    underflow terminal value and the packed active header bit (0x0B).
+& (Join-Path $tests 'verify_cli_contract.ps1') -Exe $exe -TmpDir $tmp
+$e3 = $LASTEXITCODE
+if ($e3 -ne 0) {
+    Write-Host ("FAILED contract={0}" -f $e3)
+    exit 1
+}
+
 Write-Host "ALL TESTS PASSED"
 exit 0

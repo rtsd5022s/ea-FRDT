@@ -3,10 +3,13 @@
 
 namespace fw {
 
+// Prints the Ctrl+C notice only; process exit and resource teardown (timer period,
+// boosted priority/affinity) are performed by the SIGINT handler in main, which calls
+// fw::plat::teardown_on_exit() before terminating. Kept out of _Exit here so the
+// signal path can release scheduler resources rather than bypassing cleanup.
 void on_sigint(int) {
     std::cerr << "\r\033[2K"
               << tr("程序提前退出（收到 Ctrl+C）\n", "Interrupted (Ctrl+C)\n");
-    std::_Exit(130);
 }
 
 const char* step_name(StepMode sm) {
@@ -39,6 +42,7 @@ const char* reason_name(RunResult::Reason r) {
         case RunResult::SAFETY: return "safety->limit";
         case RunResult::TIMEOUT: return "timeout";
         case RunResult::NOT_A_NUMBER: return "nan->nan";
+        case RunResult::FIXED_STEPS: return "fixed-steps";
     }
     return "?";
 }

@@ -25,6 +25,7 @@ pwsh tests/run_format_matrix.ps1
 | `run_format_matrix.ps1` | 全 17 格式算术步进矩阵：逐格式单格式静默 `--json`、不限速自然终止，断言格式被识别、步数 >0、退出原因与确定性步数精确匹配；覆盖 native / bit-sim / extended / BID / DPD 五类引擎 | 0 全绿 / 1 失败 |
 | `verify_endian.py` | 字节序/宽度几何对拍：LE/BE 互逆、1B 不翻转、模数对齐、无头 magic、首记录位恒等 | 0 无 FAIL / 1 有 FAIL |
 | `verify_raw.py` | 裸流行为：`--dump-raw` 与 `--dump-no-header` 字节等价、无 magic、packed 3B 模数、`-m all` 删除空文件、普通 all 留 256B 空壳，并复用 `dump_inspect.py` 校验 v2/all_v2 | 0 无 FAIL / 1 有 FAIL |
+| `verify_cli_contract.ps1` | CLI 行为契约（A–L 组共 76 项）：退出码守卫、纯 JSON 流、警告路由、underflow 终止值、`0x0B` packed 位、help 漂移守卫，以及 W2 opt-in（`--self-test`/`--steps`/`--pin`/`--dump-events`）与 W3 opt-in（`--max-seconds`/`--preset iron`/`--pairwise`/`--sample-window`/`--probe boundaries`）；由 `run_tests.ps1` 第 6 步调用 | 0 无 FAIL / 1 有 FAIL |
 
 > 裸流（raw）无 `EAFRDT2` magic，`dump_inspect.py` 是 v2 专用严格校验器、对裸流判非 v2（退出码 2）；因此 raw 样本只做几何与别名断言，v2 / all_v2 才交给 `dump_inspect.py`。
 
@@ -38,7 +39,7 @@ pwsh tests/run_format_matrix.ps1
 | bf16_nat_le/be | `engine_sim` 自然 | 2 | rev | 互逆、%2 |
 | t32pk_le/be | `engine_sim` packed 紧凑 | 3 | rev | 奇数宽度 %3、互逆（中间字节自留） |
 | fp8_le/be | `engine_sim` 自然 | 1 | same | 1B 无字节序效应，LE==BE 逐字节相同 |
-| x87_le/be | 独立 `dump_cb` | 10 | rev | 互逆、%10 |
+| x87_le/be | 独立固定槽 `dump_cb` | 16 | rev | 互逆、%16（10B 有效位 + 6B 零填充）|
 | fp128_le/be | 独立 `dump_cb` | 16 | rev | 互逆、%16 |
 | dec32_le/be | BID decnum | 4 | rev | 互逆、%4、无 magic |
 | dpd32_le/be | DPD 紧凑 | 4 | rev | 共同前缀互逆（条数随性能波动，不断言等长） |
@@ -49,6 +50,19 @@ pwsh tests/run_format_matrix.ps1
 | dpd128_le/be | `engine_dpd` DPD128 | 16 | rev | 共同前缀互逆、%16、无 magic |
 
 裸流专项：`v2.bin`（普通头+载荷、inspect 通过）、`raw_le.bin` ≡ `raw_nh.bin`（两别名逐字节相同）、`raw_tf32pack.bin`（%3）、`allraw.bin`（应不存在）、`all_v2.bin`（恰 256B、magic、inspect 通过）。
+
+## CLI 行为契约（`verify_cli_contract.ps1`）
+
+几何脚本锁定"字节形态"、算术矩阵锁定"确定性步数"，本脚本锁定 CLI 语义（不依赖墙钟绝对值）：
+
+- 单格式误用 `-l` / `--only` / `-j` → 退出码 2 且 stdout 为空；
+- `--json` stdout 为可解析单对象、不含 `[!!!]`/`[!]` 警告标记，警告只走 stderr；
+- `-k 0.5` 递减 underflow 时 `reason=underflow` 且 `final_value="0"`、无畸形 `infe` 指数；
+- `-m all --only dpd32 -y` 的 `[!!!]` critical 警告只出现在 stderr，stdout 保持纯 JSON；
+- packed 活动位：tf32 实际缩宽 → 头 `0x0B=1`，f32 不缩宽 → `0x0B=0`；
+- help 文本漂移守卫：新增开关必须出现在 `--help` 双语输出中；
+- W2 opt-in 默认关闭、不改自然终止基线：`--self-test` 退出 0 且 `FAILS=0`；`--steps 50` 得 `reason=fixed`、`steps=50`、`params.fixed_steps="50"`，非法 `--steps abc` 退出 2；`-m all --pin 0` 退出 2（绑核/提级/事件轨迹仅限单格式）；`--dump-events` 恰产出 `start`、`exit` 两行 JSONL。
+- W3 opt-in 默认关闭、不新增退出原因、不改 17 格式步数基线：`--preset iron --steps 30` 得 `reason=fixed`、`steps=30`、`params.preset="iron"`、`params.max_seconds=60`，`[iron]` 说明走 stderr；非法 `--preset`/`--max-seconds` 与 `-m all --preset iron` 退出 2；默认 `preset="default"`、`max_seconds=0`。`--pairwise dec32,dpd32` 输出 `MATCH`，`f32,tf32 --json` 解析得 `mode=pairwise`、`engines=2` 与布尔 `match`；非白名单/单 token/与 `--steps` 组合退出 2。`--sample-window 5 --json` 带 `throughput.window_ms=5` 与 `min/p95` 字段，而默认运行不含 `throughput` 块；非法值退出 2。`--probe boundaries --json` 解析得 `mode=probe`、`target=boundaries`、`cells=32`（8 快格式 × 4 起点）；未知目标或与 `--steps` 组合退出 2。
 
 ## 设计口径（为何不断言固定记录条数）
 

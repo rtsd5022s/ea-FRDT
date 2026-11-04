@@ -262,10 +262,17 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
             while (infinite || loops < loop_count) {
                 ++loops;
                 workers[w].loop_done = loops;
-                // Global timeout check (across formats / across loops)
-                if (g_timeout_sec.load() > 0) {
-                    double elapsed_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-                    if (elapsed_s >= (double)g_timeout_sec.load()) break;
+                // Global wall-clock check (across formats / across loops): either -t or
+                // --max-seconds fires; smallest positive cap wins. Maps to TIMEOUT on exit.
+                {
+                    int cap = -1;
+                    if (g_timeout_sec.load() > 0) cap = g_timeout_sec.load();
+                    int mx = g_max_seconds.load();
+                    if (mx > 0 && (cap < 0 || mx < cap)) cap = mx;
+                    if (cap > 0) {
+                        double elapsed_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+                        if (elapsed_s >= (double)cap) break;
+                    }
                 }
                 workers[w].done.clear();
                 for (std::size_t i = 0; i < ch.size(); ++i) {
@@ -277,6 +284,9 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                     workers[w].sum_steps[i] += workers[w].cur.steps;
                 }
             }
+            // Release this worker's TIME_CRITICAL priority and pinned affinity before
+            // the thread exits, so no boosted worker lingers after the chain finishes.
+            fw::plat::restore_thread_scheduling();
         });
     }
 
@@ -342,6 +352,18 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
     if (g_json) {
         // JSON summary: suppress colored table, emit machine-readable JSON
         std::printf("{\"tool\":\"ea-FRDT\",\"version\":\"1.0\",\"mode\":\"all\",\"wall_ms\":%.3f,", wall_ms);
+#ifdef __clang__
+        const char* cc_name = "clang";
+#elif defined(__GNUC__)
+        const char* cc_name = "gcc";
+#else
+        const char* cc_name = "unknown";
+#endif
+        std::printf("\"system\":{\"hardware_threads\":%u,\"physical_threads\":%d,\"hires_timer\":%s,\"affinity\":%s,\"compiler\":\"%s\",\"cpp_std\":23},",
+                    hw_threads, phys_cores,
+                    fw::plat::hires_timer_effective() ? "true" : "false",
+                    fw::plat::affinity_available() ? "true" : "false",
+                    cc_name);
         u128 total_steps = 0;
         for (int w = 0; w < n; ++w) total_steps += workers[w].total_steps;
         double overall_rate = wall_ms > 0.0 ? (double)total_steps / (wall_ms / 1000.0) : 0.0;
@@ -361,6 +383,7 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                     case RunResult::SAFETY:    rn = "safety"; break;
                     case RunResult::TIMEOUT:   rn = "timeout"; break;
                     case RunResult::NOT_A_NUMBER: rn = "nan"; break;
+                    case RunResult::FIXED_STEPS: rn = "fixed"; break;
                 }
                 std::printf("{\"name\":\"%s\",\"steps\":%s,\"elapsed_ms\":%.1f,\"reason\":\"%s\",\"sum_steps\":%s}",
                             r.name.c_str(),
