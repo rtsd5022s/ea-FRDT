@@ -2,6 +2,18 @@
 
 ## Unreleased (main)
 
+### Changed
+- x87 dump record uses a fixed 16-byte slot (10 valid bytes + 6 zero padding); the earlier v1.0.6 note about a 10-byte record described the pre-widening behavior and is retained as history.
+- Diagnostic warnings (slow-engine level, critical warnings) are emitted on `stderr`; the interactive confirmation prompt remains on `stdout`, so `--json` stdout stays a single pure JSON object with no ANSI warning prefix.
+- `--dump-packed`: the v2 header active bit at `0x0B` is set only when a record actually shrinks; native whole-width formats keep it 0 while tight formats such as tf32 (3B < 4B) set it 1.
+
+### Fixed
+- Single-format mode rejects `-l/--loop`, `--only`, and `-j/--jobs` with exit code 2 and a bilingual error instead of silently accepting them; outside `-m all` the JSON `loop` field always reports the honest value 1.
+- Native `-a min-normal` starts from the IEEE minimum normalized positive value (binary16 `2^-14`; f32/f64 `std::numeric_limits<T>::min()`) rather than `denorm_min()`, removing the immediate identity/short stop; the start tag is now `min-normal`.
+- New `-y/--yes` skips the interactive critical-warning confirmation for non-interactive/CI use; a cancelled `-m all` run now exits 1 (was 0) so a cancellation is never read as success in automation.
+- Engineering (`eng`) display falls back to scientific notation when the normalized mantissa underflows to infinity, preventing a broken `infe-324` string; quiet mode no longer calls `slow_update()` on exit, preserving the true terminal value such as the underflow result `"0"`.
+- `tests/run_tests.ps1` resolves a real `python`/`python3` executable by scanning `PATH` directly and ignoring same-name aliases/functions whose `Source` is empty, so the runner reaches both strict verifiers in MSYS2 Clang environments.
+
 ## v1.0.6 (2026-11-03)
 
 ### Added
