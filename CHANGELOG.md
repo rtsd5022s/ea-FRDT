@@ -2,7 +2,24 @@
 
 ## Unreleased (main)
 
+### Added
+- `--compare <file>`: read-only single-format baseline anchor; locates the last record with `"format":"<token>"`, compares the deterministic steps (decimal string) and exit reason, prints `[compare] ... MISMATCH ...` only on `stderr`, keeps the exit code unchanged, and records a `baseline_compare` object in the single-format JSON.
+- W2 opt-in switches, all default-off and none altering the natural-termination step baseline:
+  - `--steps <N>`: stop after exactly N steps with reason `fixed` and `params.fixed_steps`; complements the wall-clock `-t` timeout; non-integer or out-of-range values exit 2.
+  - `--pin <core>` / `--boost` (single format only): bind the calling thread to one logical core and/or raise thread priority; rejected with exit 2 under `-m all`; a RAII guard restores full affinity and normal priority on every exit path; a capability absent on a platform degrades to a no-op rather than failing.
+  - `--dump-events <file>` (single format only): JSONL trace with one `start` record and one `exit` record (reason, steps, escaped value, elapsed_ms); opening the file implies quiet output.
+  - `--self-test`: runs pure-logic checks before any stress run — CRC-32/IEEE known vectors, DPD `encode3/decode3` round-trip for 0..999, BID codec packed bit-width and sign/exponent metadata, hex number parsing, and control-character sanitization — then prints `CHECKS=n FAILS=n` and exits.
+- W3 opt-in switches, all default-off, none altering the natural-termination step baseline, and never adding a new exit-reason enum:
+  - `--max-seconds <s>`: independent wall-clock hard cap; expiry maps to the existing `reason=timeout`; smallest positive cap among `-t` and this one wins; `0` = off.
+  - `--preset iron` (alias `--iron`, single format only): enables `--boost` and applies a 60 s default wall cap when `--max-seconds` is not given; it never auto-pins; it reads no temperature sensor and performs no automatic throttling, emitting only a `[iron]` advisory on stderr; rejected under `-m all` (exit 2); JSON `params` records `preset` and `max_seconds`.
+  - `--pairwise <A,B>` (alias `--crosscheck`): standalone same-start compare over the minimal whitelist `dec32,dpd32` / `dec64,dpd64` / `f32,tf32`, reporting `MATCH`/`DIFF` on steps and reason; mutually exclusive with the walk/concurrency/dump/scheduling switches (exit 2); `--json` emits `mode=pairwise`, `match`, `engines[]`.
+  - `--sample-window <ms>`: quiet/JSON-only per-wall-clock-window steps/s segments summarized as `min`/`avg`/`p95`/`max` in the optional JSON `throughput` object; off by default, in which case the default JSON shape omits the block; no histogram.
+  - `--probe boundaries`: standalone fixed-32-step batch table of 8 quick formats × 4 boundary starts (`default`/`min-normal`/`max-finite`/`subnormal`); `--json` emits `mode=probe`, `target=boundaries`, `cells[]` (8×4=32); it never runs the natural-termination walk.
+- `tests/verify_cli_contract.ps1`: CLI contract assertion suite (groups A–L, 76 checks) wired into `run_tests.ps1`, covering mode guards, pure-JSON stdout, stderr-only warnings, dump active bits, help drift, and the W2/W3 opt-in behaviors (fixed steps, pin/boost, events, iron/max-seconds, pairwise, sample-window, probe).
+- Scheduling resources are reset deterministically between runs: the high-resolution timer uses a ref-counted pair, and thread affinity/priority are restored on exit instead of leaking state.
+
 ### Changed
+- Single-format and `-m all` JSON expose an expanded `system` block: `hardware_threads`, `physical_threads`, `hires_timer`, `affinity`, `compiler` (selected from `__clang__`/`__GNUC__`), and `cpp_std`.
 - x87 dump record uses a fixed 16-byte slot (10 valid bytes + 6 zero padding); the earlier v1.0.6 note about a 10-byte record described the pre-widening behavior and is retained as history.
 - Diagnostic warnings (slow-engine level, critical warnings) are emitted on `stderr`; the interactive confirmation prompt remains on `stdout`, so `--json` stdout stays a single pure JSON object with no ANSI warning prefix.
 - `--dump-packed`: the v2 header active bit at `0x0B` is set only when a record actually shrinks; native whole-width formats keep it 0 while tight formats such as tf32 (3B < 4B) set it 1.

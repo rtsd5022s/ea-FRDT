@@ -104,7 +104,7 @@ The global `g_timeout_sec` and shared start time gate every worker; on expiry th
 
 ## Summary table
 
-After join, per-worker sections list each format's single-pass steps, cumulative steps, exit reason, per-pass and cumulative time; the last row totals steps, wall clock, and aggregate throughput. Exit reasons drawn from the six enums (`overflow->inf`, `underflow->0`, `identity->stop`, `safety->limit`, `timeout`, `nan->nan`), plus outer `cancelled` / `sigint`.
+After join, per-worker sections list each format's single-pass steps, cumulative steps, exit reason, per-pass and cumulative time; the last row totals steps, wall clock, and aggregate throughput. Exit reasons drawn from the seven enums (`overflow->inf`, `underflow->0`, `identity->stop`, `safety->limit`, `timeout`, `nan->nan`, `fixed`; `fixed` only appears with the single-format opt-in `--steps <n>`), plus outer `cancelled` / `sigint`.
 
 ## Default chain order (13)
 

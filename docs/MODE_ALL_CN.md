@@ -104,7 +104,7 @@ while (!done) {
 
 ## 汇总表
 
-join 后每 worker 一节，列出每格式单遍步数、累计步数、退出原因、单遍与累计耗时；末行为总步数、总墙钟时间与总吞吐。退出原因取自六枚举（`overflow->inf`、`underflow->0`、`identity->stop`、`safety->limit`、`timeout`、`nan->nan`），外加外层 `cancelled` / `sigint`。
+join 后每 worker 一节，列出每格式单遍步数、累计步数、退出原因、单遍与累计耗时；末行为总步数、总墙钟时间与总吞吐。退出原因取自七枚举（`overflow->inf`、`underflow->0`、`identity->stop`、`safety->limit`、`timeout`、`nan->nan`、`fixed`（仅单格式 opt-in `--steps <n>` 触发）），外加外层 `cancelled` / `sigint`。
 
 ## 默认链顺序（13）
 

@@ -167,6 +167,8 @@ The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are exc
 | `--dump-endian little`/`big` | Record byte order; `little` default; single-format `--dump` only, stored at `0x0A`. |
 | `--dump-packed` | Compact record width (e.g. tf32 = 3 B); default natural width; single-format `--dump` only, width stored at `0x28`. |
 | `--dump-raw` / `--dump-no-header` | Raw-stream modifier for `--dump` (two equivalent aliases): omit the 256B header, write a continuous bit stream from offset 0 (no u128 step prefix, no CRC/length header); single format only, width follows packed and order follows endian; unsupported in `-m all` (file discarded); no magic, not validated by `dump_inspect.py`. |
+| `--compare <file>` | Read-only baseline compare: locate the last record by format and compare deterministic steps and reason; mismatches go to `stderr` as `[compare] ... MISMATCH`; exit code unchanged; the run and the anchor file are untouched. |
+| `--dump-events <file>` | Single-format JSONL trace (`start`/`exit`: reason/steps/value/elapsed_ms); implies quiet; rejected in `-m all`; default off, step baseline unaffected. |
 | `--lang zh`/`en` | UI language; default `zh`. |
 
 ### Concurrency and control
@@ -179,6 +181,15 @@ The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are exc
 | `-t <s>` / `--timeout <s>` | Seconds; `0` = until termination (default). |
 | `-l <n>` / `--loop <n>` | `1` default (`0`→1), `-1` infinite, `>1` repeats (cap 1,000,000). |
 | `-r <ms>` / `--refresh <ms>` | Monitor refresh; default `0` (every step), `1000` ms in `-m all`. |
+| `--steps <n>` | Stop after exactly N steps with reason `fixed` (default `0`=off, complementary to wall-clock `-t`); invalid value exits 2; default behavior unchanged. |
+| `--self-test` | Pure-logic preflight (CRC-32 / DPD round-trip / BID bit-width metadata / hex parse / sanitize); prints `CHECKS=n FAILS=n` and exits without stressing. |
+| `--pin <core>` | Single format only: bind to one logical core (default off); rejected in `-m all` (exit 2); affinity restored on exit. |
+| `--boost` | Single format only: raise thread priority (default off); rejected in `-m all` (exit 2); restored on exit; no-op where unsupported. |
+| `--max-seconds <s>` | Wall-clock cap independent of `-t` (default `0`=off); expiry still maps to `timeout` (no new reason enum); invalid value exits 2. |
+| `--preset iron` / `--iron` | Single format only: enables boost; 60 s default cap when `--max-seconds` absent; never auto-pins, no temperature readout/auto-throttle (only a `[iron]` stderr advisory); rejected in `-m all` (exit 2). |
+| `--pairwise <A,B>` / `--crosscheck` | Standalone same-start compare (whitelist `dec32,dpd32` / `dec64,dpd64` / `f32,tf32`); prints `MATCH`/`DIFF` on steps/reason; mutually exclusive with walk/concurrency/dump/scheduling switches (exit 2). |
+| `--sample-window <ms>` | Quiet/JSON-only per-window steps/s `min/avg/p95/max`; default off, and the default JSON omits the `throughput` block when off. |
+| `--probe boundaries` | Standalone fixed-32-step batch table: 8 quick formats × 4 starts = 32 cells; never runs the natural-termination chain and does not move the baseline; conflicts with the walk/scheduling switches (exit 2). |
 
 ### Safety
 
@@ -186,9 +197,9 @@ Hard exits (code `2`, stderr) on invalid input only: zero/negative/non-finite fa
 
 ## Exit reasons
 
-Six enumerated driver reasons:
+Seven enumerated driver reasons:
 
-- `overflow->inf`; `underflow->0`; `identity->stop` (no progress); `safety->limit` (step counter `2^120`); `timeout`; `nan->nan` (native paths only).
+- `overflow->inf`; `underflow->0`; `identity->stop` (no progress); `safety->limit` (step counter `2^120`); `timeout`; `nan->nan` (native paths only); `fixed` (only from `--steps <n>`; JSON token `fixed`, terminal text `fixed-steps`).
 
 Outer control messages (not enum reasons): `cancelled` (DPD/dec128 confirmation declined/timed out), `sigint` (Ctrl+C).
 

@@ -154,6 +154,8 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 | `--dump-endian little`/`big` | 记录字节序；`little` 默认；仅单格式 `--dump`，值写 `0x0A`。 |
 | `--dump-packed` | 紧凑记录宽度（如 tf32=3 B）；默认自然宽度；仅单格式 `--dump`，宽度写 `0x28`。 |
 | `--dump-raw` / `--dump-no-header` | `--dump` 裸流修饰（两别名等价）：省略 256B 头、偏移 0 直接写连续位流（无 u128 步数前缀、无 CRC/长度头）；仅单格式，宽度沿用 packed、字节序沿用 endian；`-m all` 不支持、放弃文件；无 magic，`dump_inspect.py` 不校验。 |
+| `--compare <file>` | 只读基线比对：按格式定位最后一条 JSON 记录，比对确定性 steps 与退出原因；差异仅走 stderr `[compare] ... MISMATCH`，退出码不变；不改运行、不写锚点文件。 |
+| `--dump-events <file>` | 单格式 JSONL 轨迹（`start`/`exit` 两行：reason/steps/value/elapsed_ms）；打开即静默；`-m all` 拒绝；默认关、不影响步数基线。 |
 | `--lang zh`/`en` | 界面语言；默认 `zh`。 |
 
 ### 并发与控制
@@ -166,6 +168,15 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 | `-t <s>` / `--timeout <s>` | 超时秒数；`0` = 直到终止（默认）。 |
 | `-l <n>` / `--loop <n>` | `1` 默认（`0` 归 1），`-1` 无限，`>1` 重复（上限 1,000,000）。 |
 | `-r <ms>` / `--refresh <ms>` | 监视器刷新间隔；默认 `0`（每步），`-m all` 默认 `1000` ms。 |
+| `--steps <n>` | 固定跑满 N 步以 `fixed` 退出（默认 `0`=关，与墙钟 `-t` 互补）；非法值 exit 2，默认行为不变。 |
+| `--self-test` | 进入压测前跑纯逻辑自检（CRC-32/DPD 往返/BID 位宽元数据/hex 解析/净化），打印 `CHECKS=n FAILS=n` 后退出。 |
+| `--pin <core>` | 仅单格式：绑定到指定逻辑核（默认关、不绑核）；`-m all` 拒绝（exit 2），退出自动复位亲和。 |
+| `--boost` | 仅单格式：提升线程优先级（默认关、不提级）；`-m all` 拒绝（exit 2），退出复位；无提级能力平台为 no-op。 |
+| `--max-seconds <s>` | 独立于 `-t` 的墙钟硬上限（默认 `0`=关）；到点仍记 `timeout`（不新增退出原因）；非法值 exit 2。 |
+| `--preset iron` / `--iron` | 仅单格式：开启提级，未给 `--max-seconds` 时默认 60s 墙钟上限；不自动绑核、不读温度、不自动降频，仅 stderr 打 `[iron]` 说明；`-m all` 拒绝（exit 2）。 |
+| `--pairwise <A,B>` / `--crosscheck` | 独立同起点对照（白名单 `dec32,dpd32` / `dec64,dpd64` / `f32,tf32`），按 steps/reason 输出 `MATCH`/`DIFF`；与遍历/并发/dump/调度开关互斥（exit 2）。 |
+| `--sample-window <ms>` | 仅静默/JSON：按墙钟窗统计 steps/s 的 `min/avg/p95/max`；默认关，关闭时默认 JSON 不出现 `throughput` 块。 |
+| `--probe boundaries` | 独立固定 32 步批量表：8 个快格式 × 4 类起点 = 32 格；不跑自然终止链、不改 17 格式步数基线；与多项开关互斥（exit 2）。 |
 
 ### 安全保护
 
@@ -173,9 +184,9 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 
 ## 退出原因
 
-驱动记录六种枚举原因，打印文案为：
+驱动记录七种枚举原因，打印/JSON 文案为：
 
-- `overflow->inf`；`underflow->0`；`identity->stop`（无进展）；`safety->limit`（撞到 `2^120` 步数计数器）；`timeout`；`nan->nan`（仅原生路径）。
+- `overflow->inf`；`underflow->0`；`identity->stop`（无进展）；`safety->limit`（撞到 `2^120` 步数计数器）；`timeout`；`nan->nan`（仅原生路径）；`fixed`（仅 `--steps <n>` 触发的固定步数退出，JSON token 为 `fixed`，终端文案 `fixed-steps`）。
 
 外层控制文案（非枚举原因）：`cancelled`（DPD/dec128 确认被拒或超时）、`sigint`（收到 Ctrl+C）。
 

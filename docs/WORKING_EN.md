@@ -27,7 +27,7 @@ The driver has no idea which format it is running. It only loops: call `next`, c
 
 The upside: adding a new format does not require touching the driver, just supply the lambdas. The downside: template code bloat; since each format is instantiated once, the binary size impact is acceptable.
 
-There are six enumerated exit reasons:
+There are seven enumerated exit reasons:
 
 - `overflow->inf`: `next` returned infinity.
 - `underflow->0`: `next` returned zero.
@@ -35,6 +35,7 @@ There are six enumerated exit reasons:
 - `safety->limit`: hit the built-in `2^120` step counter, runaway protection.
 - `timeout`: the global timeout atomic fired.
 - `nan->nan`: the next value became NaN (native paths only; hand-rolled integer formats never produce NaN).
+- `fixed`: opt-in `--steps <n>` reached exactly N steps (JSON `fixed`, terminal `fixed-steps`); absent unless the cap is requested.
 
 Outer control messages `cancelled` (confirmation declined/timed out) and `sigint` (Ctrl+C) are not enum reasons.
 

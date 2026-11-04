@@ -86,6 +86,8 @@
 | UInt256 能力 | 无加/减/移位，仅服务乘法与除以 10；`mul128` 为 2×2 字 schoolbook；更宽位宽算法后续需重估 | `IMPLEMENTATION_CN.md:209`、`README.md:259` |
 | `__int128` 使用边界 | `u128` 计数器、x87/fp128 的 64×64 尾数中间积使用编译器 `unsigned __int128`；dec128(BID) 系数路径不用 `__int128`（自研 UInt256） | `README.md:235`、`FAQ_CN.md:8` |
 | 测量口径 | 唯一对标自身基线（FP32=1×、BASELINE 步数、costX 档），不产出跨厂商排名；短样本失真需标注；总步数由数学动态范围决定，不等于单步快慢；`steps/s` 受热降频、调度、频率波动影响 | `COMPLEXITY_CN.md`、`RISKS_CN.md:87-96` |
+| BID 系数显示 helper 非严格互逆 | `bid_dec_to_bin` 内层用十进制 `/10`、`%10`（逐位），`bid_bin_to_dec` 用二进制 `×2`，二者约定不对称、不保证字符串互逆；`bid_selfcheck()` 系数比较对 `expect` 尾随补零，而 `unpack.coeffDec` 走 `bid_strip0`，口径不同（启动仅打印、返回值不阻断）。两者只服务**显示系数串/诊断打印**，步进算术走独立 UInt 大整数，17 格式确定性步数基线不受影响；**勿为追求字符串互逆改 pack/unpack 位布局**（会破坏 v2 字节几何回归） | `engine_bid_codec.h:16-50,132-145`、`engine_decnum.h:154`、`dec128.h:152` |
+| W2 `--self-test` 覆盖边界 | 纯逻辑自测只覆盖：CRC-32/IEEE 已知向量、DPD `encode3/decode3` 0..999 往返、BID 编码位宽与 sign/exp 元数据、十六进制解析与 `sanitize`；**不含**上表 BID 显示 helper 互逆，也不跑真实压测/墙钟性能 | `src/float_inf_walk.cpp` `run_self_test()` |
 
 ---
 

@@ -79,9 +79,9 @@ store result in RunResult
 - **BID dec32/64/128**: overflow uses top-digit exponent `exp10 + digits - 1 > Emax` (Emax 96 / 384 / 6144); underflow compares against Emin (−95 / −383 / −6143).
 - **DPD ×3**: same decimal boundary predicates, packed through the DPD codec; startup runs a pack→unpack self-check.
 
-## Six enumerated exit reasons
+## Seven enumerated exit reasons
 
-- `overflow->inf`, `underflow->0`, `identity->stop` (no progress), `safety->limit` (`2^120` counter), `timeout`, `nan->nan` (native only).
+- `overflow->inf`, `underflow->0`, `identity->stop` (no progress), `safety->limit` (`2^120` counter), `timeout`, `nan->nan` (native only), `fixed` (only opt-in `--steps <n>`; JSON token `fixed`, terminal text `fixed-steps`).
 - Non-enum outer messages: `cancelled` (confirmation declined/timed out, mainly `-m all`), `sigint` (Ctrl+C).
 
 ## Timeout and loops

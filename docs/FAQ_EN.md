@@ -117,7 +117,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 
 ## 8. Exit reasons
 
-Driver reasons (six enums):
+Driver reasons (seven enums):
 
 - `overflow->inf`
 - `underflow->0`
@@ -125,6 +125,7 @@ Driver reasons (six enums):
 - `safety->limit` (`2^120` counter)
 - `timeout`
 - `nan->nan` (native float/double paths only; integer formats never yield NaN)
+- `fixed` (only opt-in `--steps <n>`; exact N-step cap; JSON token `fixed`, terminal text `fixed-steps`)
 
 Outer control messages (not enums): `cancelled` (confirmation declined/timed out, mainly `-m all`), `sigint` (Ctrl+C).
 

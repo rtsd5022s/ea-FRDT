@@ -25,7 +25,7 @@
 
 驱动器不知道在跑哪种格式，只循环：调 `next`、判退出、更新当前值、打印、睡 `delay_ms`、查超时。格式逻辑全在 lambda 里。好处是加格式不动驱动器；代价是模板膨胀，但每种格式只实例化一次，体积可接受。
 
-退出原因共六种枚举：
+退出原因共七种枚举：
 
 - `overflow->inf`：`next` 返回 infinity。
 - `underflow->0`：`next` 返回 zero。
@@ -33,6 +33,7 @@
 - `safety->limit`：撞到 `2^120` 步数计数器，防跑飞。
 - `timeout`：全局超时 atomic 到点。
 - `nan->nan`：下一步变 NaN（仅原生路径；自写整数格式不产生 NaN）。
+- `fixed`：opt-in `--steps <n>` 跑满 N 步退出（JSON token `fixed`、终端文案 `fixed-steps`）；未指定该开关则不出现。
 
 外层控制文案 `cancelled`（确认被拒/超时）、`sigint`（Ctrl+C）不是枚举原因。
 

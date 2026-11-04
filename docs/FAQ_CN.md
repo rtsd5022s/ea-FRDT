@@ -117,7 +117,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 
 ## 八、退出原因
 
-退出时可能给出的驱动原因（六枚举）：
+退出时可能给出的驱动原因（七枚举）：
 
 - `overflow->inf`：下一步溢出到无穷
 - `underflow->0`：下一步下溢到零
@@ -125,6 +125,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 - `safety->limit`：撞到 `2^120` 步数计数上限
 - `timeout`：`-t` 超时触发
 - `nan->nan`：下一步变 NaN（仅原生 float/double 路径；自写整数格式不产生 NaN）
+- `fixed`：仅 opt-in `--steps <n>` 跑满 N 步退出（JSON token `fixed`、终端文案 `fixed-steps`）
 
 外层控制文案（非枚举）：`cancelled`（确认被拒/超时，主要见于 `-m all`）、`sigint`（Ctrl+C）。
 

@@ -79,9 +79,9 @@ while (未退出) {
 - **BID dec32/64/128**：溢出用最高位指数 `exp10 + digits - 1 > Emax`（Emax 96 / 384 / 6144）；下溢对比 Emin（−95 / −383 / −6143）。
 - **DPD×3**：同样的十进制边界谓词，经 DPD 编解码；启动执行 pack→unpack 往返自检。
 
-## 六种枚举退出原因
+## 七种枚举退出原因
 
-`overflow->inf`、`underflow->0`、`identity->stop`（无进展）、`safety->limit`（`2^120` 计数器）、`timeout`、`nan->nan`（仅原生）。外层非枚举文案：`cancelled`（确认被拒/超时，主要见于 `-m all`）、`sigint`（Ctrl+C）。
+`overflow->inf`、`underflow->0`、`identity->stop`（无进展）、`safety->limit`（`2^120` 计数器）、`timeout`、`nan->nan`（仅原生）、`fixed`（仅 opt-in `--steps <n>` 固定步数触发；JSON token `fixed`、终端文案 `fixed-steps`）。外层非枚举文案：`cancelled`（确认被拒/超时，主要见于 `-m all`）、`sigint`（Ctrl+C）。
 
 ## 超时与循环
 

@@ -64,6 +64,8 @@
 | `--dump-packed` | 无 | 关 | 无值 | 紧凑记录宽度（如 tf32=3 B 而非 4 B）；仅作用于单格式 `--dump`，宽度写入 `0x28`。 |
 | `--dump-endian <e>` | 无 | `little` | `little`（别名 `le`/`cpu`）/ `big`（别名 `be`） | 记录字节序；默认小端，`big` 写入前翻字节；值写入 `0x0A`。仅作用于单格式 `--dump`。 |
 | `--dump-raw` / `--dump-no-header` | 无 | 关 | 无值 | `--dump` 裸流修饰符（两别名等价）：省略 256 字节 v2 头，文件从偏移 0 直接写连续原始位流（无 u128 步数前缀、无 CRC/长度/参数字段）；仅单格式，记录宽度沿用 `--dump-packed`、字节序沿用 `--dump-endian`；`-m all` 不支持、直接放弃输出文件。裸流无 magic，`dump_inspect.py` 不校验，请用 hexdump 或外部按记录宽度解析。 |
+| `--compare <file>` | 无 | 关 | 文件路径 | 只读单格式基线锚点：定位最后一条 `"format":"<token>"` 记录，比对确定性 steps（十进制串）与退出原因；不一致仅在 stderr 打 `[compare] ... MISMATCH ...`，退出码不变；单格式 JSON 追加 `baseline_compare` 对象。不改变运行行为、不写被比较文件。 |
+| `--dump-events <file>` | 无 | 关 | 文件路径 | 单格式 JSONL 事件轨迹：首行 `start`、末行 `exit`（reason / steps / 转义 value / elapsed_ms）；打开即隐式静默；`-m all` 拒绝（exit 2）。默认关闭，不影响确定性步数基线。 |
 | `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | 界面语言；帮助、错误、警告、汇总跟随。 |
 
 ## 并发（-m all）
@@ -80,6 +82,15 @@
 |---|---|---|---|---|
 | `--timeout <s>` | `-t` | `0` | 非负整数秒 | 超时停止；`0` = 走到溢出/下溢/其他终止原因；负数钳为 `0`。 |
 | `--loop <n>` | `-l` | `1` | `-1` = 无限；`1` = 单遍（默认）；`>1` = 重复 N 次；上限 `1000000`；`0` 归 1；`< -1` 拒绝 | 循环次数。`-l -1` 配合 `-t 0` 时，`-m all` 下弹一级确认警告（非硬拒绝）。 |
+| `--steps <n>` | 无 | `0` | `0` 或 `1..1,000,000,000` 非负整数 | 固定步数熔断：跑满 N 步即以 `reason=fixed` 退出，与墙钟 `-t` 互补；`0` = 关闭（默认，自然终止行为不变）；非整数 / 尾随非法字符 exit 2。 |
+| `--self-test` | 无 | 关 | 无值 | 进入压测前运行纯逻辑自检（CRC-32/IEEE 已知向量、DPD `encode3/decode3` 0..999 往返、BID 编码位宽与 sign/exp 元数据、hex 解析、控制字符净化），打印 `CHECKS=n FAILS=n` 后退出，不进入压测。 |
+| `--pin <core>` | 无 | 关 | `0..逻辑核数-1` | 仅单格式：把本线程绑定到指定逻辑核；`-m all` 拒绝（exit 2）；退出时由 RAII 复位为全集亲和；平台无绑核能力时降级为 no-op。默认不绑核。 |
+| `--boost` | 无 | 关 | 无值 | 仅单格式：提升本线程调度优先级；`-m all` 拒绝（exit 2）；退出复位为普通优先级；平台无提级 API 时为 no-op。默认不提级。 |
+| `--max-seconds <s>` | 无 | `0` | 非负整数秒 | 独立于 `-t` 的墙钟硬熔断上限；到点仍以既有 `reason=timeout` 退出（不新增退出原因枚举）；与 `-t` 取最小正值；`0` = 关闭；负数钳为 `0`；非法值 exit 2。 |
+| `--preset iron`（别名 `--iron`） | 无 | `default` | `iron`（当前唯一预设） | 仅单格式：开启 `--boost` 提级；未显式给 `--max-seconds` 时默认 60s 墙钟上限；**不自动绑核**；不读取温度传感器、不做自动降频，仅在 stderr 打一行 `[iron]` 文字说明（提级开启 / 墙钟上限 / 未绑核 / 无温度读取与自动降频 / 需自备散热）；`-m all` 拒绝（exit 2）。单格式 JSON 的 `params` 记 `preset`（`iron`/`default`）与 `max_seconds`。 |
+| `--pairwise <A,B>`（别名 `--crosscheck`） | 无 | 关 | 白名单二元组 | 独立同起点对照模式（不跑自然终止链、不改步数基线）；最小白名单 `dec32,dpd32` / `dec64,dpd64` / `f32,tf32`，顺序无关；两格式以相同起点与倍率短跑，比对 steps 与 reason 是否一致，输出 `MATCH` / `DIFF`；与 `-m all`、`--loop`、`--only`、`-j`、`--steps`、`--dump`、`--pin`、`--boost`、`--dump-events` 互斥（exit 2）；`--json` 输出 `mode=pairwise`、`match`、`engines[]`。 |
+| `--sample-window <ms>` | 无 | `0` | 非负整数毫秒 | 仅静默 / `--json` 路径：按墙钟窗采集分段 steps/s，结束在 JSON `throughput` 对象给出 `window_ms` / `samples` / `min` / `avg` / `p95` / `max`；`0` = 关闭，关闭时默认 JSON 不出现该块、自然终止行为与步数基线不变；非法值 exit 2。不输出直方图。 |
+| `--probe boundaries` | 无 | 关 | 无值（当前唯一目标） | 独立固定 32 步批量探针：覆盖 8 个快格式 × 4 类起点（`default` / `min-normal` / `max-finite` / `subnormal`），逐格记录 steps / reason / elapsed_ms / value_ok；不运行自然终止链、不改变 17 格式确定性步数基线；与 `-m all`、`--steps`、`--dump`、`--pin`、`--boost`、`--dump-events`、`--pairwise`、`--sample-window` 互斥（exit 2）；`--json` 输出 `mode=probe`、`target=boundaries`、`cells[]`（8×4=32）。 |
 
 ## 退出码
 
