@@ -12,8 +12,26 @@ New-Item -ItemType Directory -Force $tmp | Out-Null
 # MSYS2 clang64 / coreutils on PATH; adjust only if your install differs.
 $env:PATH = "C:\msys64\clang64\bin;C:\msys64\usr\bin;" + $env:PATH
 
-$py = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $py) { Write-Host 'python not found on PATH'; exit 1 }
+# Locate a real Python executable. A same-name Alias/Function shadows the actual exe in
+# Get-Command and exposes an empty Source, so scan PATH entries directly (python then python3).
+$py = $null
+$pyNames = @('python.exe','python3.exe','python','python3')
+foreach ($dir in ($env:PATH -split ';' | Where-Object { $_ } | Select-Object -Unique)) {
+    foreach ($n in $pyNames) {
+        $cand = Join-Path $dir $n
+        if (Test-Path -LiteralPath $cand) { $py = $cand; break }
+    }
+    if ($py) { break }
+}
+if (-not $py) {
+    foreach ($c in @('python','python3')) {
+        foreach ($g in @(Get-Command $c -ErrorAction SilentlyContinue)) {
+            if ($g.CommandType -eq 'Application' -and $g.Source) { $py = $g.Source; break }
+        }
+        if ($py) { break }
+    }
+}
+if (-not $py) { Write-Host 'python/python3 executable not found on PATH'; exit 1 }
 
 # 1) Build test executable into ignored tmp.
 $exe = Join-Path $tmp 'frdt_test.exe'
