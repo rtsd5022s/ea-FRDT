@@ -20,7 +20,7 @@ inline std::string bid_dec_to_bin(const std::string& dec) {
     std::string bits;
     while (num != "0") {
         std::string q; int rem = 0;
-        for (char ch : num) { int cur = rem * 10 + (ch - '0'); q.push_back(char('0' + cur / 10)); rem = cur % 10; }
+        for (char ch : num) { int cur = rem * 10 + (ch - '0'); q.push_back(char('0' + cur / 2)); rem = cur % 2; }
         size_t qp = q.find_first_not_of('0');
         num = (qp == std::string::npos) ? "0" : q.substr(qp);
         bits.push_back(rem ? '1' : '0');
