@@ -1066,11 +1066,17 @@ int main(int argc, char** argv) {
     bool is_dpd = (mode == "dpd32" || mode == "dpd64" || mode == "dpd128" ||
                    mode == "dpd-dec32" || mode == "dpd-dec64" || mode == "dpd-dec128");
     bool is_dec128 = (mode == "dec128" || mode == "decimal128");
-    if (mode == "all" && !only_csv.empty()) {
-        std::string s = only_csv;
-        for (auto& c : s) c = (char)tolower(c);
-        if (s.find("dpd") != std::string::npos) is_dpd = true;
-        if (s.find("dec128") != std::string::npos) is_dec128 = true;
+    if (mode == "all") {
+        if (only_csv.empty()) {
+            // Running all 17 formats: DPD32/64/128 and dec128 are included.
+            is_dpd = true;
+            is_dec128 = true;
+        } else {
+            std::string s = only_csv;
+            for (auto& c : s) c = (char)tolower(c);
+            if (s.find("dpd") != std::string::npos) is_dpd = true;
+            if (s.find("dec128") != std::string::npos) is_dec128 = true;
+        }
     }
     if (is_dpd) {
         warns.push_back({2, tr("DPD 是纯软件十进制数组运算：逐位乘法+进位+舍入，无硬件十进制浮点单元，性能可能降低 20-30 倍，低端 CPU 满载时间更长。包含格式：DPD32/DPD64/DPD128。",
@@ -1081,7 +1087,9 @@ int main(int argc, char** argv) {
                                "dec128 each step uses UInt256 schoolbook big-integer multiply, performance drops 2-3x vs DPD128.")});
     }
     if (mode == "all") {
-        if (!confirm_warnings(warns)) return 1; // non-zero: a cancelled run must not look like success in CI
+        // Quiet/non-interactive mode skips the warning prompt entirely; interactive
+        // concurrent runs still see the yellow/red warnings and get a y/n gate.
+        if (!quiet && !confirm_warnings(warns)) return 1;
         if (g_dump_file) {
             g_dump_records_enabled = false; // mixed-width concurrent workers would interleave incompatible record sizes
             if (g_dump_raw) {
@@ -1102,9 +1110,9 @@ int main(int argc, char** argv) {
         run_all(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, jobs_list, only_csv, refresh_ms, loop_count, quiet);
         return 0;
     }
-    // Single-format path: surface collected warnings (e.g. DPD/dec128 slow engine) to stderr
-    // without the interactive confirmation gate used by -m all.
-    if (mode != "all" && !warns.empty()) print_warnings(warns, std::cerr);
+    // Single-format path: warnings are NOT printed here. The user has explicitly chosen
+    // this format/parameters; yellow/red warnings only surface in concurrent -m all mode
+    // via the interactive confirm_warnings gate above.
     // W3-B3: iron preset disclosure on stderr only (stdout stays pure JSON under --json).
     // It raises priority and applies a wall-clock cap, but never auto-pins and never reads a
     // temperature/throttle sensor (no portable Windows API here; no automatic frequency drop).
