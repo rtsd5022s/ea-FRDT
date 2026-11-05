@@ -14,6 +14,8 @@
 
 This is not a benchmark that reports GFLOPS. It is a walking tool: it starts from a value, applies a fixed step (multiply by a factor, multiply by `1 + 1 ULP`, add `1 ULP`, or subtract `1 ULP`), and prints the result at every step (or stays silent in quiet mode) until the format can no longer represent the number. The point is to see exactly at which step, with which hex pattern, and after how many operations a given format breaks.
 
+**Build philosophy:** smallest static binary first — the release build weighs in at ~600–800 KB on Windows (Clang `-Oz` + ThinLTO + `-static` + section GC + symbol strip, zero external DLLs), and resident memory sits around 500–750 KB at rest. No GUI, no third-party runtime, no telemetry, no GPU path.
+
 ## Documentation
 
 ### English
