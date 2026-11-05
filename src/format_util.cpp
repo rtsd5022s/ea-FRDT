@@ -6,13 +6,14 @@
 namespace fw {
 
 std::string bits_to_hex(const std::string& bits) {
+    std::string p = bits;
+    while (p.size() % 4 != 0) p = "0" + p;  // left-pad to nibble boundary
     std::string out;
-    for (size_t i = 0; i < bits.size(); i += 4) {
+    for (size_t i = 0; i < p.size(); i += 4) {
         int nib = 0;
         for (int j = 0; j < 4; ++j) {
             nib <<= 1;
-            size_t k = i + j;
-            if (k < bits.size() && bits[k] == '1') nib |= 1;
+            if (p[i + j] == '1') nib |= 1;
         }
         out += "0123456789ABCDEF"[nib];
     }

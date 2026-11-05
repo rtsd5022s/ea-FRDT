@@ -119,11 +119,13 @@ inline std::string bid_encode(BidEnc enc, int sign, int exp10, const std::string
 }
 
 inline std::string bid_bits_to_hex(const std::string& bits) {
+    std::string p = bits;
+    while (p.size() % 4 != 0) p = "0" + p;  // left-pad to nibble boundary
     std::string out;
     static const char* h = "0123456789ABCDEF";
-    for (size_t i = 0; i < bits.size(); i += 4) {
+    for (size_t i = 0; i < p.size(); i += 4) {
         int v = 0;
-        for (size_t k = 0; k < 4 && i + k < bits.size(); ++k) v = v * 2 + (bits[i + k] == '1');
+        for (size_t k = 0; k < 4; ++k) v = v * 2 + (p[i + k] == '1');
         out.push_back(h[v]);
     }
     return out;
