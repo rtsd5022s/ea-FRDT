@@ -1,12 +1,16 @@
-# UInt256 Technical Design
+# UInt256 / UInt128 Technical Design
 
-## Why this exists
+## Positioning
 
-The dec128 coefficient is a 110-bit binary integer (IEEE 754-2008 BID layout). Walking from `1.0` and multiplying by `1.02` at each step is equivalent to multiplying the coefficient by `102`, decrementing the exponent by 2, and then renormalizing. The problem: multiplying two 110-bit integers produces a 220-bit intermediate result. C++ has no built-in type wider than `uint64_t`; the compiler extension `__int128` is not universally available, and even it holds only 128 bits, still too narrow for 220 bits.
+`include/uint256.h` and `include/uint128.h` are two **standalone drop-in single-header libraries** depending only on `<cstdint>`/`<cstring>`/`<string>`, with no dependency on any other project header. `#include "uint256.h"` works in any C++23 GCC/Clang project.
 
-So a big integer has to be built by hand. This project chose the thinnest possible interface: **UInt256**, four `uint64_t` words, 256 bits total. 256 bits holds a 110x110=220-bit product with 36 bits of headroom for carries. The interface is deliberately minimal: multiplication, divide-by-10, comparison, and read-low-word only. Addition, subtraction, shifting, serialization are not written — the dec128 walker doesn't need them, and less code means fewer bugs.
+They started as internal parts of the dec128(BID) walker (four 64-bit words, only multiply and divide-by-10), and grew into a small complete integer library as the BID codec layer, dec128 rounding carry chains, and an independent self-test demanded more: operator overloads, decimal string conversion, shifts, general small-integer division, bit-length query, all covered by a 10-assertion self-test.
 
-This header is marked experimental; it can be compiled with `-O0` to compare against the optimized build. Production builds use `-O2`, where the compiler folds the 32-bit multiply chains into hardware `mul` instructions and, with ADX, emits `mulx` to grab both 64-bit halves directly.
+## Why a big integer is needed
+
+The dec128 coefficient is a 110-bit binary integer (IEEE 754-2008 BID layout). Walking from `1.0` and multiplying by `1.02` each step is equivalent to multiplying the coefficient by `102`, decrementing the exponent by 2, then renormalizing. Two 110-bit integers multiply to a 220-bit intermediate. C++ has no built-in type wider than `uint64_t`; the `__int128` extension is not universal and even it holds only 128 bits, still too narrow for 220 bits.
+
+So a big integer is hand-built. **UInt256** is four `uint64_t` words, 256 bits total — holds a 110×110=220-bit product with 36 bits of carry headroom. `UInt128` is the symmetric two-word version serving x87/FP128 mantissa intermediates (128 bits suffices there).
 
 ## Data layout
 
@@ -16,25 +20,17 @@ struct UInt256 {
 };
 ```
 
-Four words. `w[0]` is the least significant word, `w[3]` the most significant. This little-endian word order is the standard choice for big-integer arithmetic: carries propagate from `w[0]` toward `w[3]`, so the index-increment direction matches the carry direction and loops are easier to write correctly.
+Four words, `w[0]` least significant, `w[3]` most. Little-endian word order is the standard big-integer choice: carries propagate from `w[0]` toward `w[3]`, so the index-increment direction matches carry flow. `UInt128` is analogous with `w[0]`/`w[1]`.
 
-The constructor takes a single `uint64_t`, stores it in `w[0]`, and zeroes the high three words. There is no string constructor, no `double` constructor — those live one layer up. UInt256 itself only understands integers.
+Constructors: `UInt256()` zero; `UInt256(v)` puts a 64-bit value in `w[0]`; `UInt256(w0,w1,w2,w3)` sets all four words.
 
-## mul64: how 64x64 splits into 32x32
+## mul64: 64×64 split into 32×32
 
-The lowest-level operation is `mul64(x, y, lo, hi)`: two 64-bit unsigned inputs, two 64-bit outputs (low and high halves of the 128-bit product).
+The lowest-level operation is `mul64(x, y, lo, hi)`: two 64-bit unsigned inputs, output the low and high 64 bits of the 128-bit product.
 
-The direct implementation uses a compiler extension:
+The header avoids `__int128` for three reasons: portability; pedagogically showing how a 128-bit product is built from 32-bit halves; and on x86-64 the compiler folds the 32-bit chain into a hardware `mulx` (ADX) or `mul` instruction anyway.
 
-```cpp
-unsigned __int128 r = (unsigned __int128)x * y;
-lo = (uint64_t)r;
-hi = (uint64_t)(r >> 64);
-```
-
-UInt256 does not use `__int128`. Three reasons: portability (this header must not break on a toolchain without `__int128`), pedagogy (splitting into 32-bit multiplies makes the 128-bit product visible), and on 64-bit x86 the compiler recognizes the 32-bit chain and emits the same `mulx` hardware instruction as hand-written `__int128`.
-
-The split is textbook Schoolbook:
+The split is standard schoolbook:
 
 ```
 x = x1 * 2^32 + x0
@@ -42,168 +38,82 @@ y = y1 * 2^32 + y0
 x*y = x1*y1 * 2^64 + (x1*y0 + x0*y1) * 2^32 + x0*y0
 ```
 
-Four 32x32 products:
+Four 32×32 products combine into the middle term; no branches, a fixed 6 arithmetic instructions.
+
+## mul128 and mul: two multiplication layers
+
+- `mul128(a_lo, a_hi, b_lo, b_hi)`: two 128-bit numbers → 256-bit. Four `mul64` calls plus carry propagation.
+- `mul(a, b)`: full 256×256 → 256 (truncates to low 256 bits, high carry discarded). Double loop `i=0..3, j=0..3-i`, each `mul64(a.w[i], b.w[j], lo, hi)` adds `lo` to `r.w[i+j]` and carries `hi` forward.
+
+Carry detection uses unsigned wraparound: `c = a + b; carry = (c < a) ? 1 : 0;`. Equivalent to x86 `add` auto-set CF, but C++ can't read CF directly; the compiler lowers this to cmov.
+
+## Small-integer arithmetic
+
+| Method | Purpose |
+|---|---|
+| `inc()` | In-place +1, carry propagates `w[0]→w[3]` |
+| `add_small(v)` | In-place + a 64-bit small integer, with carry chain |
+| `mul_small(m)` | In-place × a 64-bit small integer; returns overflow carry |
+| `div10()` | In-place ÷ 10, returns remainder (dec128 normalization hot path, constant-optimized) |
+| `div_small(d)` | General small-integer divide, per-bit trial division (64 iterations per word), returns remainder |
+
+`div10` is a specialized `div_small(10)`: uses `2^64/10 = 0x1999999999999999`, `2^64%10 = 6` to compute quotient and remainder directly; the compiler turns `w[i]/10` and `w[i]%10` into multiply-shift, not a real divide instruction.
+
+## Comparison and bit utilities
+
+| Method | Purpose |
+|---|---|
+| `is_zero()` | OR all four words |
+| `cmp(o)` | Word-by-word from `w[3]` down; returns -1/0/+1 |
+| `eq/lt/gt/le/ge(o)` | Convenience wrappers over cmp |
+| `ge(v)` | `this >= v` (v is 64-bit); any of the high three words non-zero → true |
+| `bit_length()` | Highest set bit +1; 0 for zero (uses `__builtin_clzll`) |
+
+Free-function operators `== != < > <= >=` are all provided.
+
+## Shifts
+
+- `shr(n)`: logical right shift by n bits. `n/64` words moved, `n%64` bits cross-word joined.
+- `shl(n)`: logical left shift by n bits, symmetric.
+
+n≥256 returns zero; n≤0 returns self.
+
+## String conversion
+
+- `to_string()`: repeatedly `div10()` emits decimal digits low-first into a buffer, then returns the reversed slice. 256 bits is at most 78 decimal digits.
+- `to_hex_string()`: four words `w[3]→w[0]`, 16 hex nibbles each, leading zeros stripped.
+- `from_dec_string(s)`: construct from a decimal string; per char `mul_small(10) + add_small(digit)`.
+
+## Free-function operators
 
 ```cpp
-uint64_t p0 = x0 * y0;   // low 64 bits
-uint64_t p1 = x0 * y1;   // mid-low
-uint64_t p2 = x1 * y0;   // mid-high
-uint64_t p3 = x1 * y1;   // high 64 bits
+UInt256 a(12345), b = UInt256::mul128(lo, hi, lo, hi);
+a += b;
+UInt256 c = a + b;
+UInt256 d = a * b;
+if (a > b) { ... }
 ```
 
-The tricky part is the middle band. The high 32 bits of `p0`, the low 32 bits of `p1`, and the low 32 bits of `p2` sum into a middle term:
-
-```cpp
-uint64_t mid = (p0 >> 32) + (p1 & 0xFFFFFFFF) + (p2 & 0xFFFFFFFF);
-```
-
-`mid` is at most three 33-bit numbers summed, about 35 bits, no 64-bit overflow. Then:
-
-```cpp
-lo = (p0 & 0xFFFFFFFF) | (mid << 32);
-hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
-```
-
-The low 32 bits of `lo` are the low 32 bits of `p0`; the high 32 bits of `lo` are the low 32 bits of `mid`. `hi` is `p3` plus the high 32 bits of `p1`/`p2`, plus whatever carried out of `mid`. No branches, no loops, six fixed arithmetic instructions.
-
-On x86-64, GCC and Clang collapse this into a single `mulx r8, r9, r10` (ADX) or `mul r/m64` (classic MUL) — the hardware multiply unit produces 128 bits in one go. The source reads as "software-emulated 128-bit multiply"; the machine runs the hardware multiplier.
-
-## mul128: how 128x128 assembles into 256 bits
-
-`mul128(a_lo, a_hi, b_lo, b_hi)` multiplies two 128-bit numbers and returns 256 bits. Each 128-bit number is represented as two 64-bit words: `a = a_hi * 2^64 + a_lo`, `b = b_hi * 2^64 + b_lo`.
-
-Expand:
-
-```
-a*b = a_hi*b_hi * 2^192
-    + (a_hi*b_lo + a_lo*b_hi) * 2^64
-    + a_lo*b_lo
-```
-
-Four `mul64` calls (the middle band splits into two contributions):
-
-1. `mul64(a_lo, b_lo, r.w[0], r.w[1])` — lowest product, fills `w[0]` and `w[1]`.
-2. `mul64(a_hi, b_lo, lo, hi)` — left half of the middle band, added into `w[1]`, carry into `w[2]`.
-3. `mul64(a_lo, b_hi, lo, hi)` — right half of the middle band, added into `w[1]`, carry into `w[2]` and `w[3]`.
-4. `mul64(a_hi, b_hi, lo, hi)` — top term, added into `w[2]`, carry into `w[3]`.
-
-Carry detection is where this code is easiest to get wrong. When two 64-bit numbers `a + b` overflow, the wrapped result `c` is less than `a` (unsigned wraparound):
-
-```cpp
-uint64_t c = r.w[1] + lo;
-uint64_t carry1 = (c < r.w[1]) ? 1ULL : 0ULL;
-r.w[1] = c;
-```
-
-This `c < r.w[1]` is the carry flag. It is equivalent to the CF flag that x86 `add` sets automatically, but C++ cannot read CF directly, so this unsigned-wrap check is used. The compiler lowers it to a conditional move (`cmov`), no real branch.
-
-The second band is trickier because three values are added:
-
-```cpp
-uint64_t c2 = r.w[2] + hi + carry1;
-r.w[2] = c2;
-r.w[3] = (c2 < r.w[2] + carry1) ? 1ULL : 0ULL;
-```
-
-Here `r.w[2] + carry1` is the intermediate value; if `c2` is smaller than it, adding `hi` overflowed again, and another carry propagates into `w[3]`.
-
-Final term:
-
-```cpp
-c = r.w[2] + lo;
-uint64_t carry2 = (c < r.w[2]) ? 1ULL : 0ULL;
-r.w[2] = c;
-r.w[3] += hi + carry2;
-```
-
-The whole `mul128` calls `mul64` four times. Each `mul64` is about six instructions, plus the carry-propagation adds, total roughly 30 arithmetic instructions. For 256-bit multiplication this is the Schoolbook theoretical minimum: n=4 words, n²=16 64-bit multiplies, but because `mul64` internally splits into 32-bit halves, it is actually 16 32x32 multiplies.
-
-## div10: divide by 10 with remainder
-
-After each `x1.02` step, the coefficient must be renormalized: if it exceeds 10^33-1, divide by 10 and bump the exponent by 1 until the coefficient is back in range. This is not general division — the divisor is fixed at 10, and the remainder must be preserved (the remainder is the last decimal digit dropped, used for rounding).
-
-The algorithm processes words from `w[3]` down to `w[0]`. Key constants:
-
-```
-2^64 / 10 = 0x1999999999999999
-2^64 % 10 = 6
-```
-
-Where these come from: `2^64 = 10 * 0x1999999999999999 + 6`. When the previous word has produced a remainder `rem`, the current word `w[i]` actually represents `rem * 2^64 + w[i]`. Divide by 10:
-
-```cpp
-uint64_t q = w[i] / 10;
-uint64_t r = w[i] % 10;
-q += rem * 0x1999999999999999ULL;
-r += rem * 6ULL;
-q += r / 10;
-r = r % 10;
-w[i] = q;
-rem = r;
-```
-
-`w[i] / 10` is the quotient of the current word alone; `rem * 0x1999...` is the quotient contribution from the high-digit remainder. The remainder part first does `r += rem * 6`, then folds it into quotient with `r /= 10`, leaving `r %= 10` as the new remainder.
-
-This technique is called multi-precision short division, exactly like long division by hand: high digit to low digit, carrying the remainder forward. The divisor 10 is a compile-time constant, so the compiler lowers `w[i] / 10` and `w[i] % 10` into a multiply-and-shift (no actual divide instruction), which is fast.
-
-The return value is the final remainder — the 256-bit number modulo 10. In dec128 rounding, this remainder determines what the last dropped decimal digit is (0 through 9), which in turn decides whether round-to-nearest-even rounds up or truncates.
-
-## ge and to_lo: two utility functions
-
-`ge(v)` tests whether `this >= v` where `v` is a 64-bit number. Logic:
-
-```cpp
-if (w[3] || w[2] || w[1]) return true;
-return w[0] >= v;
-```
-
-If any of the high three words is nonzero, the number is at least 2^64 and necessarily larger than a 64-bit `v`. Otherwise only `w[0]` matters. This function drives the dec128 normalization loop: while the coefficient is >= 10^33, keep dividing by 10.
-
-`to_lo()` returns `w[0]` directly. After normalization, the coefficient should be back within 110 bits; the low 64 bits are the actual coefficient low part and get packed into the BID bit string.
+`operator+`, `operator+=`, `operator*` (via `mul`) are provided. No `-`/`-=`/`/` (subtraction and general big-integer division are added on demand).
 
 ## Why not Karatsuba or FFT
 
-For 256-bit multiplication, Karatsuba reduces the four `mul64` calls to three (recursively). But 256 bits is too small: Karatsuba's overhead (extra adds, subtracts, temporaries) on n=4 words is slower than Schoolbook itself. Karatsuba only starts winning around n=16 words, Toom-Cook around n=100, and FFT (Schonhage-Strassen) is only worth it at thousands of bits.
+256-bit multiply with Karatsuba would cut 4 `mul64` calls to 3. But 256 bits is too small: Karatsuba's recursion overhead at n=4 words is slower than schoolbook. Karatsuba starts paying off above ~16 words; FFT (Schönhage-Strassen) needs thousands of bits.
 
-The 256-bit multiply runs once per step; Dec128 has a reference step count around 714k. The estimate below covers only the pure `mul128` instruction layer: ~30 instructions each, on the order of 21.3 million instructions and a few seconds of pure-multiply cycles. It excludes per-step `div10` normalization, rounding, display, and scheduling; the end-to-end measured time for Dec128(BID) is in BASELINE_EN.md (ten-second scale, well above the pure-multiply estimate). At n=4 words, Karatsuba's recursive adds/temporaries offset the saved instructions while doubling complexity and debug cost, so Schoolbook wins.
+dec128 has ~710k reference steps, one multiply per step, ~21.3M instructions in the pure-multiply layer, seconds-scale (excluding div10/rounding/display/scheduling). End-to-end measured time: see BASELINE_EN.md.
 
-## Why no addition or shift
+## Relationship to BID/DPD
 
-A complete big-integer library has addition, subtraction, left shift, right shift, comparison, serialization, string conversion. This UInt256 has none of them. Reasons:
+UInt256 serves only the BID dec128 path. DPD does not use big integers — DPD stores the coefficient as a `std::vector<int>` decimal digit array with per-digit multiply-carry. The two paths are independent. Measured DPD128 is faster than BID Dec128 because UInt256's schoolbook multiply latency still beats DPD's per-digit decimal multiply.
 
-- **Addition**: not needed. Walking by x1.02 is multiply + divide, not add.
-- **Subtraction**: same.
-- **Shifting**: `mul64` already uses explicit `>> 32` and `<< 32` internally; a generic shift function is not needed.
-- **Serialization**: BID packing happens one layer up; UInt256 only computes.
+## Self-test
 
-One less function means one less bug surface. The philosophy here is "implement what is needed," not "write a general big-integer library." If dec64 addition is needed later, an add function gets added then.
-
-## Performance characteristics
-
-On an i7-6700 (Skylake with ADX), `mul64` compiles to roughly:
-
-- 2 `mov` to split high/low 32 bits
-- 4 32x32->64 `imul`
-- 3 adds for the middle band
-- 2 bitwise ops for lo/hi
-
-About 11 instructions, 3 cycles latency, throughput one per cycle (pipelined `imul`).
-
-`mul128` calls `mul64` four times plus carry propagation: ~40 instructions, ~15 cycles latency. The cycle figures above are a pure-multiply theoretical (worst-case serial) estimate; they exclude `div10`, rounding, display, and scheduling. End-to-end Dec128(BID) timing is reported in BASELINE_EN.md.
-
-With `-O0`, the compiler does not fold the 32-bit multiply chain; it emits literal 32-bit `imul` sequences, about 3-5x slower. That is why the production build uses `-O2` and `-O0` is reserved for A/B comparison.
-
-## Relationship to BID and DPD
-
-UInt256 serves only the BID dec128 path. DPD does not use big integers — DPD stores the coefficient as a `std::vector<int>` of decimal digits and does per-digit multiplication with carry. The two paths are independent: BID uses binary-integer multiply (requiring a big integer), DPD uses a decimal digit array with per-digit multiply-add (no binary big integer). Which is faster depends on coefficient width and implementation, and cannot be stated universally.
-
-Measured on this machine, DPD128 is actually faster than BID Dec128 because UInt256 Schoolbook multiply, while using the hardware multiplier, still has higher latency per multiply than DPD's per-digit decimal lookup-and-add. This in itself shows that at the 110-bit scale, big-integer multiply is not always faster than decimal-array arithmetic.
+`tests/tmp/uint_selftest.cpp` is a 10-assertion independent self-test: mul64 against `__int128`, mul128, div10 remainder, add_small carry, shr/shl round-trip, to_string/from_dec_string round-trip, cmp ordering. Prints `UINT_SELFTEST OK` on success.
 
 ## Limitations
 
-- **No sign bit**: purely unsigned. The dec128 sign lives in the BID bit string's top bit, not in UInt256.
-- **No overflow detection**: `mul128` assumes the product fits in 256 bits. That is true for 110x110=220 bits, but if a caller passes two full 128-bit numbers, the product overflows `w[3]`.
-- **No assignment operators**: default copy constructor. Four 64-bit words is a cheap copy.
-- **No print function**: debugging requires `printf("%016lx %016lx %016lx %016lx", w[3], w[2], w[1], w[0])`.
-
-These limitations are deliberate. This header is an internal part of the dec128 walker, not a general-purpose library for external use.
+- **No sign bit**: pure unsigned. dec128's sign lives in the BID bit-string top bit, not in UInt256.
+- **No subtraction, no general big division**: added on demand.
+- **`mul` truncates to low 256 bits**: the high 256 bits of a 256×256 product are discarded. Sufficient for dec128 (110×110=220 bits).
+- **`div_small` is per-bit trial division**: slower than `div10`, but general (any 64-bit divisor).
+- **Depends on `__builtin_clzll`**: GCC/Clang only; MSVC is not supported by design (and the project rejects MSVC anyway).
