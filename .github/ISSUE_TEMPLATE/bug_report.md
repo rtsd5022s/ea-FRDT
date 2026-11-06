@@ -1,14 +1,14 @@
 ---
 name: Bug report
-about: Report a crash, wrong output, or build failure
+about: Report a crash, wrong output, or step-count drift
 title: "[BUG] "
 labels: bug
 ---
 
 **Environment**
-- OS: (Windows / Linux / macOS)
+- OS: (Windows / Linux / other)
 - CPU: (e.g. Intel i7-6700, AMD Ryzen 7 5800X)
-- Compiler: (g++ 13, clang++ 18, etc.)
+- Compiler: (clang++ version / g++ version; MSVC is not supported and will be closed)
 - Version: (tag or commit hash)
 
 **Command line**
@@ -17,10 +17,13 @@ labels: bug
 ```
 
 **Expected behavior**
-What you expected to happen.
+What you expected to happen. If you expected a specific step count, cross-check `docs/BASELINE_*.md` first.
 
 **Actual behavior**
-What actually happened. Include the last few lines of output, and any hex bit pattern or step count.
+What actually happened. Include:
+- Last few lines of output
+- The step number it died / drifted at
+- The hex bit pattern of the last value (if `--bits hex`)
 
 **Additional context**
-Screenshots, error messages, or anything else.
+Screenshots, `--dump-events` excerpt, or anything else.
