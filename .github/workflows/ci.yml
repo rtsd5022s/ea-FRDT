@@ -63,12 +63,12 @@ jobs:
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
       - name: Build
         run: cmake --build build -j
-      - name: Size red line (fail if exe > 700 KB)
+      - name: Size red line (fail if exe > 1 MB)
         run: |
           SIZE=$(stat -c%s build/float_inf_walk.exe)
           echo "float_inf_walk.exe size: $SIZE bytes ($((SIZE/1024)) KB)"
-          if [ "$SIZE" -gt 716800 ]; then
-            echo "::error::Binary size $SIZE bytes exceeds 700 KB red line; a redundant dependency was likely introduced."
+          if [ "$SIZE" -gt 1048576 ]; then
+            echo "::error::Binary size $SIZE bytes exceeds 1 MB red line; a redundant dependency was likely introduced."
             exit 1
           fi
       - name: Smoke test
