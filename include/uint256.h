@@ -66,6 +66,78 @@ struct UInt256 {
         return rem;
     }
 
+    // ---- New: small-integer arithmetic ----
+
+    // Increment by 1, propagating carry across all 4 limbs.
+    void inc() {
+        w[0] += 1;
+        for (int i = 0; i < 3; ++i) {
+            if (w[i] != 0) break;
+            w[i+1] += 1;
+        }
+    }
+
+    // Add a small unsigned integer to the low limb, propagating carry.
+    void add_small(std::uint64_t v) {
+        std::uint64_t s = w[0] + v;
+        std::uint64_t carry = (s < w[0]) ? 1ULL : 0ULL;
+        w[0] = s;
+        for (int i = 1; i < 4 && carry; ++i) {
+            std::uint64_t t = w[i] + carry;
+            carry = (t < w[i]) ? 1ULL : 0ULL;
+            w[i] = t;
+        }
+    }
+
+    // Multiply in place by a small unsigned integer m (m < 2^64).
+    // Returns the final carry (0 iff result fits in 256 bits).
+    std::uint64_t mul_small(std::uint64_t m) {
+        std::uint64_t carry = 0;
+        for (int i = 0; i < 4; ++i) {
+            std::uint64_t lo, hi;
+            mul64(w[i], m, lo, hi);
+            lo += carry;
+            if (lo < carry) hi += 1;
+            w[i] = lo;
+            carry = hi;
+        }
+        return carry;
+    }
+
+    // ---- New: comparison ----
+
+    bool is_zero() const {
+        return (w[0]|w[1]|w[2]|w[3]) == 0;
+    }
+
+    // Compare against another UInt256. Returns -1, 0, +1.
+    int cmp(const UInt256& o) const {
+        for (int i = 3; i >= 0; --i) {
+            if (w[i] != o.w[i]) return w[i] < o.w[i] ? -1 : +1;
+        }
+        return 0;
+    }
+
+    bool eq(const UInt256& o) const { return cmp(o) == 0; }
+    bool lt(const UInt256& o) const { return cmp(o) < 0; }
+    bool gt(const UInt256& o) const { return cmp(o) > 0; }
+    bool le(const UInt256& o) const { return cmp(o) <= 0; }
+    bool ge(const UInt256& o) const { return cmp(o) >= 0; }
+
+    // ---- New: bit utilities ----
+
+    // Highest set-bit position (0-based); returns 0 for zero.
+    int bit_length() const {
+        for (int i = 3; i >= 0; --i) {
+            if (w[i]) {
+                int clz = __builtin_clzll(w[i]);
+                return i*64 + (63 - clz) + 1;
+            }
+        }
+        return 0;
+    }
+
+    // ---- Legacy: compare against a small unsigned integer ----
     bool ge(std::uint64_t v) const {
         if (w[3]||w[2]||w[1]) return true;
         return w[0] >= v;

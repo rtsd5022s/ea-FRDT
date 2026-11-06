@@ -48,6 +48,58 @@ struct UInt128 {
         return rem;
     }
 
+    // ---- Small-integer arithmetic ----
+
+    void inc() {
+        w[0] += 1;
+        if (w[0] == 0) w[1] += 1;
+    }
+
+    void add_small(std::uint64_t v) {
+        std::uint64_t s = w[0] + v;
+        if (s < w[0]) w[1] += 1;
+        w[0] = s;
+    }
+
+    // Multiply in place by a small unsigned integer m.
+    // Returns the final carry (0 iff result fits in 128 bits).
+    std::uint64_t mul_small(std::uint64_t m) {
+        std::uint64_t carry = 0;
+        for (int i = 0; i < 2; ++i) {
+            std::uint64_t lo, hi;
+            mul64(w[i], m, lo, hi);
+            lo += carry;
+            if (lo < carry) hi += 1;
+            w[i] = lo;
+            carry = hi;
+        }
+        return carry;
+    }
+
+    // ---- Comparison ----
+
+    bool is_zero() const { return (w[0]|w[1]) == 0; }
+
+    int cmp(const UInt128& o) const {
+        if (w[1] != o.w[1]) return w[1] < o.w[1] ? -1 : +1;
+        if (w[0] != o.w[0]) return w[0] < o.w[0] ? -1 : +1;
+        return 0;
+    }
+
+    bool eq(const UInt128& o) const { return cmp(o) == 0; }
+    bool lt(const UInt128& o) const { return cmp(o) < 0; }
+    bool gt(const UInt128& o) const { return cmp(o) > 0; }
+    bool le(const UInt128& o) const { return cmp(o) <= 0; }
+    bool ge(const UInt128& o) const { return cmp(o) >= 0; }
+
+    // ---- Bit utilities ----
+    int bit_length() const {
+        if (w[1]) return 64 + (64 - __builtin_clzll(w[1]));
+        if (w[0]) return 64 - __builtin_clzll(w[0]);
+        return 0;
+    }
+
+    // ---- Legacy: compare against a small unsigned integer ----
     bool ge(std::uint64_t v) const {
         if (w[1]) return true;
         return w[0] >= v;

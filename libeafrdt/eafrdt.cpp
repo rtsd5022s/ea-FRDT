@@ -362,16 +362,7 @@ static BigDec bid128_from_double(double v) {
     std::snprintf(buf, sizeof(buf), "%.0f", cd);
     UInt256 c;
     for (char* p = buf; *p; ++p) {
-        // c *= 10
-        std::uint64_t carry = 0;
-        for (int i = 0; i < 4; ++i) {
-            std::uint64_t lo, hi;
-            UInt256::mul64(c.w[i], 10, lo, hi);
-            lo += carry;
-            if (lo < carry) hi++;
-            c.w[i] = lo;
-            carry = hi;
-        }
+        c.mul_small(10);
         c.w[0] += (std::uint64_t)(*p - '0');
     }
     r.coeff = c;
@@ -390,8 +381,7 @@ static BigDec bid128_mul(const BigDec& a, const BigDec& b) {
     while (r.coeff.w[3] || r.coeff.w[2]) {
         std::uint64_t rem = r.coeff.div10();
         if (rem > 5 || (rem == 5 && (r.coeff.w[0] & 1ULL))) {
-            r.coeff.w[0] += 1;
-            for (int i = 0; i < 3; ++i) if (r.coeff.w[i] == 0) r.coeff.w[i+1] += 1; else break;
+            r.coeff.inc();
         }
         ++r.exp10;
     }

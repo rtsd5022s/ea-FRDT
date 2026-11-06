@@ -29,9 +29,7 @@ inline unsigned long long dec_round(UInt256 P, int& exp, unsigned long long maxc
     while (P.ge(maxc)) {
         unsigned long long r = P.div10();
         if (r > 5 || (r == 5 && (P.to_lo() & 1ULL))) {
-            // P += 1
-            P.w[0] += 1;
-            for (int i=0;i<3;i++) if (P.w[i]==0) P.w[i+1]+=1; else break;
+            P.inc();
         }
         ++exp;
         if (P.ge(maxc) && P.to_lo()==maxc && !P.w[1] && !P.w[2] && !P.w[3]) {
