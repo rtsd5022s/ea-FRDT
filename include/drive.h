@@ -143,9 +143,9 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             } else {
                 std::size_t sz = sizeof(S);
                 if (g_dump_endian == 1) {
-                    char buf[16];
+                    std::array<char, sizeof(S)> buf{};
                     for (std::size_t i = 0; i < sz; ++i) buf[i] = ((char*)&s)[sz - 1 - i];
-                    std::fwrite(buf, 1, sz, g_dump_file);
+                    std::fwrite(buf.data(), 1, sz, g_dump_file);
                 } else {
                     std::fwrite(&s, 1, sz, g_dump_file);
                 }
