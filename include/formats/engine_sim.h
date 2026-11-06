@@ -1,6 +1,9 @@
 // engine_sim.h — Shared hand-rolled bit-level software engine (parameterized E/M/bias).
 // Reused by fp4, fp6, fp8-e4m3, fp8-e5m2, bf16, tf32 (see formats/fp4.h etc.).
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "common.h"
 
 namespace fw {

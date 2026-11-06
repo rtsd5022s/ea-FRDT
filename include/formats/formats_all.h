@@ -2,6 +2,9 @@
 // Each format header binds its own parameters to a shared engine (engine_*.h) or,
 // for x87/fp128/dec128, contains its self-contained algorithm.
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 
 // Binary hand-rolled bit-level (engine_sim.h)
 #include "fp4.h"

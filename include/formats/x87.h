@@ -1,5 +1,8 @@
 // x87.h — x87 80-bit extended precision, pure software (1 sign + 15 exp + 64 man / explicit leading bit)
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "common.h"
 
 namespace fw {

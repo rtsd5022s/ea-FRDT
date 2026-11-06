@@ -1,6 +1,9 @@
 // engine_dpd.h — Shared IEEE 754 DPD decimal-float engine: DpdNum + arithmetic + pack + run_dpd.
 // Reused by dpd32, dpd64, dpd128 (see formats/dpd32.h, dpd64.h, dpd128.h).
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_dpd_codec.h"
 
 namespace fw {

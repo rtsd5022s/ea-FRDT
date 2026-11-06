@@ -1,5 +1,8 @@
 // dec128.h — Decimal128 (IEEE 754 BID, 34 sig digits / Emax 6144), pure-software big-integer coefficient.
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_decnum.h"   // brings engine_bid_codec.h + dec_fmt_text
 
 namespace fw {

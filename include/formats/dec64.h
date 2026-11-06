@@ -1,5 +1,8 @@
 // dec64.h — Decimal64 (IEEE 754 BID, 16 sig digits / Emax 384)
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_decnum.h"
 
 namespace fw {

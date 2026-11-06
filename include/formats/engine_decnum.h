@@ -1,6 +1,9 @@
 // engine_decnum.h — Shared 64-bit coefficient decimal (BID) engine: DecNum + run_dec.
 // Reused by dec32, dec64 (see formats/dec32.h, dec64.h).
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_bid_codec.h"
 #include "../uint256.h"
 

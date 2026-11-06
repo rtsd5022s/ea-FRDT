@@ -1,5 +1,8 @@
 // runner.h — ALL concurrent mode: worker pool + live monitor + summary
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "common.h"
 #include "formats/formats_all.h"
 #include "platform.h"

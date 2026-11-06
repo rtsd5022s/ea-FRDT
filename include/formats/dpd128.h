@@ -1,5 +1,8 @@
 // dpd128.h — DPD Decimal128 (12 exp cont / 110 coeff bits / 34 digits / bias 6176)
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_dpd.h"
 
 namespace fw {

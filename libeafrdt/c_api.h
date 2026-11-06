@@ -1,3 +1,6 @@
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 // c_api.h — C ABI for libeafrdt. Link against libeafrdt.a.
 #ifdef __cplusplus
 extern "C" {

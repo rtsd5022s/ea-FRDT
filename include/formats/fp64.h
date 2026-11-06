@@ -1,5 +1,8 @@
 // fp64.h — Native IEEE binary64 (double)
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_native.h"
 
 namespace fw {

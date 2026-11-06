@@ -1,6 +1,9 @@
 // eafrdt.h — ea-FRDT core algorithm library, platform-independent
 // Namespace: fw::core. No IO, no threads, no ANSI, no globals.
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include <cstdint>
 #include <cstddef>
 #include <string>

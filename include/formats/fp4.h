@@ -1,5 +1,8 @@
 // fp4.h — FP4 E2M1, hand-rolled bit-level (2 exp / 1 man / bias 1)
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "engine_sim.h"
 
 namespace fw {

@@ -1,5 +1,8 @@
 // format_util.h — Bit string and numeric formatting helpers
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include <cstdint>
 #include <string>
 #include "base_types.h"

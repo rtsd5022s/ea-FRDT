@@ -1,5 +1,8 @@
 // fp128.h — FP128 binary128, pure software, full 112-bit mantissa
 #pragma once
+#if defined(_MSC_VER)
+#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#endif
 #include "common.h"
 
 namespace fw {
