@@ -1,7 +1,7 @@
 // dpd64.h — DPD Decimal64 (8 exp cont / 50 coeff bits / 16 digits / bias 398)
 #pragma once
-#if defined(_MSC_VER)
-#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#if defined(_WIN32) && !defined(__MINGW32__)
+#error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "engine_dpd.h"
 

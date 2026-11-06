@@ -1,8 +1,8 @@
 // engine_bid_codec.h — Shared BID (binary integer decimal) encoding layer.
 // Reused by dec32, dec64, dec128 (see formats/dec32.h, dec64.h, dec128.h).
 #pragma once
-#if defined(_MSC_VER)
-#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#if defined(_WIN32) && !defined(__MINGW32__)
+#error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "common.h"
 

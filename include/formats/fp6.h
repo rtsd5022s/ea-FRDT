@@ -1,7 +1,7 @@
 // fp6.h — FP6 E3M2, hand-rolled bit-level (3 exp / 2 man / bias 3)
 #pragma once
-#if defined(_MSC_VER)
-#error "ea-FRDT: MSVC is not supported. Use GCC 13+ or Clang 16+ (MSYS2 clang64 on Windows)."
+#if defined(_WIN32) && !defined(__MINGW32__)
+#error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "engine_sim.h"
 
