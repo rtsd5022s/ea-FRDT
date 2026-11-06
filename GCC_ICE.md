@@ -1,4 +1,4 @@
-# GCC 16.2.0 Internal Compiler Error (ICE) Record
+# GCC 16.2.0 Internal Compiler Error (ICE) Record (EN)
 
 ## Symptom
 
@@ -82,7 +82,7 @@ The GCC build also exposed an overflow that clang++ silently accepted: `include/
 
 ---
 
-# GCC 16.2.0 内部编译器错误（ICE）记录
+# GCC 16.2.0 内部编译器错误（ICE）记录  (CN)
 
 ## 现象
 
