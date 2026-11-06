@@ -54,8 +54,13 @@ jobs:
             clang
             cmake
             ninja
+      - name: Verify compiler (must be clang64, not MSVC)
+        run: |
+          which clang++
+          clang++ --version
+          clang++ -dumpmachine
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
       - name: Build
         run: cmake --build build -j
       - name: Smoke test
