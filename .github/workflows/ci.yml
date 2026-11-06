@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build-test:
+  build-linux-gcc:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +24,7 @@ jobs:
           ./build/float_inf_walk 0 -m dec32 -t 5 -q
           ./build/float_inf_walk 0 -m all --only fp32,fp64,dec32 -j 1 -t 5 -q
 
-  build-clang:
+  build-linux-clang:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,3 +38,29 @@ jobs:
         run: |
           ./build/float_inf_walk 0 -m fp32 -t 5 -q
           ./build/float_inf_walk 0 -m dec64 -t 5 -q
+
+  build-windows-clang:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: clang64
+          update: true
+          install: >-
+            clang
+            cmake
+            ninja
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+      - name: Build
+        run: cmake --build build -j
+      - name: Smoke test
+        run: |
+          ./build/float_inf_walk.exe 0 -m fp32 -t 5 -q
+          ./build/float_inf_walk.exe 0 -m fp16 -t 5 -q
+          ./build/float_inf_walk.exe 0 -m dec32 -t 5 -q
+          ./build/float_inf_walk.exe 0 -m all --only fp32,fp64,dec32 -j 1 -t 5 -q
