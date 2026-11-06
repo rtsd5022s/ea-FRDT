@@ -20,6 +20,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 
 ### English
 
+- [Positioning](docs/POSITIONING_EN.md) — why ea-FRDT is "neither fish nor fowl": the empty niche between burn-in tools, benchmarks, tutorials, compiler tests, and codec libraries
 - [README](docs/README_EN.md) — project overview, command-line flags, exit reasons
 - [Parameter reference](docs/PARAMETERS_EN.md) — every CLI flag, default, valid range, verbatim from source
 - [Implementation](docs/IMPLEMENTATION_EN.md) — full technical overview of all 17 formats, modules, concurrency model, BID/DPD paths
@@ -37,6 +38,7 @@ This is not a benchmark that reports GFLOPS. It is a walking tool: it starts fro
 
 ### 中文
 
+- [产品定位：四不像](docs/POSITIONING_CN.md) — 为什么 ea-FRDT 不属于烤机/基准/教学/编译器测试/编解码库任何一类，以及这个缝隙为什么空着
 - [README](docs/README_CN.md) — 项目概述、命令行参数、退出原因
 - [参数完整参考](docs/PARAMETERS_CN.md) — 每个命令行参数、默认值、取值范围，一滴不差对照源码
 - [技术实现](docs/IMPLEMENTATION_CN.md) — 17 种格式、模块、并发模型、BID/DPD 路径完整技术概览
