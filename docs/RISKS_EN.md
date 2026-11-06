@@ -32,7 +32,7 @@ The power supply is the most overlooked component. A loaded CPU draws highly flu
 
 ### 2.1 System lag
 
-This is the most immediate. On an 8-core CPU running 8 workers, each is pinned to a core; on Windows the thread priority is additionally raised to `THREAD_PRIORITY_TIME_CRITICAL` (Linux only pins affinity and leaves default nice scheduling). The Windows scheduler favors high-priority threads, and everything else (Explorer, antivirus, IME, browser) gets squeezed onto the remaining cores. When all 8 are taken, other processes run in the gaps of time slices.
+This is the most immediate. On an 8-core CPU running 8 workers, each is pinned to a core; on Windows the thread priority is additionally raised to `THREAD_PRIORITY_TIME_CRITICAL` (Linux tries best-effort `SCHED_BATCH`/`nice(-5)`, silently skipped when CAP_SYS_NICE is missing in containers/VMs). The Windows scheduler favors high-priority threads, and everything else (Explorer, antivirus, IME, browser) gets squeezed onto the remaining cores. When all 8 are taken, other processes run in the gaps of time slices.
 
 In practice: mouse drag has lag, window switching takes seconds, even typing stutters. When you want to press Ctrl+C to stop the tool, the terminal may take a second to respond. This is not a bug; it is the expected behavior of pinning plus realtime priority. If you want to use the machine while it runs, pin fewer cores (ids are zero-based): on a 4-core CPU use `-j 0-1` and leave two cores for the OS.
 

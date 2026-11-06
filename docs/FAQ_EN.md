@@ -11,7 +11,7 @@ This file consolidates verified behavior. For CLI semantics see `PARAMETERS_EN.m
 **A: No.** Pure software integer simulation; no libquadmath, no `long double`, no `__float128`.
 
 ### Q: Is MSVC supported?
-**A: No.** The toolchain must be GNU/Clang (MSYS2 clang64 / GCC); MSVC is explicitly excluded.
+**A: No.** The toolchain must be GNU/Clang (MSYS2 clang64 / GCC). Every header starts with `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`, which rejects both MSVC cl.exe **and** LLVM's official prebuilt clang targeting `x86_64-pc-windows-msvc` (that clang defines `_MSC_VER` but not `__MINGW32__`). On Windows you must use MSYS2 clang64 (target `x86_64-w64-mingw32`).
 
 ### Q: Third-party libraries?
 **A: None.** No Boost/Eigen/libquadmath; implementation lives in `include/` and `src/`; the C ABI static library lives in `libeafrdt/`.

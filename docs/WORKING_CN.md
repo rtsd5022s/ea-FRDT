@@ -107,7 +107,7 @@ DPD 把十进制数字三个一组（0–999）编成 10 位二进制（1000 值
 
 ### 6.2 绑核
 
-Windows `SetThreadAffinityMask`、Linux `pthread_setaffinity_np`，启动时绑核；失败（容器/VM/无权限）降级不绑。目的主要是降低调度抖动、让 steps/sec 稳定。
+Windows `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL`；Linux `pthread_setaffinity_np` + best-effort `SCHED_BATCH`/`nice(-5)`；启动时绑核；失败（容器/VM/无权限）降级不绑。目的主要是降低调度抖动、让 steps/sec 稳定。
 
 ### 6.3 值拷贝
 

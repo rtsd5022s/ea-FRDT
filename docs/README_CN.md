@@ -1,10 +1,10 @@
 # ea-FRDT — 中文总览
 
-> **平台说明：** 预编译二进制仅 Windows x86_64；Linux/macOS 用 GCC 13+ 或 Clang 16+ 从源码构建。不支持 MSVC。
+> **平台说明：** 预编译二进制仅 Windows x86_64。CI 在 Ubuntu（GCC + Clang）与 Windows（MSYS2 clang64）三 job 构建并冒烟；**macOS/BSD/ARM Linux/RISC-V 从未测试过**，编译出问题欢迎提 PR。
 >
-> **编译器要求：** C++23（`<stdfloat>`、`if consteval`）。推荐 Clang 17+ 或 GCC 13+；g++ 16.2.0 有已知 ICE，退回 Clang。CMake 3.20+。
+> **编译器要求：** C++23。GCC 13+ 或 Clang 16+；g++ 16.2.0 有已知 ICE，退回 Clang。CMake 3.20+。
 >
-> **MSYS2 前缀说明：** Windows 上用 **clang64**（`C:\msys64\clang64\bin\clang++.exe`，LLVM 原生、lld 链接器、支持 thin LTO）；**ucrt64** 的 Clang 仅 GCC 兼容、用 GNU ld，不支持 thin LTO 且产物更大。
+> **Windows target 硬约束：** 所有头文件开头 `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`，同时排斥 MSVC cl.exe **和** LLVM 官方 `x86_64-pc-windows-msvc` clang。Windows 上必须用 MSYS2 **clang64**（target `x86_64-w64-mingw32`，自带 lld、支持 thin LTO）；ucrt64 用 GNU ld，不支持 thin LTO 且产物更大。
 
 **ea-FRDT**（Floating-point Rigorous Devil Test，面向硅片魔鬼高压硬件测试）是一个 C++23 命令行工具：让一个浮点数一步步往上（或往下）走，直到溢出、下溢或撞到安全上限。共支持 17 种浮点格式，覆盖二进制与十进制，含自写位级仿真，以及多线程压测模式——每个 worker 绑核后独立跑格式链。
 

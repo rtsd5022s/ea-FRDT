@@ -75,7 +75,7 @@ Parameters and the chain vector are value-copied; workers never read another's s
 ## Core binding
 
 - **Windows**: `SetThreadAffinityMask(GetCurrentThread(), 1ULL << core_id)` (no offset), and `SetThreadPriority(..., THREAD_PRIORITY_TIME_CRITICAL)`.
-- **Linux**: `pthread_setaffinity_np` with `CPU_SET(core_id, ...)`; no real-time priority is set (default nice class).
+- **Linux**: `pthread_setaffinity_np` with `CPU_SET(core_id, ...)`; priority raise is best-effort: try `SCHED_BATCH` (no root), fall back to `nice(-5)`; silently skipped when CAP_SYS_NICE is missing in containers/VMs.
 
 Cross-platform calls go through `fw::plat::bind_thread_to_core` in `platform.cpp`. Binding reduces migration and keeps caches warm; if the container/VM denies permission, binding fails and the worker runs unpinned.
 
@@ -117,7 +117,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32
 
 ## Performance notes
 
-Binding removes migration; `alignas(64)` removes false sharing; value copies remove locking; the monitor only reads slots. x87/FP128 are pure software and DPD uses per-digit declet arithmetic, so chain throughput is dominated by those formats. Real-time priority applies on Windows only; measured throughput fluctuates under background load and thermal throttling.
+Binding removes migration; `alignas(64)` removes false sharing; value copies remove locking; the monitor only reads slots. x87/FP128 are pure software and DPD uses per-digit declet arithmetic, so chain throughput is dominated by those formats. Windows uses `THREAD_PRIORITY_TIME_CRITICAL`; Linux uses best-effort `SCHED_BATCH`/`nice(-5)`. Measured throughput fluctuates under background load and thermal throttling.
 
 ## Risks (stress-test expectations)
 

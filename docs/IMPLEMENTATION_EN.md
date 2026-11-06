@@ -109,7 +109,7 @@ In `-m all`:
 2. Gather warnings; if the chain includes DPD or Dec128, a level-2 red `[!!!]` confirmation prints and waits up to 10 s for `y`; other keys/timeout return `cancelled`. (This unified confirmation runs in `-m all`.)
 3. Print CPU brand (CPUID leaf `0x80000002–4`), logical core count; physical count via `GetLogicalProcessorInformation` on Windows, `0` (skipped) on Linux.
 4. Spawn workers per `-j` (`1`, `1,3,5`, `1-4`, `1,3-5`); empty spec = all logical cores; out-of-range ids dropped.
-5. Each worker pins to a core (Windows `SetThreadAffinityMask`, Linux `pthread_setaffinity_np`; failure degrades to unpinned) and receives value-copies of chain and parameters.
+5. Each worker pins to a core (Windows `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL`; Linux `pthread_setaffinity_np` + best-effort `SCHED_BATCH`/`nice(-5)`; failure degrades to unpinned) and receives value-copies of chain and parameters.
 6. Monitor refreshes every `-r` ms (`1000` default in `-m all`); one line per worker: `[wN] Format: value steps/s elapsed loop=N`.
 7. `LIVE:` aggregates current-segment throughput across workers.
 8. On completion, print a summary table: per-worker per-format step counts, exit reason, elapsed, total elapsed.
@@ -202,7 +202,7 @@ C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
-Requires C++23 (GCC 13+ or Clang 16+); MSVC unsupported. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) builds on Ubuntu with GCC and Clang and runs short fp32/dec smoke tests, without `-Werror` (warnings do not fail the job). The CMake and direct-compile commands above build only the CLI `float_inf_walk`; `libeafrdt/` sits outside this build and CI and is built manually per `libeafrdt/README.md`.
+Requires C++23 (GCC 13+ or Clang 16+); every header starts with `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`, which rejects both MSVC cl.exe and LLVM's `x86_64-pc-windows-msvc` clang. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) runs three jobs: Ubuntu GCC, Ubuntu Clang, and Windows MSYS2 clang64 (Ninja + `clang++`, no MSVC generator), each with short fp32/dec smoke tests; without `-Werror` (warnings do not fail the job). The CMake and direct-compile commands above build only the CLI `float_inf_walk`; `libeafrdt/` sits outside this build and CI and is built manually per `libeafrdt/README.md`.
 
 ## Known limitations
 

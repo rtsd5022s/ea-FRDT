@@ -1,10 +1,10 @@
 # ea-FRDT — English Overview
 
-> **Platform note:** Prebuilt binary is Windows x86_64 only. Linux/macOS build from source with GCC 13+ or Clang 16+. MSVC is not supported.
+> **Platform note:** Prebuilt binary is Windows x86_64 only. CI builds on three targets: Ubuntu (GCC + Clang) and Windows (MSYS2 clang64). **macOS/BSD/ARM Linux/RISC-V have never been tested** — if you get it building there, open a PR.
 >
-> **Compiler requirements:** C++23 (`<stdfloat>`, `if consteval`). Use Clang 17+ or GCC 13+. g++ 16.2.0 has a known ICE; fall back to Clang. CMake 3.20+.
+> **Compiler requirements:** C++23. GCC 13+ or Clang 16+. g++ 16.2.0 has a known ICE; fall back to Clang. CMake 3.20+.
 >
-> **MSYS2 prefix note:** On Windows, use the **clang64** environment (`C:\msys64\clang64\bin\clang++.exe`, LLVM native, lld linker, supports thin LTO). The **ucrt64** environment's Clang is GCC-compat only and uses GNU ld, which does not support thin LTO and produces larger binaries.
+> **Windows target hard guard:** Every header starts with `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`, which rejects both MSVC cl.exe **and** LLVM's `x86_64-pc-windows-msvc` clang. On Windows you must use MSYS2 **clang64** (target `x86_64-w64-mingw32`, ships lld, supports thin LTO); ucrt64 uses GNU ld, no thin LTO, larger binaries.
 
 **ea-FRDT** (Floating-point Rigorous Devil Test) is a C++23 command-line tool that walks a floating-point number upward (or downward) step by step until it hits overflow, underflow, or a safety limit. It supports 17 float formats spanning binary and decimal, hand-rolled bit-level simulations, and a multi-threaded stress mode that pins workers to CPU cores and burns through the full format chain independently on each core.
 

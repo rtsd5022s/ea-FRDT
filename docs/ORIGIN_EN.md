@@ -74,7 +74,7 @@ So I added multi-threading. `-m all` spawns N worker threads, each independently
 
 Key decisions:
 
-**Core pinning.** Each worker pins to a 0-based logical core. On Windows this uses `SetThreadAffinityMask` plus `THREAD_PRIORITY_TIME_CRITICAL`; on Linux it uses `pthread_setaffinity_np` with `CPU_SET` and no real-time priority. Without pinning, scheduler migration causes jitter.
+**Core pinning.** Each worker pins to a 0-based logical core. On Windows this uses `SetThreadAffinityMask` plus `THREAD_PRIORITY_TIME_CRITICAL`; on Linux it uses `pthread_setaffinity_np` with `CPU_SET`, plus best-effort `SCHED_BATCH`/`nice(-5)` (silently skipped when CAP_SYS_NICE is missing). Without pinning, scheduler migration causes jitter.
 
 **alignas(64).** Worker state is aligned to 64 bytes, a common cache-line size; if two workers share a line they invalidate each other's cache (false sharing) and collapse performance. `alignas(64)` pads each worker to a full line.
 
@@ -100,7 +100,7 @@ Under MSYS2, clang64 is native LLVM with its own lld and thin-LTO support; `-Oz 
 
 ## 8. Open-Source Preparation
 
-After covering many formats with threading, bilingual output, input hardening, and a baseline, I prepared release materials: issue templates; CI (GCC + Clang build with a smoke test on Ubuntu); README platform/compiler notes; a self-disclosing Limitations section; a disclaimer; the MIT license (LICENSE at the repo root); and SECURITY.md, CHANGELOG.md, and CONTRIBUTING.md.
+After covering many formats with threading, bilingual output, input hardening, and a baseline, I prepared release materials: issue templates; CI (three jobs: Ubuntu GCC, Ubuntu Clang, and Windows MSYS2 clang64, each with a smoke test); README platform/compiler notes; a self-disclosing Limitations section; a disclaimer; the MIT license (LICENSE at the repo root); and SECURITY.md, CHANGELOG.md, and CONTRIBUTING.md.
 
 ## 9. What This Project Is
 

@@ -125,7 +125,7 @@ Each worker has an `alignas(64)` `WorkerSlot`: format ID, current value string, 
 
 ### 6.2 Core pinning
 
-Windows uses `SetThreadAffinityMask`, Linux `pthread_setaffinity_np`; each worker pins at startup. On failure (container, VM, no permission) it degrades to unpinned. Pinning mainly reduces scheduling jitter (stable steps/sec), not raw throughput.
+Windows uses `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL`; Linux `pthread_setaffinity_np` + best-effort `SCHED_BATCH`/`nice(-5)`; each worker pins at startup. On failure (container, VM, no permission) it degrades to unpinned. Pinning mainly reduces scheduling jitter (stable steps/sec), not raw throughput.
 
 ### 6.3 Value copy
 

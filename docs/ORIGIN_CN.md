@@ -76,7 +76,7 @@ UInt256 写了很久：乘法、除以 10、比较、取低位，每个操作都
 
 这里有几个关键决策：
 
-**绑核。** 每个 worker 绑到一个逻辑核（核心编号 0-based）。Windows 用 `SetThreadAffinityMask`，并额外把该线程设为 `THREAD_PRIORITY_TIME_CRITICAL`；Linux 用 `pthread_setaffinity_np` + `CPU_SET`，不设置实时优先级。不绑核的话，调度器会在核心之间迁移线程，导致性能抖动。
+**绑核。** 每个 worker 绑到一个逻辑核（核心编号 0-based）。Windows 用 `SetThreadAffinityMask`，并额外把该线程设为 `THREAD_PRIORITY_TIME_CRITICAL`；Linux 用 `pthread_setaffinity_np` + `CPU_SET`，提权走 best-effort `SCHED_BATCH`/`nice(-5)`（容器/VM 无权限时静默不提）。不绑核的话，调度器会在核心之间迁移线程，导致性能抖动。
 
 **alignas(64)。** 每个 worker 的状态结构对齐到 64 字节——CPU 缓存行常见大小。若两个 worker 的状态落在同一缓存行，会互相 invalidate（伪共享，false sharing），性能骤降；`alignas(64)` 把每个 worker 撑到一个完整缓存行，消除伪共享。
 
@@ -104,7 +104,7 @@ MSYS2 的 Clang 中，clang64 是 LLVM 原生、自带 lld、支持 thin LTO；�
 
 ## 八、开源准备
 
-项目具备多格式覆盖、多线程、双语、输入加固与基线记录后，我开始整理开源材料：Issue 模板、CI（Ubuntu 上 GCC + Clang 构建并跑 smoke）、README 的平台与编译器说明、Limitations 自曝章节、免责声明、MIT 许可证（仓库根目录 LICENSE）、以及 SECURITY.md、CHANGELOG.md、CONTRIBUTING.md 等文档。
+项目具备多格式覆盖、多线程、双语、输入加固与基线记录后，我开始整理开源材料：Issue 模板、CI（Ubuntu GCC + Clang、Windows MSYS2 clang64 三个 job，跑 smoke）、README 的平台与编译器说明、Limitations 自曝章节、免责声明、MIT 许可证（仓库根目录 LICENSE）、以及 SECURITY.md、CHANGELOG.md、CONTRIBUTING.md 等文档。
 
 ## 九、这个项目是什么
 

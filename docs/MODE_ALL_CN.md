@@ -75,7 +75,7 @@ while (!done) {
 ## 绑核
 
 - **Windows**：`SetThreadAffinityMask(GetCurrentThread(), 1ULL << core_id)`（无偏移），并 `SetThreadPriority(..., THREAD_PRIORITY_TIME_CRITICAL)`。
-- **Linux**：`pthread_setaffinity_np` + `CPU_SET(core_id, ...)`；不设实时优先级（默认 nice 类）。
+- **Linux**：`pthread_setaffinity_np` + `CPU_SET(core_id, ...)`；提权走 best-effort：先试 `SCHED_BATCH`（不需 root），失败退 `nice(-5)`；容器/VM 无 CAP_SYS_NICE 时静默不提。
 
 跨平台调用经 `platform.cpp` 的 `fw::plat::bind_thread_to_core`。绑核减少迁移、保缓存热度；容器/VM 无权限时绑定失败，worker 降级为不绑核照跑。
 

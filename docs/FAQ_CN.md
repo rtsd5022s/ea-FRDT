@@ -11,7 +11,7 @@
 **A: 不依赖。** 两者均为纯软件整数仿真，不链接 libquadmath，不使用 `long double` 或 `__float128`。
 
 ### Q: MSVC 支持吗？
-**A: 不支持。** 项目强制 GNU/Clang 工具链（MSYS2 clang64 / GCC 等），MSVC 被明确排除。
+**A: 不支持。** 项目强制 GNU/Clang 工具链（MSYS2 clang64 / GCC 等）。所有头文件开头都有 `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`，同时排斥 MSVC cl.exe **和** LLVM 官方预编译包默认的 `x86_64-pc-windows-msvc` clang（后者会定义 `_MSC_VER` 但不定义 `__MINGW32__`）。Windows 上必须用 MSYS2 clang64（target `x86_64-w64-mingw32`）。
 
 ### Q: 需要第三方库吗？
 **A: 不需要。** 零第三方依赖，不引入 Boost/Eigen/libquadmath；实现位于 `include/`、`src/`，十进制 C ABI 静态库在 `libeafrdt/`。

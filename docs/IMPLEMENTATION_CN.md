@@ -109,7 +109,7 @@ src/
 2. 汇总警告；链含 DPD 或 Dec128 时打印二级红色 `[!!!]` 确认，最多等 10 秒按 `y`；其他键/超时返回 `cancelled`。该统一确认在 `-m all` 中执行。
 3. 打印 CPU 型号（CPUID leaf `0x80000002–4`）、逻辑核心数；物理核心 Windows 用 `GetLogicalProcessorInformation`，Linux 返回 `0`（跳过显示）。
 4. 按 `-j` 起 worker（`1`、`1,3,5`、`1-4`、`1,3-5`）；省略 = 全部逻辑核；越界编号丢弃。
-5. 每个 worker 绑核（Windows `SetThreadAffinityMask`，Linux `pthread_setaffinity_np`；失败降级为不绑），值拷贝格式链与参数。
+5. 每个 worker 绑核（Windows `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL`；Linux `pthread_setaffinity_np` + best-effort `SCHED_BATCH`/`nice(-5)`；失败降级为不绑），值拷贝格式链与参数。
 6. 监视器每 `-r` ms 刷新（`-m all` 默认 `1000`）；每 worker 一行：`[wN] 格式: 当前值 steps/s 已用时长 loop=N`。
 7. `LIVE:` 汇总当前段跨 worker 吞吐。
 8. 结束后打印汇总表：每 worker 每格式步数、退出原因、耗时、总耗时。
@@ -202,7 +202,7 @@ C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -Iinclude src/*.cpp -lwinmm -o float_inf_walk
 ```
 
-要求 C++23（GCC 13+ 或 Clang 16+）；不支持 MSVC。无第三方依赖（无 libquadmath/Boost/Eigen）。CI（GitHub Actions）在 Ubuntu 用 GCC 与 Clang 构建，跑 fp32/dec 冒烟；未启用 `-Werror`，warning 不会导致任务失败。上述 CMake 与直接编译命令只构建 CLI `float_inf_walk`；`libeafrdt/` 在该构建与 CI 之外，按 `libeafrdt/README.md` 手动构建。
+要求 C++23（GCC 13+ 或 Clang 16+）；头文件开头统一 `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`，同时排斥 MSVC cl.exe 与 LLVM 官方 `x86_64-pc-windows-msvc` clang。无第三方依赖（无 libquadmath/Boost/Eigen）。CI（GitHub Actions）三个 job：Ubuntu GCC、Ubuntu Clang、Windows MSYS2 clang64（Ninja + `clang++`，不碰 MSVC generator），跑 fp32/dec 冒烟；未启用 `-Werror`，warning 不会导致任务失败。上述 CMake 与直接编译命令只构建 CLI `float_inf_walk`；`libeafrdt/` 在该构建与 CI 之外，按 `libeafrdt/README.md` 手动构建。
 
 ## 已知局限
 
