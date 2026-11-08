@@ -1,5 +1,10 @@
 #include "platform.h"
 #include <cstdlib>
+#include <cstring>
+
+#if defined(__GNUC__) || defined(__clang__)
+#include <cpuid.h>
+#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -137,3 +142,46 @@ bool affinity_available()     { return true; }
 
 } // namespace fw::plat
 #endif
+
+namespace fw::plat {
+
+// CPU brand string via CPUID leaves 0x80000002/3/4 (12 bytes each, 48 total).
+// Available on every modern x86/x86_64 CPU; returns "unknown" on failure.
+// Static buffer so the returned C-string survives past the call.
+const char* cpu_brand() {
+#if defined(__GNUC__) || defined(__clang__)
+    static char buf[64] = "unknown";
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+        // Check extended leaves are supported: CPUID leaf 0x80000000 returns max extended leaf.
+        if (__get_cpuid(0x80000000, &eax, &ebx, &ecx, &edx)) {
+            if (eax >= 0x80000004) {
+                char* p = buf;
+                for (unsigned int leaf = 0x80000002; leaf <= 0x80000004; ++leaf) {
+                    unsigned int a, b, c, d;
+                    if (!__get_cpuid(leaf, &a, &b, &c, &d)) break;
+                    std::memcpy(p, &a, 4); p += 4;
+                    std::memcpy(p, &b, 4); p += 4;
+                    std::memcpy(p, &c, 4); p += 4;
+                    std::memcpy(p, &d, 4); p += 4;
+                }
+                buf[48] = '\0';
+                // Trim leading whitespace.
+                char* s = buf;
+                while (*s == ' ' || *s == '\t') ++s;
+                std::size_t len = std::strlen(s);
+                while (len > 0 && (s[len-1] == ' ' || s[len-1] == '\t')) --len;
+                s[len] = '\0';
+                if (s != buf) std::memmove(buf, s, len + 1);
+            }
+        }
+    }
+    return buf;
+#else
+    return "unknown";
+#endif
+}
+
+} // namespace fw::plat

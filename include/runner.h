@@ -227,6 +227,7 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
     int phys_cores = fw::plat::physical_cores();
     if (!g_json) {
     std::cout << clr::CYN << tr("=== ALL 并发模式：每线程独立跑完整个格式链 ===", "=== ALL modes: each worker runs the full format chain independently ===") << clr::RST << "\n";
+    std::cout << clr::GRY << tr("CPU: ", "CPU: ") << fw::plat::cpu_brand() << "\n";
     std::cout << clr::GRY << tr("CPU 核心(逻辑)=", "CPU cores(logical)=") << hw_threads;
     if (phys_cores > 0 && phys_cores != hw_threads)
         std::cout << tr(" (物理=", " (physical=") << phys_cores << ")";

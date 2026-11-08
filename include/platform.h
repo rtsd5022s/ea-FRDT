@@ -30,6 +30,10 @@ void teardown_on_exit();
 int  logical_cores();
 int  physical_cores();
 
+// CPU brand string from CPUID leaf 0x80000002..0x80000004 (e.g. "Intel(R) Core(TM) i5-10400 CPU @ 2.90GHz").
+// Static buffer, never throws, returns "unknown" if CPUID leaves are absent.
+const char* cpu_brand();
+
 // Capability probes for the JSON "system" block (A4). Never throw.
 bool hires_timer_effective();   // true only where timeBeginPeriod exists
 bool affinity_available();      // true where thread affinity can be requested
