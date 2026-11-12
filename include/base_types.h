@@ -41,6 +41,10 @@ struct RunResult {
 
 inline std::atomic<int> g_timeout_sec{0};
 inline bool g_json = false;
+// Single-format runs end with one "总计 …" footer line instead of going silent under -q.
+// Only the single-format path sets it, so per-worker -m all tables are untouched; the
+// single-format walk is one thread, so a plain bool is safe here.
+inline bool g_single_summary = false;
 inline RunResult g_result;
 inline std::string g_fmt_name;
 inline double g_json_factor = 1.02;

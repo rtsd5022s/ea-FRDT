@@ -268,8 +268,8 @@ static void print_help() {
         std::string("dpd32[") + cui::accent("DPD") + "]  dpd64[" + cui::accent("DPD")
         + "]  dpd128[" + cui::accent("DPD") + "]", clr::GRN);
     opt("all",
-        tr("17 个格式并发，每线程独立状态机",
-           "all 17 formats concurrently, one state machine per thread"), clr::GRN);
+        tr("13 个格式并发，每线程独立状态机",
+           "all 13 formats concurrently, one state machine per thread"), clr::GRN);
 
     sec("位置参数：", "Positional:");
     opt("delay_ms",
@@ -333,8 +333,8 @@ static void print_help() {
         tr("核心编号：单值 4 / 逗号 1,3 / 范围 1-3 / 混合",
            "core ids: single 4 / comma 1,3 / range 1-3 / mixed"));
     opt("--only <list>",
-        tr("逗号分隔的格式子集，默认全部 17 个",
-           "comma-separated format subset, default all 17"));
+        tr("逗号分隔的格式子集，默认 13 个；\nDPD32/64/128 与 dec128 须显式加入",
+           "comma-separated format subset, default 13;\nadd DPD32/64/128 and dec128 explicitly"));
     opt("-r, --refresh <ms>",
         tr("刷新间隔；0 = 每步；-m all 下默认 1000",
            "refresh interval; 0 = every step; 1000 by default under -m all"));
@@ -1083,7 +1083,16 @@ int main(int argc, char** argv) {
 
     if (!has_delay) {
         if (mode == "all") delay_ms = 10;
-        else { print_help(); return 2; }
+        else {
+            // Options were given but the positional delay_ms is missing: say so instead of
+            // dumping the whole help page (which hid the actual problem and let the atexit
+            // JSON shell append a record for a run that never happened).
+            g_json = false;
+            if (g_dump_file) { std::fclose(g_dump_file); g_dump_file = nullptr; std::remove(g_dump_path); }
+            cui::err() << tr("错误：缺少位置参数 delay_ms（0 = 不限速；完整用法见 -h）\n",
+                            "error: missing positional delay_ms (0 = unlimited; full usage: -h)\n");
+            return 2;
+        }
     }
     if (delay_ms < 0) delay_ms = 0;
     if (start_kind != StartKind::Default && !std::isnan(start_val)) { cui::err() << tr("错误：特殊起点与数值起点互斥\n", "error: special start and numeric start are mutually exclusive\n"); return 2; }
@@ -1233,12 +1242,17 @@ int main(int argc, char** argv) {
     g_rate_segments.clear(); g_rate_n = 0;
     g_seg_prev_ms = 0.0; g_seg_prev_steps = 0;
     g_rate_min = g_rate_avg = g_rate_p95 = g_rate_max = 0.0;
+    g_single_summary = true; // single-format walk ends with one 总计 footer line (never under --json)
     RunResult* q = (quiet || g_json || g_dump_file || g_events_file ? &g_result : nullptr);
     if (FmtId id = fmt_canon(mode); id != FmtId::COUNT) {
         run_format(id, RunParams{delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits},
                    q, show_bits, refresh_ms);
         return 0;
     }
+    // Rejected before any walk: clear the single-format JSON shell so a bogus mode can never
+    // produce a record claiming format "<bad token>" with reason "overflow".
+    g_json = false;
+    if (g_dump_file) { std::fclose(g_dump_file); g_dump_file = nullptr; std::remove(g_dump_path); }
     cui::err() << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
     return 2;
 }

@@ -23,6 +23,20 @@ const char* step_name(StepMode sm);
 std::string step_factor_str(StepMode sm, double factor);
 const char* reason_name(RunResult::Reason r);
 
+// Single-format footer: total steps, exit reason and wall clock in one line. Shared by the
+// template driver and the hand-written DPD loop so every single-format run closes with the
+// same statement; suppressed under --json (machine output owns stdout) and for -m all runs
+// (g_single_summary stays false there).
+inline void print_run_summary(u128 steps, RunResult::Reason r, double elapsed_ms) {
+    if (!g_single_summary || g_json) return;
+    const char* rn = reason_name(r);
+    std::cout << "\n" << cui::num(tr("总计 ", "TOTAL "))
+              << cui::num(cui::count(steps)) << tr(" 步", " steps")
+              << cui::dim("  ·  ") << cui::reason(rn, rn)
+              << cui::dim("  ·  ") << tr("墙钟 ", "wall ") << cui::num(cui::elapsed(elapsed_ms)) << "\n"
+              << std::flush;
+}
+
 // Machine-readable reason token for the JSONL event trace (C2 --dump-events).
 static inline const char* reason_token(RunResult::Reason r) {
     switch (r) {
@@ -192,6 +206,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             double elapsed_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
             if (elapsed_s >= (double)cap) {
                 finish_line("[step " + to_string_u128(step) + "] timeout (" + std::to_string(cap) + "s), stopping.");
+                print_run_summary(step, RunResult::TIMEOUT, elapsed_s * 1000.0);
                 return;
             }
         }
@@ -216,6 +231,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
         std::string rn = reason_name(exit_reason);
         finish_line(cui::dim("[step " + to_string_u128(step) + "]") + " "
                     + cui::reason(rn, rn) + "  (" + std::to_string((int)elapsed_ms) + " ms)");
+        print_run_summary(step, exit_reason, elapsed_ms);
     }
     if (quiet) {
         // Do NOT call slow_update() here: it re-renders s and would overwrite the terminal value set
@@ -247,6 +263,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             if (idx >= (std::size_t)g_rate_n) idx = (std::size_t)g_rate_n - 1;
             g_rate_p95 = g_rate_segments[idx];
         }
+        print_run_summary(step, exit_reason, quiet->elapsed_ms);
     }
 }
 
