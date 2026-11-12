@@ -1140,21 +1140,17 @@ int main(int argc, char** argv) {
         std::snprintf(buf, sizeof(buf), "%g", factor);
         warns.push_back({1, tr("警告：倍率极小（", "warn: factor very small (") + buf + tr("），步数可能爆炸", "), steps may explode")});
     }
-    // DPD / dec128 warnings: check single mode or all+--only
+    // DPD / dec128 warnings: only for formats the run actually visits. The default
+    // -m all chain leaves DPD32/64/128 and Dec128 out (runner.h adds them only when
+    // --only names them), so an empty --only must stay silent here.
     bool is_dpd = (mode == "dpd32" || mode == "dpd64" || mode == "dpd128" ||
                    mode == "dpd-dec32" || mode == "dpd-dec64" || mode == "dpd-dec128");
     bool is_dec128 = (mode == "dec128" || mode == "decimal128");
     if (mode == "all") {
-        if (only_csv.empty()) {
-            // Running all 17 formats: DPD32/64/128 and dec128 are included.
-            is_dpd = true;
-            is_dec128 = true;
-        } else {
-            std::string s = only_csv;
-            for (auto& c : s) c = (char)tolower(c);
-            if (s.find("dpd") != std::string::npos) is_dpd = true;
-            if (s.find("dec128") != std::string::npos) is_dec128 = true;
-        }
+        std::string s = only_csv;
+        for (auto& c : s) c = (char)tolower(c);
+        if (s.find("dpd") != std::string::npos) is_dpd = true;
+        if (s.find("dec128") != std::string::npos) is_dec128 = true;
     }
     if (is_dpd) {
         warns.push_back({2, tr("DPD 是纯软件十进制数组运算：逐位乘法+进位+舍入，无硬件十进制浮点单元，性能可能降低 20-30 倍，低端 CPU 满载时间更长。包含格式：DPD32/DPD64/DPD128。",
