@@ -44,7 +44,7 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
                 out.push_back(std::stoi(tok));
             }
         } catch (...) {
-            std::cerr << tr("错误：--jobs 无法解析 '", "error: --jobs cannot parse '") << sanitize(tok)
+            cui::err() << tr("错误：--jobs 无法解析 '", "error: --jobs cannot parse '") << sanitize(tok)
                       << tr("'（支持单值/逗号列表/范围）\n", "' (single/comma/range)\n");
             std::exit(2);
         }
@@ -53,7 +53,7 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
     std::sort(out.begin(), out.end());
     out.erase(std::unique(out.begin(), out.end()), out.end());
     if (out.empty()) {
-        std::cerr << tr("错误：--jobs 未解析出有效核心编号（需 0~", "error: --jobs no valid core id (0~") << (hw-1) << ")\n";
+        cui::err() << tr("错误：--jobs 未解析出有效核心编号（需 0~", "error: --jobs no valid core id (0~") << (hw-1) << ")\n";
         std::exit(2);
     }
     return out;
@@ -180,11 +180,11 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
             chain.push_back(id);
         }
         if (!errs.empty()) {
-            std::cerr << tr("错误：--only 未知格式: ", "error: --only unknown: ") << sanitize(errs) << "\n";
+            cui::err() << tr("错误：--only 未知格式: ", "error: --only unknown: ") << sanitize(errs) << "\n";
             std::exit(2);
         }
     }
-    if (chain.empty()) { std::cerr << tr("错误：--only 未选中格式\n", "error: --only empty\n"); std::exit(2); }
+    if (chain.empty()) { cui::err() << tr("错误：--only 未选中格式\n", "error: --only empty\n"); std::exit(2); }
 
     // Warnings are confirmed in main() before dispatch (unified confirm_warnings)
 
@@ -295,7 +295,7 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                           << cui::label(cui::pad_l(tr("已用", "elapsed"), 9)) << "\n";
                 header_done = true;
             }
-            if (last_lines > 0) std::cout << "\033[" << last_lines << "A\r";
+            if (last_lines > 0) std::cout << cui::up(last_lines);
             int active = 0;
             double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
             double total_rate = 0.0;
@@ -304,7 +304,7 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                 if (c.done) continue;
                 double rate = c.cur_elapsed_ms > 0.0 ? (double)c.cur_steps / (c.cur_elapsed_ms / 1000.0) : 0.0;
                 total_rate += rate;
-                std::cout << "\033[K  "
+                std::cout << cui::CLEAR << "  "
                           << cui::accent(cui::pad_r("w" + std::to_string(core_ids[w]), 4)) << " " << cui::dim("│") << " "
                           << cui::pad_r(cui::clip(c.name, 12), 12) << " " << cui::dim("│") << " "
                           << cui::num(cui::pad_l(cui::clip(c.cur_value.empty() ? "..." : c.cur_value, 22), 22)) << " " << cui::dim("│") << " "
@@ -317,13 +317,13 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                 std::cout << "\n";
                 ++active;
             }
-            std::cout << "\033[K  " << cui::warn(cui::pad_r("LIVE", 4)) << " " << cui::dim("│") << " "
+            std::cout << cui::CLEAR << "  " << cui::warn(cui::pad_r("LIVE", 4)) << " " << cui::dim("│") << " "
                       << cui::dim(cui::pad_r(tr("当前段合计", "segment total"), 12)) << " " << cui::dim("│") << " "
                       << cui::num(cui::pad_l("-", 22)) << " " << cui::dim("│") << " "
                       << cui::num(cui::pad_l(cui::rate(total_rate), 7)) << " " << cui::dim("│") << " "
                       << cui::dim(cui::pad_l(cui::elapsed(total_ms), 9)) << "\n";
-            if (active == 0) std::cout << "\033[K" << cui::dim(tr("(全部线程已完成)", "(all workers done)")) << "\n";
-            for (int i = active + 1; i < last_lines; ++i) std::cout << "\033[K\n";
+            if (active == 0) std::cout << cui::CLEAR << cui::dim(tr("(全部线程已完成)", "(all workers done)")) << "\n";
+            for (int i = active + 1; i < last_lines; ++i) std::cout << cui::CLEAR << "\n";
             last_lines = active > 0 ? active + 1 : 2;
             std::cout << std::flush;
         }

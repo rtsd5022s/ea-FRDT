@@ -145,7 +145,7 @@ inline bool bid_selfcheck(int sign, int exp10, const std::string& coeffDec, cons
     std::string expect = bid_strip0(coeffDec.empty() ? "0" : coeffDec);
     while ((int)expect.size() < f.digits) expect += '0';
     if (u.coeffDec != expect) { ok = false; errs += " coeff(" + u.coeffDec + "!=" + expect + ")"; }
-    std::cout << "  [BID-SELFCHECK] " << (ok ? "OK" : "MISMATCH" + errs) << "\n";
+    std::cout << cui::bid_selfcheck_line(ok, ok ? std::string() : errs);
     return ok;
 }
 

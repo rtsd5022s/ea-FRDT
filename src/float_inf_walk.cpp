@@ -81,7 +81,7 @@ static void print_warnings(const std::vector<std::pair<int,std::string>>& warns,
         // column position is aligned, so all messages start on the same column.
         const char* tag  = lvl == 0 ? "[?]" : (lvl == 2 ? "[!!!]" : "[!]");
         const char* code = lvl == 0 ? clr::BLU : (lvl == 2 ? clr::RED : clr::YEL);
-        os << code << cui::pad_r(tag, 6) << " " << msg << "\n" << clr::RST;
+        os << cui::paint_line(code, std::string(cui::pad_r(tag, 6)) + " " + msg + "\n");
     }
 }
 
@@ -108,7 +108,7 @@ static bool confirm_warnings(std::vector<std::pair<int,std::string>>& warns) {
     if (c == 'y' || c == 'Y') confirmed = true;
 #endif
     if (!confirmed) {
-        std::cout << "\n" << tr("已取消。\n", "Cancelled.\n");
+        std::cout << "\n" << cui::paint_line(clr::YEL, tr("已取消。\n", "Cancelled.\n"));
         return false;
     }
     std::cout << "\n";
@@ -157,8 +157,9 @@ static int run_self_test() {
     int checks = 0, fails = 0;
     auto check = [&](bool ok, const char* name) {
         ++checks;
-        if (ok) std::cout << "PASS " << name << "\n";
-        else    { ++fails; std::cout << "FAIL " << name << "\n"; }
+        // Literal PASS/FAIL tokens stay; only the verdict word is coloured.
+        if (ok) std::cout << cui::ok("PASS") << " " << name << "\n";
+        else    { ++fails; std::cout << cui::err("FAIL") << " " << name << "\n"; }
     };
 
     // 1) CRC-32/IEEE 802.3 known vectors (zlib-compatible).
@@ -209,112 +210,67 @@ static int run_self_test() {
         check(clean.find('\x1b') == std::string::npos, "sanitize removes ESC escape sequences");
     }
 
-    std::cout << "SELF-TEST CHECKS=" << checks << " FAILS=" << fails << "\n";
+    // Literal "SELF-TEST CHECKS=<n> FAILS=<n>" shape is contract-checked; only the
+    // verdict colour changes.
+    std::cout << cui::dim("SELF-TEST CHECKS=" + std::to_string(checks) + " ") 
+              << (fails == 0 ? cui::ok("FAILS=0") : cui::err("FAILS=" + std::to_string(fails))) << "\n";
     return fails == 0 ? 0 : 1;
 }
 
 static void print_help() {
-    if (g_lang == Lang::EN) {
-    std::cout <<
-"\033[36m╔══════════════════════════════════════════════════════════════╗\n"
-"║   ea-FRDT — Silicon-level Devil Hardware Stress Test (C++23)  ║\n"
-"╚══════════════════════════════════════════════════════════════╝\033[0m\n"
-"\n"
-"\033[33mUsage:\033[0m\n"
-"  float_inf_walk.exe [options] <delay_ms>\n"
-"  float_inf_walk.exe -h | --help\n"
-"\n"
-"\033[33mModes -m (default f32):\033[0m\n"
-"  \033[32mNative\033[0m       f16  f32(default)  f64\n"
-"  \033[32mSoftware-bit\033[0m fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32\n"
-"  \033[32mPure software\033[0m x87  fp128\n"
-"  \033[32mDecimal\033[0m      dec32\033[0m[\033[36mBID\033[0m]  dec64\033[0m[\033[36mBID\033[0m]  dec128\033[0m[\033[36mBID\033[0m]\n"
-"                  dpd32\033[0m[\033[36mDPD\033[0m]  dpd64\033[0m[\033[36mDPD\033[0m]  dpd128\033[0m[\033[36mDPD\033[0m]\n"
-"  \033[32mall\033[0m        run all formats concurrently, independent state per thread\n"
-"\n"
-"\033[33mPositional:\033[0m\n"
-"  delay_ms        delay per step; 0=unlimited. No arg = show this help.\n"
-"\n"
-"\033[33mCore options:\033[0m\n"
-"  -a, --start <x>    start value (default 1). supports negatives, num/sci/eng/0x Raw/min-normal/max-finite\n"
-"  -k, --factor <r>   multiplier per step (default 1.02). >1 to +inf, 0<r<1 to 0, supports sci notation\n"
-"  -g, --step <s>     x1.02(default) / mululp(x1+1ULP) / addulp(+1ULP) / subulp(-1ULP)\n"
-"  -m, --mode <m>     float format (see modes above)\n"
-"\n"
-"\033[33mDisplay:\033[0m\n"
-"  -f, --fmt <f>      eng(default) / sci / full\n"
-"  -d, --digits <n>   sci/eng decimals (default 6, -1=full, 0~100)\n"
-"  --bits <m>         hex / bin / off(default), append bit repr in parens\n"
-"  -q, --quiet        quiet: skip live monitor, print summary directly\n"
-"  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
-"  --dump <file>      binary serialize every step raw bytes to file\n"
-"  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
-"  --dump-packed      request tight records; flag set only when width actually shrinks (e.g. tf32 3B<4B)\n"
-"  --dump-raw / --dump-no-header  omit the 256B header; continuous raw bit stream from offset 0 (single format only)\n"
-"  -lang <zh|en>      UI language (default zh)\n"
-"\n"
-"\033[33mConcurrency (-m all):\033[0m\n"
-"  -j, --jobs <spec>  core ids: single(4) / comma(1,3) / range(1-3) / mixed\n"
-"  --only <list>      comma-separated format subset (default all 17)\n"
-"  -r, --refresh <ms> refresh interval, 0=every step; -m all default 1000\n"
-"\n"
-"\033[33mControl:\033[0m\n"
-"  -t, --timeout <s>  timeout seconds, 0=until inf/underflow (default)\n"
-"  -l, --loop <n>     loops (-m all only): -1=infinite, 1=off(default), >1=N times\n"
-"  -y, --yes          skip interactive critical-warning confirmation (non-interactive/CI)\n"
-"  --compare <file>  compare deterministic steps/reason against a baseline JSON; diff on stderr, exit code unchanged\n"
-"  --steps <n>       stop after exactly N steps (default 0=disabled; complements -t wall-clock)\n"
-"  --pin <core>      single-format opt-in: bind this thread to one logical core (default off)\n"
-"  --boost           single-format opt-in: raise thread priority (default off; no-op on Linux)\n"
-"  --dump-events <f> single-format JSONL trace: start/exit event records (default off)\n"
-"  --self-test       run pure-logic codec/CRC/parser checks and exit; no stress run\n"
-"  -s, --subnormal    start from min subnormal (mutually exclusive with -a)\n"
-"\n"
-"\033[33mAdvanced opt-in (default off; single format unless noted):\033[0m\n"
-"  --max-seconds <s>  hard wall-clock cap in seconds; fires as timeout; independent of -t\n"
-"  --preset iron / --iron  priority boost + 60s safety cap; never auto-pins; no temperature readout or automatic throttling\n"
-"  --pairwise A,B    minimal same-start dual-engine compare (whitelist dec32,dpd32 / dec64,dpd64 / f32,tf32)\n"
-"  --sample-window <ms>  quiet/JSON-only steps/s segments: min/avg/p95/max distribution (0=off)\n"
-"  --probe boundaries  standalone fixed-step batch table: quick formats x four boundary starts\n"
-"\n"
-"\033[33mExamples:\033[0m\n"
-"  float_inf_walk.exe 0                          # f32 from 1.0 x1.02\n"
-"  float_inf_walk.exe 0 -a 100 -k 1.1            # start at 100 x1.1\n"
-"  float_inf_walk.exe 0 -a 0x3F800000 -m f32     # raw bit start\n"
-"  float_inf_walk.exe 0 -a max-finite -k 0.5     # max value descending to 0\n"
-"  float_inf_walk.exe 0 -m fp4 -g addulp         # enumerate to inf\n"
-"  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
-"  float_inf_walk.exe 0 -m all -l 3 -t 10        # loop 3x, max 10s each\n"
-"  float_inf_walk.exe 0 -m f32 --json            # JSON output for scripts\n"
-"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n";
-    } else {
-    std::cout <<
-"\033[36m╔══════════════════════════════════════════════════════════════╗\n"
-"║   ea-FRDT — 面向硅片魔鬼高压硬件测试 (C++23)              ║\n"
-"╚══════════════════════════════════════════════════════════════╝\033[0m\n"
-"\n"
-"\033[33m用法:\033[0m\n"
+    using cui::section;
+    using cui::title;
+    using cui::ok;
+    using cui::accent;
+    std::ostream& os = std::cout;
+
+    // Section header: one blank line above, styled name, body follows verbatim.
+    auto sec = [&](const char* cn, const char* en) { os << "\n" << title(tr(cn, en)) << "\n"; };
+
+    os << "\n" << section(tr("ea-FRDT — 面向硅片魔鬼高压硬件测试 (C++23)",
+                             "ea-FRDT — Silicon-level Devil Hardware Stress Test (C++23)"));
+
+    sec("用法:", "Usage:");
+    os << tr(
 "  float_inf_walk.exe [选项] <delay_ms>\n"
-"  float_inf_walk.exe -h | --help\n"
-"\n"
-"\033[33m模式 -m（默认 f32）:\033[0m\n"
-"  \033[32m原生\033[0m       f16  f32(默认)  f64\n"
-"  \033[32m自写位级\033[0m   fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32\n"
-"  \033[32m纯软件\033[0m     x87  fp128\n"
-"  \033[32m十进制\033[0m     dec32\033[0m[\033[36mBID\033[0m]  dec64\033[0m[\033[36mBID\033[0m]  dec128\033[0m[\033[36mBID\033[0m]\n"
-"                  dpd32\033[0m[\033[36mDPD\033[0m]  dpd64\033[0m[\033[36mDPD\033[0m]  dpd128\033[0m[\033[36mDPD\033[0m]\n"
-"  \033[32mall\033[0m        并发跑全部格式，每线程独立状态机\n"
-"\n"
-"\033[33m位置参数:\033[0m\n"
-"  delay_ms        每步限速毫秒；0=不限速。无参=只显示帮助。\n"
-"\n"
-"\033[33m核心选项:\033[0m\n"
+"  float_inf_walk.exe -h | --help\n",
+"  float_inf_walk.exe [options] <delay_ms>\n"
+"  float_inf_walk.exe -h | --help\n");
+
+    sec("模式 -m（默认 f32）:", "Modes -m (default f32):");
+    os << "  " << ok(tr("原生", "Native"))
+       << tr("       f16  f32(默认)  f64\n", "       f16  f32(default)  f64\n")
+       << "  " << ok(tr("自写位级", "Software-bit"))
+       << tr("   fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32\n",
+             " fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32\n")
+       << "  " << ok(tr("纯软件", "Pure software"))
+       << tr("     x87  fp128\n", " x87  fp128\n")
+       << "  " << ok(tr("十进制", "Decimal"))
+       << tr("     ", "      ")
+       << "dec32[" << accent("BID") << "]  dec64[" << accent("BID") << "]  dec128[" << accent("BID") << "]\n"
+       << "                  dpd32[" << accent("DPD") << "]  dpd64[" << accent("DPD") << "]  dpd128[" << accent("DPD") << "]\n"
+       << "  " << ok("all")
+       << tr("        并发跑全部格式，每线程独立状态机\n",
+             "        run all formats concurrently, independent state per thread\n");
+
+    sec("位置参数:", "Positional:");
+    os << tr(
+"  delay_ms        每步限速毫秒；0=不限速。无参=只显示帮助。\n",
+"  delay_ms        delay per step; 0=unlimited. No arg = show this help.\n");
+
+    sec("核心选项:", "Core options:");
+    os << tr(
 "  -a, --start <x>    起点（默认1）。支持负数，数字/科学/工程/0x Raw/min-normal/max-finite\n"
 "  -k, --factor <r>   每步倍率（默认1.02）。>1递增到+inf，0<r<1递减到0，支持科学计数法\n"
 "  -g, --step <s>     x1.02(默认) / mululp(×1+1ULP) / addulp(+1ULP) / subulp(-1ULP)\n"
-"  -m, --mode <m>     浮点格式（见上方模式列表）\n"
-"\n"
-"\033[33m显示选项:\033[0m\n"
+"  -m, --mode <m>     浮点格式（见上方模式列表）\n",
+"  -a, --start <x>    start value (default 1). supports negatives, num/sci/eng/0x Raw/min-normal/max-finite\n"
+"  -k, --factor <r>   multiplier per step (default 1.02). >1 to +inf, 0<r<1 to 0, supports sci notation\n"
+"  -g, --step <s>     x1.02(default) / mululp(x1+1ULP) / addulp(+1ULP) / subulp(-1ULP)\n"
+"  -m, --mode <m>     float format (see modes above)\n");
+
+    sec("显示选项:", "Display:");
+    os << tr(
 "  -f, --fmt <f>      eng(默认) / sci / full\n"
 "  -d, --digits <n>   sci/eng 小数位（默认6，-1=完整，0~100）\n"
 "  --bits <m>         hex / bin / off(默认)，括号内追加位表示\n"
@@ -324,14 +280,29 @@ static void print_help() {
 "  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
 "  --dump-packed      请求紧凑记录；仅在实际缩宽时置位（如 tf32 写3字节<4字节，整字宽格式不缩减）\n"
 "  --dump-raw / --dump-no-header  省略256字节头：从偏移0直接写连续原始位流（仅单格式）\n"
-"  -lang <zh|en>      界面语言（默认 zh）\n"
-"\n"
-"\033[33m并发选项（-m all）:\033[0m\n"
+"  -lang <zh|en>      界面语言（默认 zh）\n",
+"  -f, --fmt <f>      eng(default) / sci / full\n"
+"  -d, --digits <n>   sci/eng decimals (default 6, -1=full, 0~100)\n"
+"  --bits <m>         hex / bin / off(default), append bit repr in parens\n"
+"  -q, --quiet        quiet: skip live monitor, print summary directly\n"
+"  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
+"  --dump <file>      binary serialize every step raw bytes to file\n"
+"  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
+"  --dump-packed      request tight records; flag set only when width actually shrinks (e.g. tf32 3B<4B)\n"
+"  --dump-raw / --dump-no-header  omit the 256B header; continuous raw bit stream from offset 0 (single format only)\n"
+"  -lang <zh|en>      UI language (default zh)\n");
+
+    sec("并发选项（-m all）:", "Concurrency (-m all):");
+    os << tr(
 "  -j, --jobs <spec>  核心编号：单值(4) / 逗号(1,3) / 范围(1-3) / 混合\n"
 "  --only <list>      逗号分隔格式子集（默认全部17个）\n"
-"  -r, --refresh <ms> 刷新间隔(ms)，0=每步(默认)；-m all 默认1000\n"
-"\n"
-"\033[33m控制选项:\033[0m\n"
+"  -r, --refresh <ms> 刷新间隔(ms)，0=每步(默认)；-m all 默认1000\n",
+"  -j, --jobs <spec>  core ids: single(4) / comma(1,3) / range(1-3) / mixed\n"
+"  --only <list>      comma-separated format subset (default all 17)\n"
+"  -r, --refresh <ms> refresh interval, 0=every step; -m all default 1000\n");
+
+    sec("控制选项:", "Control:");
+    os << tr(
 "  -t, --timeout <s>  超时停止(秒)，0=直到inf/下溢(默认)\n"
 "  -l, --loop <n>     循环次数（仅 -m all 有效）：-1=无限，1=关闭(默认)，>1=N次\n"
 "  -y, --yes          跳过 critical 警告交互确认（非交互/CI 用）\n"
@@ -341,16 +312,33 @@ static void print_help() {
 "  --boost           单格式可选：提升线程优先级（默认关闭；Linux 无提级则为 no-op）\n"
 "  --dump-events <f> 单格式 JSONL 轨迹：start/exit 事件记录（默认关闭）\n"
 "  --self-test       运行纯逻辑编解码/CRC/解析自检后退出，不进入压测\n"
-"  -s, --subnormal    从最小非规格化数开始（与 -a 互斥）\n"
-"\n"
-"\033[33m高级可选（默认关闭；除注明外仅单格式）:\033[0m\n"
+"  -s, --subnormal    从最小非规格化数开始（与 -a 互斥）\n",
+"  -t, --timeout <s>  timeout seconds, 0=until inf/underflow (default)\n"
+"  -l, --loop <n>     loops (-m all only): -1=infinite, 1=off(default), >1=N times\n"
+"  -y, --yes          skip interactive critical-warning confirmation (non-interactive/CI)\n"
+"  --compare <file>  compare deterministic steps/reason against a baseline JSON; diff on stderr, exit code unchanged\n"
+"  --steps <n>       stop after exactly N steps (default 0=disabled; complements -t wall-clock)\n"
+"  --pin <core>      single-format opt-in: bind this thread to one logical core (default off)\n"
+"  --boost           single-format opt-in: raise thread priority (default off; no-op on Linux)\n"
+"  --dump-events <f> single-format JSONL trace: start/exit event records (default off)\n"
+"  --self-test       run pure-logic codec/CRC/parser checks and exit; no stress run\n"
+"  -s, --subnormal    start from min subnormal (mutually exclusive with -a)\n");
+
+    sec("高级可选（默认关闭；除注明外仅单格式）:", "Advanced opt-in (default off; single format unless noted):");
+    os << tr(
 "  --max-seconds <s> 墙钟硬熔断上限(秒)，到点以 timeout 退出；与 -t 独立\n"
 "  --preset iron / --iron  开启提级 + 60s 安全上限；不自动绑核；不读温度/节流、不自动降频\n"
 "  --pairwise A,B    最小同起点双引擎对照（白名单 dec32,dpd32 / dec64,dpd64 / f32,tf32）\n"
 "  --sample-window <ms>  仅静默/JSON：按墙钟窗统计 steps/s 的 min/avg/p95/max 分布（0=关）\n"
-"  --probe boundaries  独立固定步批量表：快格式 × 四类边界起点\n"
-"\n"
-"\033[33m示例:\033[0m\n"
+"  --probe boundaries  独立固定步批量表：快格式 × 四类边界起点\n",
+"  --max-seconds <s>  hard wall-clock cap in seconds; fires as timeout; independent of -t\n"
+"  --preset iron / --iron  priority boost + 60s safety cap; never auto-pins; no temperature readout or automatic throttling\n"
+"  --pairwise A,B    minimal same-start dual-engine compare (whitelist dec32,dpd32 / dec64,dpd64 / f32,tf32)\n"
+"  --sample-window <ms>  quiet/JSON-only steps/s segments: min/avg/p95/max distribution (0=off)\n"
+"  --probe boundaries  standalone fixed-step batch table: quick formats x four boundary starts\n");
+
+    sec("示例:", "Examples:");
+    os << tr(
 "  float_inf_walk.exe 0                          # f32 从1.0 ×1.02\n"
 "  float_inf_walk.exe 0 -a 100 -k 1.1            # 从100起步 ×1.1\n"
 "  float_inf_walk.exe 0 -a 0x3F800000 -m f32     # Raw 位串起点\n"
@@ -359,8 +347,16 @@ static void print_help() {
 "  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
 "  float_inf_walk.exe 0 -m all -l 3 -t 10        # 循环3次，每次最多10s\n"
 "  float_inf_walk.exe 0 -m f32 --json            # JSON 输出供脚本采集\n"
-"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n";
-    }
+"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n",
+"  float_inf_walk.exe 0                          # f32 from 1.0 x1.02\n"
+"  float_inf_walk.exe 0 -a 100 -k 1.1            # start at 100 x1.1\n"
+"  float_inf_walk.exe 0 -a 0x3F800000 -m f32     # raw bit start\n"
+"  float_inf_walk.exe 0 -a max-finite -k 0.5     # max value descending to 0\n"
+"  float_inf_walk.exe 0 -m fp4 -g addulp         # enumerate to inf\n"
+"  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
+"  float_inf_walk.exe 0 -m all -l 3 -t 10        # loop 3x, max 10s each\n"
+"  float_inf_walk.exe 0 -m f32 --json            # JSON output for scripts\n"
+"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n");
 }
 
 int main(int argc, char** argv) {
@@ -478,7 +474,7 @@ int main(int argc, char** argv) {
                 bc = "{\"available\":false}";
             } else {
                 if (!ac.matched) {
-                    std::cerr << "[compare] " << g_compare_key
+                    cui::note() << "[compare] " << g_compare_key
                               << " MISMATCH exp_steps=" << ac.exp_steps
                               << " exp_reason=" << ac.exp_reason
                               << " got_steps=" << to_string_u128(g_result.steps)
@@ -594,159 +590,159 @@ int main(int argc, char** argv) {
         if (a == "-h" || a == "--help") { print_help(); return 0; }
         if (a == "--self-test") { return run_self_test(); }
         if (a == "-s" || a == "--subnormal") {
-            if (start_kind != StartKind::Default) { std::cerr << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
+            if (start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
             start_kind = StartKind::Subnormal; continue;
         }
         if (a == "--start" || a == "-a") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--start 需要一个值\n", "error: --start requires a value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--start 需要一个值\n", "error: --start requires a value\n"); return 2; }
             std::string sv = argv[++i];
             if (sv == "min-normal" || sv == "minnormal" || sv == "normmin" || sv == "min") {
-                if (start_kind != StartKind::Default) { std::cerr << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
+                if (start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
                 start_kind = StartKind::MinNormal;
             } else if (sv == "max-finite" || sv == "maxfinite" || sv == "infmax" || sv == "max") {
-                if (start_kind != StartKind::Default) { std::cerr << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
+                if (start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
                 start_kind = StartKind::MaxFinite;
             } else {
                 try { start_val = parse_number(sv); }
-                catch (...) { std::cerr << tr("错误：无法解析起点 '", "error: cannot parse start '") << sanitize(sv) << tr("'\n", "'\n"); return 2; }
-                if (std::isnan(start_val) || std::isinf(start_val)) { std::cerr << tr("错误：起点不能为 NaN/Inf\n", "error: start cannot be NaN/Inf\n"); return 2; }
+                catch (...) { cui::err() << tr("错误：无法解析起点 '", "error: cannot parse start '") << sanitize(sv) << tr("'\n", "'\n"); return 2; }
+                if (std::isnan(start_val) || std::isinf(start_val)) { cui::err() << tr("错误：起点不能为 NaN/Inf\n", "error: start cannot be NaN/Inf\n"); return 2; }
             }
             continue;
         }
         if (a == "--factor" || a == "-k") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--factor 需要一个值\n", "error: --factor requires a value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--factor 需要一个值\n", "error: --factor requires a value\n"); return 2; }
             try { factor = parse_number(argv[++i]); }
-            catch (...) { std::cerr << tr("错误：无法解析倍率\n", "error: cannot parse factor\n"); return 2; }
-            if (factor == 0.0) { std::cerr << tr("错误：--factor 不能为 0\n", "error: --factor cannot be 0\n"); return 2; }
-            if (factor < 0.0) { std::cerr << tr("错误：--factor 不能为负数\n", "error: --factor cannot be negative\n"); return 2; }
-            if (std::isnan(factor) || std::isinf(factor)) { std::cerr << tr("错误：--factor 不能为 NaN/Inf\n", "error: --factor cannot be NaN/Inf\n"); return 2; }
+            catch (...) { cui::err() << tr("错误：无法解析倍率\n", "error: cannot parse factor\n"); return 2; }
+            if (factor == 0.0) { cui::err() << tr("错误：--factor 不能为 0\n", "error: --factor cannot be 0\n"); return 2; }
+            if (factor < 0.0) { cui::err() << tr("错误：--factor 不能为负数\n", "error: --factor cannot be negative\n"); return 2; }
+            if (std::isnan(factor) || std::isinf(factor)) { cui::err() << tr("错误：--factor 不能为 NaN/Inf\n", "error: --factor cannot be NaN/Inf\n"); return 2; }
             continue;
         }
         if (a == "--fmt" || a == "-f") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--fmt 需要一个值（eng/sci/full）\n", "error: --fmt requires a value (eng/sci/full)\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--fmt 需要一个值（eng/sci/full）\n", "error: --fmt requires a value (eng/sci/full)\n"); return 2; }
             std::string f = argv[++i];
             if (f == "eng") disp_fmt = DispFmt::ENG;
             else if (f == "sci") disp_fmt = DispFmt::SCI;
             else if (f == "full") disp_fmt = DispFmt::FULL;
-            else { std::cerr << tr("错误：未知显示格式 '", "error: unknown display format '") << f << tr("'\n", "'\n"); return 2; }
+            else { cui::err() << tr("错误：未知显示格式 '", "error: unknown display format '") << f << tr("'\n", "'\n"); return 2; }
             continue;
         }
         if (a == "--digits" || a == "-d") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--digits 需要一个整数\n", "error: --digits requires an integer\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--digits 需要一个整数\n", "error: --digits requires an integer\n"); return 2; }
             try { digits = std::stoi(argv[++i]); }
-            catch (...) { std::cerr << tr("错误：--digits 需为整数\n", "error: --digits must be an integer\n"); return 2; }
-            if (digits != -1 && (digits < 0 || digits > 100)) { std::cerr << tr("错误：--digits 应为 -1 或 0~100\n", "error: --digits must be -1 or 0~100\n"); return 2; }
+            catch (...) { cui::err() << tr("错误：--digits 需为整数\n", "error: --digits must be an integer\n"); return 2; }
+            if (digits != -1 && (digits < 0 || digits > 100)) { cui::err() << tr("错误：--digits 应为 -1 或 0~100\n", "error: --digits must be -1 or 0~100\n"); return 2; }
             continue;
         }
         if (a == "--showbits" || a == "--bits") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--showbits 需要一个值（hex/bin/off）\n", "error: --showbits requires a value (hex/bin/off)\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--showbits 需要一个值（hex/bin/off）\n", "error: --showbits requires a value (hex/bin/off)\n"); return 2; }
             std::string sb = argv[++i];
             if (sb == "hex") show_bits = ShowBits::HEX;
             else if (sb == "bin") show_bits = ShowBits::BIN;
             else if (sb == "off" || sb == "none") show_bits = ShowBits::OFF;
-            else { std::cerr << tr("错误：未知 --showbits '", "error: unknown --showbits '") << sb << tr("'\n", "'\n"); return 2; }
+            else { cui::err() << tr("错误：未知 --showbits '", "error: unknown --showbits '") << sb << tr("'\n", "'\n"); return 2; }
             continue;
         }
         if (a == "--jobs" || a == "-j") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--jobs 需要一个值\n", "error: --jobs requires a value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--jobs 需要一个值\n", "error: --jobs requires a value\n"); return 2; }
             jobs_spec = argv[++i];
             continue;
         }
         if (a == "--only" || a == "--modes") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--only 需要一个值\n", "error: --only requires a value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--only 需要一个值\n", "error: --only requires a value\n"); return 2; }
             only_csv = argv[++i];
             continue;
         }
         if (a == "--refresh" || a == "-r") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--refresh 需要一个毫秒值\n", "error: --refresh requires a millisecond value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--refresh 需要一个毫秒值\n", "error: --refresh requires a millisecond value\n"); return 2; }
             try { refresh_ms = std::stoll(argv[++i]); }
-            catch (...) { std::cerr << tr("错误：--refresh 应为整数毫秒\n", "error: --refresh must be integer ms\n"); return 2; }
+            catch (...) { cui::err() << tr("错误：--refresh 应为整数毫秒\n", "error: --refresh must be integer ms\n"); return 2; }
             if (refresh_ms < 0) refresh_ms = 0;
             refresh_explicit = true;
             continue;
         }
         if (a == "--timeout" || a == "-t") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--timeout 需要一个秒值\n", "error: --timeout requires a second value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--timeout 需要一个秒值\n", "error: --timeout requires a second value\n"); return 2; }
             try { g_timeout_sec.store(std::stoi(argv[++i])); }
-            catch (...) { std::cerr << tr("错误：--timeout 应为整数秒\n", "error: --timeout must be integer seconds\n"); return 2; }
+            catch (...) { cui::err() << tr("错误：--timeout 应为整数秒\n", "error: --timeout must be integer seconds\n"); return 2; }
             if (g_timeout_sec.load() < 0) g_timeout_sec.store(0);
             continue;
         }
         if (a == "--loop" || a == "-l") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--loop 需要一个值\n", "error: --loop requires a value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--loop 需要一个值\n", "error: --loop requires a value\n"); return 2; }
             try { loop_count = std::stoi(argv[++i]); }
-            catch (...) { std::cerr << tr("错误：--loop 应为整数\n", "error: --loop must be an integer\n"); return 2; }
+            catch (...) { cui::err() << tr("错误：--loop 应为整数\n", "error: --loop must be an integer\n"); return 2; }
         if (loop_count == 0) loop_count = 1;  // 0=disabled, equivalent to 1
-        if (loop_count < -1) { std::cerr << tr("错误：--loop 不支持 ", "error: --loop does not support ") << loop_count << tr("\n", "\n"); return 2; }
-        if (loop_count > 1000000) { std::cerr << tr("错误：--loop 过大（上限 1000000）\n", "error: --loop too large (max 1000000)\n"); return 2; }
+        if (loop_count < -1) { cui::err() << tr("错误：--loop 不支持 ", "error: --loop does not support ") << loop_count << tr("\n", "\n"); return 2; }
+        if (loop_count > 1000000) { cui::err() << tr("错误：--loop 过大（上限 1000000）\n", "error: --loop too large (max 1000000)\n"); return 2; }
             continue;
         }
         if (a == "--step" || a == "-g") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--step 需要一个值\n", "error: --step requires a value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--step 需要一个值\n", "error: --step requires a value\n"); return 2; }
             std::string s = argv[++i];
             if (s == "x1.02" || s == "x102") step_mode = StepMode::X102;
             else if (s == "mululp") step_mode = StepMode::MUL_ULP;
             else if (s == "addulp") step_mode = StepMode::ADD_ULP;
             else if (s == "subulp") step_mode = StepMode::SUB_ULP;
-            else { std::cerr << tr("错误：未知步进 '", "error: unknown step '") << sanitize(s) << tr("'\n", "'\n"); return 2; }
+            else { cui::err() << tr("错误：未知步进 '", "error: unknown step '") << sanitize(s) << tr("'\n", "'\n"); return 2; }
             continue;
         }
         if (a == "-y" || a == "--yes") { g_assume_yes = true; continue; }
         if (a == "--compare") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--compare 需要一个基线 JSON 文件\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--compare 需要一个基线 JSON 文件\n",
                                                  "error: --compare requires a baseline JSON file\n"); return 2; }
             g_compare_path = argv[++i];
             continue;
         }
         if (a == "--pairwise" || a == "--crosscheck") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--pairwise 需要两个逗号分隔格式 A,B\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--pairwise 需要两个逗号分隔格式 A,B\n",
                                                  "error: --pairwise requires two comma-separated formats A,B\n"); return 2; }
             pairwise_csv = argv[++i];
             continue;
         }
         if (a == "--probe") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--probe 需要目标（当前仅 boundaries）\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--probe 需要目标（当前仅 boundaries）\n",
                                                  "error: --probe requires a target (currently only boundaries)\n"); return 2; }
             probe_target = argv[++i];
             continue;
         }
         if (a == "--steps") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--steps 需要一个非负整数步数\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--steps 需要一个非负整数步数\n",
                                                  "error: --steps requires a non-negative integer step count\n"); return 2; }
             std::string sv = argv[++i];
             try {
                 std::size_t pos = 0;
                 unsigned long long n = std::stoull(sv, &pos);
                 if (pos != sv.size()) throw std::invalid_argument("trailing chars");
-                if (n > 1000000000ULL) { std::cerr << tr("错误：--steps 上限 1000000000\n",
+                if (n > 1000000000ULL) { cui::err() << tr("错误：--steps 上限 1000000000\n",
                                                          "error: --steps capped at 1000000000\n"); return 2; }
                 g_fixed_steps = (u128)n;
-            } catch (...) { std::cerr << tr("错误：--steps 应为非负整数\n",
+            } catch (...) { cui::err() << tr("错误：--steps 应为非负整数\n",
                                             "error: --steps must be a non-negative integer\n"); return 2; }
             continue;
         }
         if (a == "--pin") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--pin 需要一个逻辑核编号\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--pin 需要一个逻辑核编号\n",
                                                  "error: --pin requires a logical core id\n"); return 2; }
             try { g_pin_core = std::stoi(argv[++i]); }
-            catch (...) { std::cerr << tr("错误：--pin 应为整数核编号\n", "error: --pin must be an integer core id\n"); return 2; }
+            catch (...) { cui::err() << tr("错误：--pin 应为整数核编号\n", "error: --pin must be an integer core id\n"); return 2; }
             continue;
         }
         if (a == "--boost") { g_boost_enabled = true; continue; }
         if (a == "--max-seconds") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--max-seconds 需要一个非负整数秒值\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--max-seconds 需要一个非负整数秒值\n",
                                                  "error: --max-seconds requires a non-negative integer second value\n"); return 2; }
             try { g_max_seconds.store(std::stoi(argv[++i])); }
-            catch (...) { std::cerr << tr("错误：--max-seconds 应为整数秒\n",
+            catch (...) { cui::err() << tr("错误：--max-seconds 应为整数秒\n",
                                           "error: --max-seconds must be integer seconds\n"); return 2; }
             if (g_max_seconds.load() < 0) g_max_seconds.store(0);
             continue;
         }
         if (a == "--sample-window") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--sample-window 需要一个毫秒窗口值\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--sample-window 需要一个毫秒窗口值\n",
                                                  "error: --sample-window requires a millisecond window value\n"); return 2; }
             try { g_sample_window_ms = std::stoll(argv[++i]); }
-            catch (...) { std::cerr << tr("错误：--sample-window 应为整数毫秒\n",
+            catch (...) { cui::err() << tr("错误：--sample-window 应为整数毫秒\n",
                                           "error: --sample-window must be integer milliseconds\n"); return 2; }
             if (g_sample_window_ms < 0) g_sample_window_ms = 0;
             continue;
@@ -754,10 +750,10 @@ int main(int argc, char** argv) {
         if (a == "--preset" || a == "--iron") {
             std::string preset_name = "iron";
             if (a == "--preset") {
-                if (i + 1 >= argc) { std::cerr << tr("错误：--preset 需要预设名（当前仅 iron）\n",
+                if (i + 1 >= argc) { cui::err() << tr("错误：--preset 需要预设名（当前仅 iron）\n",
                                                      "error: --preset requires a preset name (currently only iron)\n"); return 2; }
                 preset_name = argv[++i];
-                if (preset_name != "iron") { std::cerr << tr("错误：未知预设 '", "error: unknown preset '")
+                if (preset_name != "iron") { cui::err() << tr("错误：未知预设 '", "error: unknown preset '")
                                                        << sanitize(preset_name) << tr("'（当前仅 iron）\n", "' (currently only iron)\n"); return 2; }
             }
             // iron: enable the optional priority raise, but never auto-pin; a safety wall-clock
@@ -767,10 +763,10 @@ int main(int argc, char** argv) {
             continue;
         }
         if (a == "--dump-events") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--dump-events 需要一个 JSONL 文件路径\n",
+            if (i + 1 >= argc) { cui::err() << tr("错误：--dump-events 需要一个 JSONL 文件路径\n",
                                                  "error: --dump-events requires a JSONL file path\n"); return 2; }
             g_events_file = std::fopen(argv[++i], "w");
-            if (!g_events_file) { std::cerr << tr("错误：无法打开事件轨迹文件\n",
+            if (!g_events_file) { cui::err() << tr("错误：无法打开事件轨迹文件\n",
                                                   "error: cannot open event trace file\n"); return 2; }
             quiet = true;
             continue;
@@ -778,40 +774,40 @@ int main(int argc, char** argv) {
         if (a == "-q" || a == "--quiet") { quiet = true; continue; }
         if (a == "--json") { g_json = true; quiet = true; continue; }
         if (a == "--dump") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
             g_dump_path = argv[++i];
             g_dump_file = std::fopen(g_dump_path, "wb+"); // wb+: truncate/write, but re-readable for payload CRC at exit
-            if (!g_dump_file) { std::cerr << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
+            if (!g_dump_file) { cui::err() << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
             // header-space reserve (if any) is applied after parsing, once g_dump_raw is finalized
             g_dump_records_enabled = true;            // single-format path writes records
             quiet = true;
             continue;
         }
         if (a == "--dump-endian") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：--dump-endian 需要 little/big\n", "error: --dump-endian requires little/big\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：--dump-endian 需要 little/big\n", "error: --dump-endian requires little/big\n"); return 2; }
             std::string e = argv[++i];
             if (e == "little" || e == "le" || e == "cpu") g_dump_endian = 0;
             else if (e == "big" || e == "be") g_dump_endian = 1;
-            else { std::cerr << tr("错误：--dump-endian 仅支持 little/big\n", "error: --dump-endian only supports little/big\n"); return 2; }
+            else { cui::err() << tr("错误：--dump-endian 仅支持 little/big\n", "error: --dump-endian only supports little/big\n"); return 2; }
             continue;
         }
         if (a == "--dump-packed") { g_dump_packed = 1; continue; }
         if (a == "--dump-raw" || a == "--dump-no-header") { g_dump_raw = true; continue; }
         if (a == "-lang" || a == "--lang" || a == "--language") {
-            if (i + 1 >= argc) { std::cerr << "usage: -lang zh|en\n"; return 2; }
+            if (i + 1 >= argc) { cui::err() << "usage: -lang zh|en\n"; return 2; }
             std::string l = argv[++i];
             if (l == "en" || l == "EN") g_lang = Lang::EN;
             else g_lang = Lang::ZH;
             continue;
         }
         if (a == "-m") {
-            if (i + 1 >= argc) { std::cerr << tr("错误：-m 需要一个模式值\n", "error: -m requires a mode value\n"); return 2; }
+            if (i + 1 >= argc) { cui::err() << tr("错误：-m 需要一个模式值\n", "error: -m requires a mode value\n"); return 2; }
             mode = argv[++i];
             g_fmt_name = mode;
             continue;
         }
         try { delay_ms = std::stod(a); has_delay = true; }
-        catch (...) { std::cerr << tr("错误：无法解析参数 '", "error: cannot parse argument '") << sanitize(a) << tr("'\n", "'\n"); return 2; }
+        catch (...) { cui::err() << tr("错误：无法解析参数 '", "error: cannot parse argument '") << sanitize(a) << tr("'\n", "'\n"); return 2; }
     }
 
     // W3-C3: minimal same-start dual-engine/format pairwise compare (opt-in, default off).
@@ -834,13 +830,13 @@ int main(int argc, char** argv) {
             }
         }
         if (toks.size() != 2) {
-            std::cerr << tr("错误：--pairwise 需要恰好两个格式 A,B\n",
+            cui::err() << tr("错误：--pairwise 需要恰好两个格式 A,B\n",
                             "error: --pairwise needs exactly two formats A,B\n"); return 2;
         }
         FmtId pa = fmt_canon(toks[0]);
         FmtId pb = fmt_canon(toks[1]);
         if (pa == FmtId::COUNT || pb == FmtId::COUNT) {
-            std::cerr << tr("错误：--pairwise 含未知格式\n",
+            cui::err() << tr("错误：--pairwise 含未知格式\n",
                             "error: --pairwise contains an unknown format\n"); return 2;
         }
         auto in_pair = [&](FmtId x, FmtId y) {
@@ -850,12 +846,12 @@ int main(int argc, char** argv) {
                         in_pair(FmtId::Dec64, FmtId::DPD64) ||
                         in_pair(FmtId::FP32, FmtId::TF32);
         if (!allowed) {
-            std::cerr << tr("错误：--pairwise 最小白名单仅 dec32,dpd32 / dec64,dpd64 / f32,tf32\n",
+            cui::err() << tr("错误：--pairwise 最小白名单仅 dec32,dpd32 / dec64,dpd64 / f32,tf32\n",
                             "error: --pairwise minimal whitelist: dec32,dpd32 / dec64,dpd64 / f32,tf32\n"); return 2;
         }
         if (mode == "all" || loop_count != 1 || !only_csv.empty() || !jobs_spec.empty() ||
             g_fixed_steps > 0 || g_dump_file || g_pin_core >= 0 || g_boost_enabled || g_events_file) {
-            std::cerr << tr("错误：--pairwise 与 -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events 互斥\n",
+            cui::err() << tr("错误：--pairwise 与 -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events 互斥\n",
                             "error: --pairwise conflicts with -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events\n"); return 2;
         }
         auto pair_tok = [](RunResult::Reason r) -> const char* {
@@ -938,12 +934,12 @@ int main(int argc, char** argv) {
     // natural-termination walk and therefore cannot move the 17-step baseline.
     if (!probe_target.empty()) {
         if (probe_target != "boundaries") {
-            std::cerr << tr("错误：--probe 仅支持 boundaries\n", "error: --probe supports only 'boundaries'\n"); return 2;
+            cui::err() << tr("错误：--probe 仅支持 boundaries\n", "error: --probe supports only 'boundaries'\n"); return 2;
         }
         if (mode == "all" || loop_count != 1 || !only_csv.empty() || !jobs_spec.empty() ||
             g_fixed_steps > 0 || g_dump_file || g_pin_core >= 0 || g_boost_enabled || g_events_file ||
             !pairwise_csv.empty() || g_sample_window_ms > 0) {
-            std::cerr << tr("错误：--probe boundaries 为独立模式，与 all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window 互斥\n",
+            cui::err() << tr("错误：--probe boundaries 为独立模式，与 all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window 互斥\n",
                             "error: --probe boundaries is standalone and conflicts with all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window\n"); return 2;
         }
         struct PCell { const char* tok; const char* btag; u128 steps; RunResult::Reason reason; double ms; bool empty; };
@@ -1027,22 +1023,22 @@ int main(int argc, char** argv) {
         else { print_help(); return 2; }
     }
     if (delay_ms < 0) delay_ms = 0;
-    if (start_kind != StartKind::Default && !std::isnan(start_val)) { std::cerr << tr("错误：特殊起点与数值起点互斥\n", "error: special start and numeric start are mutually exclusive\n"); return 2; }
-    if (factor == 0.0) { std::cerr << tr("错误：倍率不能为 0\n", "error: factor cannot be 0\n"); return 2; }
-    if (factor < 0.0) { std::cerr << tr("错误：倍率必须为正数\n", "error: factor must be positive\n"); return 2; }
-    if (!std::isfinite(factor)) { std::cerr << tr("错误：倍率必须为有限正数\n", "error: factor must be finite positive\n"); return 2; }
+    if (start_kind != StartKind::Default && !std::isnan(start_val)) { cui::err() << tr("错误：特殊起点与数值起点互斥\n", "error: special start and numeric start are mutually exclusive\n"); return 2; }
+    if (factor == 0.0) { cui::err() << tr("错误：倍率不能为 0\n", "error: factor cannot be 0\n"); return 2; }
+    if (factor < 0.0) { cui::err() << tr("错误：倍率必须为正数\n", "error: factor must be positive\n"); return 2; }
+    if (!std::isfinite(factor)) { cui::err() << tr("错误：倍率必须为有限正数\n", "error: factor must be finite positive\n"); return 2; }
 
     // Mode-compatibility guards: --loop / --only / --jobs are consumed only by -m all.
     // Reject them early in single mode instead of silently ignoring (or misreporting) them.
     if (mode != "all" && loop_count != 1) {
         g_json = false; // suppress the atexit single-format JSON shell for an early rejection
-        std::cerr << tr("错误：--loop/-l 仅在 -m all 并发模式有效；单格式请移除 -l\n",
+        cui::err() << tr("错误：--loop/-l 仅在 -m all 并发模式有效；单格式请移除 -l\n",
                         "error: --loop/-l applies only to -m all; remove -l for a single format\n");
         return 2;
     }
     if (mode != "all" && (!only_csv.empty() || !jobs_spec.empty())) {
         g_json = false; // suppress the atexit single-format JSON shell for an early rejection
-        std::cerr << tr("错误：--only 与 --jobs/-j 仅在 -m all 并发模式有效；单格式请移除\n",
+        cui::err() << tr("错误：--only 与 --jobs/-j 仅在 -m all 并发模式有效；单格式请移除\n",
                         "error: --only and --jobs/-j apply only to -m all; remove them for a single format\n");
         return 2;
     }
@@ -1052,7 +1048,7 @@ int main(int argc, char** argv) {
     if (mode == "all" && (g_pin_core >= 0 || g_boost_enabled || g_iron_preset || g_events_file)) {
         g_json = false;
         if (g_events_file) { std::fclose(g_events_file); g_events_file = nullptr; }
-        std::cerr << tr("错误：--pin / --boost / --preset iron / --dump-events 仅在单格式有效；-m all 请移除\n",
+        cui::err() << tr("错误：--pin / --boost / --preset iron / --dump-events 仅在单格式有效；-m all 请移除\n",
                         "error: --pin / --boost / --preset iron / --dump-events apply only to a single format; remove them for -m all\n");
         return 2;
     }
@@ -1062,12 +1058,12 @@ int main(int argc, char** argv) {
     if (g_pin_core >= 0) {
         int hw = fw::plat::logical_cores();
         if (hw > 0 && (g_pin_core < 0 || g_pin_core >= hw)) {
-            std::cerr << tr("错误：--pin 核号越界（本机逻辑核=", "error: --pin core out of range (logical cores=")
+            cui::err() << tr("错误：--pin 核号越界（本机逻辑核=", "error: --pin core out of range (logical cores=")
                       << hw << tr("；合法 0..", "; valid 0..") << (hw - 1) << ")\n";
             return 2;
         }
     }
-    if (!std::isnan(start_val) && !std::isfinite(start_val)) { std::cerr << tr("错误：起点必须为有限数值\n", "error: start must be a finite number\n"); return 2; }
+    if (!std::isnan(start_val) && !std::isfinite(start_val)) { cui::err() << tr("错误：起点必须为有限数值\n", "error: start must be a finite number\n"); return 2; }
 
     g_json_factor = factor;
     g_dump_factor = factor;
@@ -1128,11 +1124,11 @@ int main(int argc, char** argv) {
                 // raw stream has no header to fall back on; discard the empty file rather than leave a zero-byte stub
                 std::fclose(g_dump_file); g_dump_file = nullptr;
                 std::remove(g_dump_path);
-                std::cerr << tr("提示：-m all 为并发多格式模式，不支持 --dump-raw/--dump-no-header 裸流（记录宽度交织），已放弃该输出文件。\n",
+                cui::note() << tr("提示：-m all 为并发多格式模式，不支持 --dump-raw/--dump-no-header 裸流（记录宽度交织），已放弃该输出文件。\n",
                                 "note: -m all is concurrent multi-format; --dump-raw/--dump-no-header stream is unsupported (mixed record widths); the output file was discarded.\n");
             } else {
                 // v2 mode: keep the file as an empty header stub (flags bit2=empty, payload_bytes=0)
-                std::cerr << tr("提示：-m all 为并发多格式模式，--dump 不序列化记录（避免不同记录宽度交织），仅写出空头部。\n",
+                cui::note() << tr("提示：-m all 为并发多格式模式，--dump 不序列化记录（避免不同记录宽度交织），仅写出空头部。\n",
                                 "note: -m all is concurrent multi-format; --dump records are not serialized (mixed record widths); only an empty header stub is written.\n");
             }
         }
@@ -1149,7 +1145,7 @@ int main(int argc, char** argv) {
     // It raises priority and applies a wall-clock cap, but never auto-pins and never reads a
     // temperature/throttle sensor (no portable Windows API here; no automatic frequency drop).
     if (g_iron_preset) {
-        std::cerr << tr("[iron] 提级开启；墙钟安全上限 ", "[iron] priority boost on; wall-clock cap ")
+        cui::note() << tr("[iron] 提级开启；墙钟安全上限 ", "[iron] priority boost on; wall-clock cap ")
                   << g_max_seconds.load()
                   << tr(" s；未自动绑核（保留逻辑核给系统）；不读取温度/节流状态、不自动降频，请确保散热。\n",
                         " s; not auto-pinned (cores reserved for the OS); no temperature/throttle readout and no automatic throttling — ensure adequate cooling.\n");
@@ -1207,6 +1203,6 @@ int main(int argc, char** argv) {
     if (mode == "dpd128" || mode == "dpd-dec128") { run_dpd128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
     if (mode == "fp128") { run_fp128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
 
-    std::cerr << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
+    cui::err() << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
     return 2;
 }

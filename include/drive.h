@@ -93,7 +93,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
     RunResult::Reason exit_reason = RunResult::OVERFLOW;
     auto finish_line = [&](const std::string& msg) {
         if (quiet) return;
-        std::cout << '\r' << "\033[K" << msg << '\n' << std::flush;
+        std::cout << cui::CLEAR_LINE << msg << '\n' << std::flush;
     };
     auto slow_update = [&]() {
         if (!quiet) return;
@@ -196,7 +196,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
         bool due = (refresh_ms <= 0) ||
                    std::chrono::duration_cast<std::chrono::milliseconds>(now - last_print).count() >= refresh_ms;
         if (due) {
-            std::cout << '\r' << "\033[K" << out << std::flush;
+            std::cout << cui::CLEAR_LINE << out << std::flush;
             last_print = now;
         }
         if (delay_ms > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(delay_ms));

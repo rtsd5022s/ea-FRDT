@@ -13,6 +13,8 @@
 #include <cstdlib>
 #include <algorithm>
 #include <iostream>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include "color.h"
@@ -206,6 +208,69 @@ inline std::string reason(const std::string& text, const std::string& token) {
     if (starts("overflow") || starts("underflow")) return ok(text);
     if (starts("fixed")) return accent(text);
     return text;
+}
+
+// ------------------------------------------------------- terminal control
+// Every cursor/erase sequence used by the program is spelled here once.
+inline const char* CLEAR      = "\033[K";      // erase from cursor to end of line
+inline const char* CLEAR_LINE = "\r\033[K";    // back to column 0, erase the line
+inline const char* CLEAR_ALL  = "\r\033[2K";   // back to column 0, erase the whole line
+inline std::string up(int lines) { return "\033[" + std::to_string(lines) + "A\r"; }
+
+// Colour a whole line while keeping the terminating newline outside the escape,
+// so the next line never starts with a stray reset.
+inline std::string paint_line(const char* code, const std::string& s) {
+    if (!color_on()) return s;
+    std::string body = s;
+    bool nl = !body.empty() && body.back() == '\n';
+    if (nl) body.pop_back();
+    std::string out;
+    out.reserve(body.size() + 12);
+    out += code;
+    out += body;
+    out += clr::RST;
+    if (nl) out += '\n';
+    return out;
+}
+
+// Diagnostic sink: wraps an ostream and colours the composed line on destruction.
+// Call sites keep their existing `<<` chains, they only name the severity.
+class DiagStream {
+public:
+    DiagStream(const char* code, std::ostream& os) : code_(code), os_(os) {}
+    template <class T> DiagStream& operator<<(const T& v) {
+        buf_ << v;
+        return *this;
+    }
+    ~DiagStream() { os_ << paint_line(code_, buf_.str()); }
+private:
+    const char* code_;
+    std::ostream& os_;
+    std::ostringstream buf_;
+};
+
+inline DiagStream err()  { return DiagStream(clr::RED, std::cerr); }   // 错误
+inline DiagStream note() { return DiagStream(clr::YEL, std::cerr); }   // 提示 / 警告
+
+// ------------------------------------------------- single-format run banner
+// Text is byte-identical to the pre-cui rendering; only styling moved here.
+inline std::string walk_header(const std::string& label, const std::string& start_tag,
+                               const std::string& step_desc, double delay_ms) {
+    char d[32];
+    std::snprintf(d, sizeof(d), "%g", delay_ms);
+    return accent(label) + " walk: start=" + start_tag + ", " + step_desc
+         + ", delay=" + std::string(d) + "ms (0=unlimited)\n";
+}
+
+inline std::string bid_header(const std::string& coeff, int exp10, const std::string& hex) {
+    return std::string("  ") + dim("[BID]") + " coeff=" + coeff
+         + " exp10=" + std::to_string(exp10) + " hex=" + accent(hex) + "\n";
+}
+
+inline std::string bid_selfcheck_line(bool pass, const std::string& errs) {
+    std::string head = std::string("  ") + dim("[BID-SELFCHECK]") + " ";
+    if (pass) return head + ok("OK") + "\n";
+    return head + err("MISMATCH" + errs) + "\n";
 }
 
 // -------------------------------------------------------------------- table

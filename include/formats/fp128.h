@@ -148,8 +148,9 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
     } else if (!std::isnan(start_val)) { start = q128_encode(start_val); tag = "custom"; }
     else { start = q128_encode(1.0); tag = "1.0"; }
     Q128 fac = q128_encode(factor);
-    if (!quiet) std::cout << tr("FP128(binary128,纯软件112位) ", "FP128(binary128,software 112-bit) ") << "walk: start=" << tag << ", " << step_factor_str(sm, factor)
-              << ", delay=" << delay_ms << "ms (0=unlimited)\n";
+    if (!quiet) std::cout << cui::walk_header(
+        tr("FP128(binary128,纯软件112位)", "FP128(binary128,software 112-bit)"),
+        tag, step_factor_str(sm, factor), delay_ms);
     std::function<std::string(const Q128&)> q_extra;
     if (showbits != ShowBits::OFF && !quiet) {
         q_extra = [showbits](const Q128& v) -> std::string {

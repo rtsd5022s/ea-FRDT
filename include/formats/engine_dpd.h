@@ -377,7 +377,11 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
             if (es >= (double)g_timeout_sec.load()) {
                 reason = RunResult::TIMEOUT;
                 if (out) { out->steps = steps; out->reason = reason; }
-                if (print) std::printf("\r\033[K[step %llu] timeout (%ds)\n", (unsigned long long)steps, g_timeout_sec.load());
+                if (print) {
+                    std::string tag = "[step " + std::to_string((unsigned long long)steps) + "]";
+                    std::cout << cui::CLEAR_LINE << cui::dim(tag) << " "
+                              << cui::warn("timeout (" + std::to_string(g_timeout_sec.load()) + "s)") << "\n";
+                }
                 break;
             }
         }
@@ -391,9 +395,9 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
                 std::string extra;
                 if (showbits == ShowBits::HEX) extra = " (" + dpd_pack_bits(cur, fmt) + ")";
                 else if (showbits == ShowBits::BIN) extra = " (" + dpd_pack_bin(cur, fmt) + ")";
-                std::string line = "[step " + std::to_string((unsigned long long)steps) + "] x = " + v + extra;
-                std::printf("\r\033[K%s", line.c_str());
-                std::fflush(stdout);
+                std::string tag = "[step " + std::to_string((unsigned long long)steps) + "]";
+                std::cout << cui::CLEAR_LINE << cui::dim(tag) << " x = " << v << extra;
+                std::cout.flush();
                 last_print = now;
             }
         } else {
@@ -407,8 +411,12 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
     auto t1 = std::chrono::steady_clock::now();
     double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     if (print) {
-        std::printf("\r\033[K[step %llu] %s  (%.0f ms)\n", (unsigned long long)steps,
-                    reason_name(reason), ms);
+        std::string tag = "[step " + std::to_string((unsigned long long)steps) + "]";
+        std::string rn = reason_name(reason);
+        std::ostringstream ms_txt;
+        ms_txt << std::fixed << std::setprecision(0) << ms;
+        std::cout << cui::CLEAR_LINE << cui::dim(tag) << " " << cui::reason(rn, rn)
+                  << "  (" << ms_txt.str() << " ms)\n";
     } else {
         out->steps = steps;
         out->elapsed_ms = ms;

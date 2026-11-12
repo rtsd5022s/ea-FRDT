@@ -146,12 +146,10 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
     else { start = big_from_double(1.0, DEC128_SIG); tag = "1.0"; }
     BigDec fac = big_from_double(factor, DEC128_SIG);
     if (!quiet) {
-        std::cout << "Decimal128 walk: start=" << tag << ", " << step_factor_str(sm, factor)
-                  << ", delay=" << delay_ms << "ms (0=unlimited)\n";
+        std::cout << cui::walk_header("Decimal128", tag, step_factor_str(sm, factor), delay_ms);
         BidFmt bf = bid_fmt128();
         std::string bits = bid_encode(BidEnc::BID, start.neg ? 1 : 0, start.exp10, start.coeff, bf);
-        std::cout << "  [BID] coeff=" << start.coeff << " exp10=" << start.exp10
-                  << " hex=" << bid_bits_to_hex(bits) << "\n";
+        std::cout << cui::bid_header(start.coeff, start.exp10, bid_bits_to_hex(bits));
         bid_selfcheck(start.neg ? 1 : 0, start.exp10, start.coeff, bf);
     }
     std::function<std::string(const BigDec&)> big_extra;

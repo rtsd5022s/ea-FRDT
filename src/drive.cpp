@@ -8,8 +8,8 @@ namespace fw {
 // fw::plat::teardown_on_exit() before terminating. Kept out of _Exit here so the
 // signal path can release scheduler resources rather than bypassing cleanup.
 void on_sigint(int) {
-    std::cerr << "\r\033[2K"
-              << tr("程序提前退出（收到 Ctrl+C）\n", "Interrupted (Ctrl+C)\n");
+    std::cerr << cui::CLEAR_ALL
+              << cui::paint_line(clr::YEL, tr("程序提前退出（收到 Ctrl+C）\n", "Interrupted (Ctrl+C)\n"));
 }
 
 const char* step_name(StepMode sm) {

@@ -113,8 +113,9 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
     } else if (!std::isnan(start_val)) { start = x87_encode(start_val); tag = "custom"; }
     else { start = x87_encode(1.0); tag = "1.0"; }
     X87 fac = x87_encode(factor);
-    if (!quiet) std::cout << tr("x87(80位,纯软件) ", "x87(80-bit,software) ") << "walk: start=" << tag << ", " << step_factor_str(sm, factor)
-              << ", delay=" << delay_ms << "ms (0=unlimited)\n";
+    if (!quiet) std::cout << cui::walk_header(
+        tr("x87(80位,纯软件)", "x87(80-bit,software)"),
+        tag, step_factor_str(sm, factor), delay_ms);
     std::function<std::string(const X87&)> x87_extra;
     if (showbits != ShowBits::OFF && !quiet) {
         x87_extra = [showbits](const X87& v) -> std::string {

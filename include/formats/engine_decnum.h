@@ -145,13 +145,11 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
     else { start = dec_from_double(1.0, fmt.sig); tag = "1.0"; }
     DecNum fac = dec_from_double(factor, fmt.sig);
     if (!quiet) {
-        std::cout << fmt.name << " walk: start=" << tag << ", " << step_factor_str(sm, factor)
-                  << ", delay=" << delay_ms << "ms (0=unlimited)\n";
+        std::cout << cui::walk_header(fmt.name, tag, step_factor_str(sm, factor), delay_ms);
         BidFmt bf = (fmt.sig <= 7) ? bid_fmt32() : bid_fmt64();
         std::string cb = std::to_string(start.coeff);
         std::string bits = bid_encode(BidEnc::BID, start.neg ? 1 : 0, start.exp10, cb, bf);
-        std::cout << "  [BID] coeff=" << cb << " exp10=" << start.exp10
-                  << " hex=" << bid_bits_to_hex(bits) << "\n";
+        std::cout << cui::bid_header(cb, start.exp10, bid_bits_to_hex(bits));
         bid_selfcheck(start.neg ? 1 : 0, start.exp10, cb, bf);
     }
     BidFmt dbf = (fmt.sig <= 7) ? bid_fmt32() : bid_fmt64();

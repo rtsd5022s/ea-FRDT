@@ -49,9 +49,7 @@ void run_native(const char* tag, double delay_ms, StartKind kind, StepMode sm, D
     else if (!std::isnan(start_val)) { one = (T)start_val; start_tag = "custom"; }
     else { one = T(1); start_tag = "1.0"; }
     T fac = (T)factor;
-    if (!quiet) std::cout << tag << " walk: start=" << start_tag
-              << ", " << step_factor_str(sm, factor)
-              << ", delay=" << delay_ms << "ms (0=unlimited)\n";
+    if (!quiet) std::cout << cui::walk_header(tag, start_tag, step_factor_str(sm, factor), delay_ms);
     std::function<std::string(const T&)> nat_extra;
     if (showbits != ShowBits::OFF && !quiet && sizeof(T) <= 8) {
         nat_extra = [showbits](const T& v) -> std::string {

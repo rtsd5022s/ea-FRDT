@@ -126,9 +126,7 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
     else if (kind == StartKind::MaxFinite) { start = SVal{false, emax(f), (1ULL << (f.M + 1)) - 1, false}; start_tag = "max-finite"; }
     else if (!std::isnan(start_val)) { start = encode(start_val, f); start_tag = "custom"; }
     else { start = encode(1.0, f); start_tag = "1.0"; }
-    if (!quiet) std::cout << f.name << " walk: start=" << start_tag
-              << ", " << step_factor_str(sm, factor)
-              << ", delay=" << delay_ms << "ms (0=unlimited)\n";
+    if (!quiet) std::cout << cui::walk_header(f.name, start_tag, step_factor_str(sm, factor), delay_ms);
     std::function<std::string(const SVal&)> sim_extra;
     if (showbits != ShowBits::OFF && !quiet) {
         sim_extra = [&](const SVal& v) -> std::string {
