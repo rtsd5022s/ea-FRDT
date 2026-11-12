@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include "base_types.h"
+#include "cui.h"
 #include "lang.h"
 #include "format_util.h"
 
@@ -190,7 +191,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
         }
         std::string line = render(s);
         if (extra) line += " (" + extra(s) + ")";
-        std::string out = "[step " + to_string_u128(step) + "] x = " + line;
+        std::string out = cui::dim("[step " + to_string_u128(step) + "]") + " x = " + line;
         auto now = std::chrono::steady_clock::now();
         bool due = (refresh_ms <= 0) ||
                    std::chrono::duration_cast<std::chrono::milliseconds>(now - last_print).count() >= refresh_ms;
@@ -203,8 +204,9 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
     if (!quiet) {
         auto t1 = std::chrono::steady_clock::now();
         double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        finish_line("[step " + to_string_u128(step) + "] " + reason_name(exit_reason)
-                    + "  (" + std::to_string((int)elapsed_ms) + " ms)");
+        std::string rn = reason_name(exit_reason);
+        finish_line(cui::dim("[step " + to_string_u128(step) + "]") + " "
+                    + cui::reason(rn, rn) + "  (" + std::to_string((int)elapsed_ms) + " ms)");
     }
     if (quiet) {
         // Do NOT call slow_update() here: it re-renders s and would overwrite the terminal value set

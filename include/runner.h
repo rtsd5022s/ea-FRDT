@@ -4,6 +4,7 @@
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "common.h"
+#include "cui.h"
 #include "formats/formats_all.h"
 #include "platform.h"
 #include <ctime>
@@ -13,39 +14,7 @@
 
 namespace fw {
 
-// Terminal display width (CJK wide chars count as 2 columns)
-inline int disp_width(const std::string& s) {
-    int w = 0;
-    for (size_t i = 0; i < s.size(); ) {
-        unsigned char c = (unsigned char)s[i];
-        if (c < 0x80) { w += 1; i += 1; }
-        else if ((c >> 5) == 0x6 && i + 1 < s.size()) { w += 2; i += 2; }
-        else if ((c >> 4) == 0xE && i + 2 < s.size()) { w += 2; i += 3; }
-        else if ((c >> 3) == 0xF && i + 3 < s.size()) { w += 2; i += 4; }
-        else { w += 1; i += 1; }
-    }
-    return w;
-}
-inline std::string rpad_to(const std::string& s, int width) {
-    int w = disp_width(s);
-    return w >= width ? s : s + std::string(width - w, ' ');
-}
-inline std::string lpad_to(const std::string& s, int width) {
-    int w = disp_width(s);
-    return w >= width ? s : std::string(width - w, ' ') + s;
-}
-
-inline std::string fmt_elapsed_wall(double ms) {
-    long long s = (long long)(ms / 1000.0);
-    long long frac = (long long)ms % 1000;
-    std::string f3 = (frac<10?"00":frac<100?"0":"") + std::to_string(frac);
-    if (s < 60)       return std::to_string(s) + "." + f3 + "s";
-    if (s < 3600)     return std::to_string(s/60) + "m " + std::to_string(s%60) + "." + f3 + "s";
-    if (s < 86400)    return std::to_string(s/3600) + "h " + std::to_string((s%3600)/60) + "m " + std::to_string(s%60) + "." + f3 + "s";
-    if (s < 2592000)  return std::to_string(s/86400) + "d " + std::to_string((s%86400)/3600) + "h " + std::to_string((s%3600)/60) + "m " + std::to_string(s%60) + "s";
-    if (s < 31536000) return std::to_string(s/2592000) + "M " + std::to_string((s%2592000)/86400) + "d " + std::to_string((s%86400)/3600) + "h " + std::to_string((s%3600)/60) + "m";
-    return std::to_string(s/31536000) + "Y " + std::to_string((s%31536000)/2592000) + "M " + std::to_string((s%2592000)/86400) + "d " + std::to_string((s%86400)/3600) + "h";
-}
+// All terminal presentation lives in cui.h (width, rules, tables, formatters).
 
 inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
     std::vector<int> out;
@@ -226,16 +195,24 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
     int hw_threads = fw::plat::logical_cores();
     int phys_cores = fw::plat::physical_cores();
     if (!g_json) {
-    std::cout << clr::CYN << tr("=== ALL 并发模式：每线程独立跑完整个格式链 ===", "=== ALL modes: each worker runs the full format chain independently ===") << clr::RST << "\n";
-    std::cout << clr::GRY << tr("CPU: ", "CPU: ") << fw::plat::cpu_brand() << "\n";
-    std::cout << clr::GRY << tr("CPU 核心(逻辑)=", "CPU cores(logical)=") << hw_threads;
-    if (phys_cores > 0 && phys_cores != hw_threads)
-        std::cout << tr(" (物理=", " (physical=") << phys_cores << ")";
-    std::cout << clr::RST << "\n";
-    std::cout << clr::GRY << step_factor_str(sm, factor)
-              << tr(", 限速=", ", delay=") << delay_ms << tr("ms (0=不限速)", "ms (0=unlimited)")
-              << tr(", 线程=", ", workers=") << n
-              << tr(", 格式数=", ", chain=") << chain.size() << clr::RST << "\n";
+        using namespace cui;
+        std::cout << "\n" << section(tr("ea-FRDT · ALL 并发模式", "ea-FRDT · ALL concurrent"),
+                                     tr("每线程独立跑完整个格式链", "each worker runs the full format chain independently"));
+        std::cout << kv("CPU", fw::plat::cpu_brand(), 8);
+        std::string cores = std::to_string(hw_threads) + tr(" 逻辑", " logical");
+        if (phys_cores > 0 && phys_cores != hw_threads)
+            cores += " / " + std::to_string(phys_cores) + tr(" 物理", " physical");
+        std::cout << kv(tr("核心", "cores"), cores, 8);
+        std::string sf = step_factor_str(sm, factor);
+        std::size_t step_pos = sf.find("step=");
+        if (step_pos != std::string::npos) sf.erase(step_pos, 5);
+        std::cout << kv(tr("步进", "step"), sf, 8);
+        std::cout << kv(tr("限速", "delay"),
+                        std::to_string((long long)delay_ms) + tr(" ms/步 (0=不限速)", " ms/step (0=unlimited)"), 8);
+        std::cout << kv(tr("线程", "workers"), std::to_string(n) + tr(" 个（已绑核）", " (core-pinned)"), 8);
+        std::cout << kv(tr("格式链", "chain"), std::to_string(chain.size())
+                        + tr(" 个格式", " formats"), 8);
+        std::cout << "\n";
     }
 
     // Per-worker independent state, value-copied params, no reference to stack vector
@@ -297,6 +274,7 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
     // Monitor
     std::thread mon([&workers, n, &stop_mon, refresh_ms, quiet, loop_count, core_ids, t0] {
         int last_lines = 0;
+        bool header_done = false;
         std::int64_t mon_ms = refresh_ms > 0 ? refresh_ms : 200;
         while (true) {
             std::int64_t remain = mon_ms;
@@ -307,40 +285,44 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
             }
             if (stop_mon) break;
             if (quiet) continue;
+            // The live header is printed lazily on the first frame, so a run that ends
+            // before the first refresh leaves no orphan header behind.
+            if (!header_done) {
+                std::cout << "  " << cui::label(cui::pad_r(tr("核", "core"), 4)) << " " << cui::dim("│") << " "
+                          << cui::label(cui::pad_r(tr("格式", "format"), 12)) << " " << cui::dim("│") << " "
+                          << cui::label(cui::pad_l(tr("当前值", "value"), 22)) << " " << cui::dim("│") << " "
+                          << cui::label(cui::pad_l(tr("步/秒", "steps/s"), 7)) << " " << cui::dim("│") << " "
+                          << cui::label(cui::pad_l(tr("已用", "elapsed"), 9)) << "\n";
+                header_done = true;
+            }
             if (last_lines > 0) std::cout << "\033[" << last_lines << "A\r";
             int active = 0;
             double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-            auto fmt_elapsed = [](double ms) -> std::string {
-                long long s = (long long)(ms / 1000.0);
-                long long frac = (long long)ms % 1000;
-                std::string f3 = (frac<10?"00":frac<100?"0":"") + std::to_string(frac);
-                if (s < 60)       return std::to_string(s) + "." + f3 + "s";
-                if (s < 3600)     return std::to_string(s/60) + "m " + std::to_string(s%60) + "." + f3 + "s";
-                if (s < 86400)    return std::to_string(s/3600) + "h " + std::to_string((s%3600)/60) + "m " + std::to_string(s%60) + "." + f3 + "s";
-                if (s < 2592000)  return std::to_string(s/86400) + "d " + std::to_string((s%86400)/3600) + "h " + std::to_string((s%3600)/60) + "m " + std::to_string(s%60) + "s";
-                if (s < 31536000) return std::to_string(s/2592000) + "M " + std::to_string((s%2592000)/86400) + "d " + std::to_string((s%86400)/3600) + "h " + std::to_string((s%3600)/60) + "m";
-                return std::to_string(s/31536000) + "Y " + std::to_string((s%31536000)/2592000) + "M " + std::to_string((s%2592000)/86400) + "d " + std::to_string((s%86400)/3600) + "h";
-            };
             double total_rate = 0.0;
             for (int w = 0; w < n; ++w) {
                 const auto& c = workers[w].cur;
                 if (c.done) continue;
                 double rate = c.cur_elapsed_ms > 0.0 ? (double)c.cur_steps / (c.cur_elapsed_ms / 1000.0) : 0.0;
                 total_rate += rate;
-                std::cout << "\033[K"
-                          << clr::GRN << "[w" << core_ids[w] << "] " << c.name
-                          << ": " << (c.cur_value.empty() ? "..." : c.cur_value)
-                          << clr::RST << "   " << clr::YEL << (std::uint64_t)rate << " steps/s" << clr::RST
-                          << "   " << fmt_elapsed(total_ms);
+                std::cout << "\033[K  "
+                          << cui::accent(cui::pad_r("w" + std::to_string(core_ids[w]), 4)) << " " << cui::dim("│") << " "
+                          << cui::pad_r(cui::clip(c.name, 12), 12) << " " << cui::dim("│") << " "
+                          << cui::num(cui::pad_l(cui::clip(c.cur_value.empty() ? "..." : c.cur_value, 22), 22)) << " " << cui::dim("│") << " "
+                          << cui::num(cui::pad_l(cui::rate(rate), 7)) << " " << cui::dim("│") << " "
+                          << cui::dim(cui::pad_l(cui::elapsed(total_ms), 9));
                 if (loop_count != 1) {
-                    if (loop_count < 0) std::cout << "   loop=" << workers[w].loop_done;
-                    else std::cout << "   loop=" << workers[w].loop_done << "/" << loop_count;
+                    std::cout << " " << cui::dim("loop=" + std::to_string(workers[w].loop_done)
+                                                + (loop_count < 0 ? std::string() : "/" + std::to_string(loop_count)));
                 }
                 std::cout << "\n";
                 ++active;
             }
-            std::cout << "\033[K" << clr::YEL << "LIVE: " << (std::uint64_t)total_rate << " steps/s (current segment)" << clr::RST << "\n";
-            if (active == 0) std::cout << "\033[K(all workers done)\n";
+            std::cout << "\033[K  " << cui::warn(cui::pad_r("LIVE", 4)) << " " << cui::dim("│") << " "
+                      << cui::dim(cui::pad_r(tr("当前段合计", "segment total"), 12)) << " " << cui::dim("│") << " "
+                      << cui::num(cui::pad_l("-", 22)) << " " << cui::dim("│") << " "
+                      << cui::num(cui::pad_l(cui::rate(total_rate), 7)) << " " << cui::dim("│") << " "
+                      << cui::dim(cui::pad_l(cui::elapsed(total_ms), 9)) << "\n";
+            if (active == 0) std::cout << "\033[K" << cui::dim(tr("(全部线程已完成)", "(all workers done)")) << "\n";
             for (int i = active + 1; i < last_lines; ++i) std::cout << "\033[K\n";
             last_lines = active > 0 ? active + 1 : 2;
             std::cout << std::flush;
@@ -401,36 +383,41 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
         return wall_ms;
     }
 
-    std::cout << '\n';
+    std::cout << "\n";
 
-    // Summary table
+    // Summary: one boxed table per worker. Column semantics are unchanged
+    // (format / loop steps / cumulative steps / exit / elapsed / cumulative wall),
+    // only the rendering is automated: widths, alignment and thousands grouping.
     for (int w = 0; w < n; ++w) {
-        std::cout << clr::CYN << tr("--- worker ", "--- worker ") << core_ids[w] << tr(" ---", " ---") << clr::RST << "\n";
-        std::cout << clr::BLU;
-        std::cout << rpad_to(tr("格式","Format"),12) << "  "
-                  << lpad_to(tr("单次步数","loop_steps"),14) << "  "
-                  << lpad_to(tr("累计步数","all_steps"),14) << "  "
-                  << rpad_to(tr("退出","exit"),16) << " "
-                  << lpad_to(tr("耗时ms","elapsed_ms"),12) << "  "
-                  << rpad_to(tr("总耗时","total"),10) << "\n";
-        std::cout << clr::RST;
+        std::cout << cui::section(tr("worker ", "worker ") + std::to_string(core_ids[w]));
+        cui::Table t;
+        t.col(tr("格式", "Format"), false);
+        t.col(tr("单次步数", "loop_steps"), true);
+        t.col(tr("累计步数", "all_steps"), true);
+        t.col(tr("退出", "exit"), false);
+        t.col(tr("耗时ms", "elapsed_ms"), true);
+        t.col(tr("总耗时", "total"), true);
         for (std::size_t i = 0; i < workers[w].done.size(); ++i) {
             const auto& r = workers[w].done[i];
-            char elbuf[32]; std::snprintf(elbuf, sizeof(elbuf), "%.1f", r.elapsed_ms);
-            std::cout << rpad_to(r.name,12) << "  "
-                      << lpad_to(to_string_u128(r.steps),14) << "  "
-                      << lpad_to(to_string_u128(workers[w].sum_steps[i]),14) << "  "
-                      << rpad_to(reason_name(r.reason),16) << " "
-                      << lpad_to(elbuf,12) << "  "
-                      << rpad_to(fmt_elapsed_wall(wall_ms),10) << "\n";
+            char elbuf[32];
+            std::snprintf(elbuf, sizeof(elbuf), "%.1f", r.elapsed_ms);
+            t.row({r.name,
+                   cui::count(r.steps),
+                   cui::count(workers[w].sum_steps[i]),
+                   reason_name(r.reason),
+                   elbuf,
+                   cui::elapsed(wall_ms)});
         }
+        t.print(std::cout);
     }
     u128 total_steps = 0;
     for (int w = 0; w < n; ++w) total_steps += workers[w].total_steps;
     double overall_rate = wall_ms > 0.0 ? (double)total_steps / (wall_ms / 1000.0) : 0.0;
-    std::cout << "\n" << clr::YEL << tr("总计: ", "TOTAL: ") << to_string_u128(total_steps)
-              << tr(" 步, 墙钟耗时 ", " steps in wall ") << wall_ms << tr("ms = ", " ms = ")
-              << (unsigned long long)overall_rate << tr(" 步/秒", " steps/s") << clr::RST << "\n";
+    std::cout << "\n" << cui::num(tr("总计 ", "TOTAL "))
+              << cui::num(cui::count(total_steps)) << tr(" 步", " steps")
+              << cui::dim("  ·  ") << tr("墙钟 ", "wall ")
+              << cui::num(cui::elapsed(wall_ms))
+              << cui::dim("  ·  ") << cui::num(cui::rate(overall_rate)) << tr(" 步/秒", " steps/s") << "\n";
     return wall_ms;
 }
 

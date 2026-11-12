@@ -77,9 +77,11 @@ static AnchorCompare compare_anchor(const std::string& path, const std::string& 
 // level: 0=info([?] blue), 1=warn([!] yellow), 2=critical([!!!] red)
 static void print_warnings(const std::vector<std::pair<int,std::string>>& warns, std::ostream& os) {
     for (auto& [lvl, msg] : warns) {
-        if (lvl == 0)      os << clr::BLU << "[?] " << msg << "\n" << clr::RST;
-        else if (lvl == 2) os << clr::RED << "[!!!] " << msg << "\n" << clr::RST;
-        else               os << clr::YEL << "[!] " << msg << "\n" << clr::RST;
+        // Markers stay literal: [?] info, [!] warning, [!!!] critical. Only the
+        // column position is aligned, so all messages start on the same column.
+        const char* tag  = lvl == 0 ? "[?]" : (lvl == 2 ? "[!!!]" : "[!]");
+        const char* code = lvl == 0 ? clr::BLU : (lvl == 2 ? clr::RED : clr::YEL);
+        os << code << cui::pad_r(tag, 6) << " " << msg << "\n" << clr::RST;
     }
 }
 
@@ -88,7 +90,7 @@ static bool confirm_warnings(std::vector<std::pair<int,std::string>>& warns) {
     // Diagnostic warnings go to stderr so a machine-readable stdout (--json) stays pure JSON.
     if (g_assume_yes) { print_warnings(warns, std::cerr); return true; }
     print_warnings(warns, std::cerr);
-    std::cout << clr::YEL << tr("    按 y 继续，10 秒内未操作自动取消... ", "    Press y to continue, auto-cancel in 10s... ") << clr::RST << std::flush;
+    std::cout << cui::warn(tr("    按 y 继续，10 秒内未操作自动取消... ", "    Press y to continue, auto-cancel in 10s... ")) << std::flush;
     bool confirmed = false;
 #ifdef _WIN32
     auto t0 = std::chrono::steady_clock::now();
@@ -902,16 +904,31 @@ int main(int argc, char** argv) {
                 toks[1].c_str(), meta(pb).engine, meta(pb).bits, meta(pb).bytes,
                 to_string_u128(rb.steps).c_str(), pair_tok(rb.reason), rb.elapsed_ms);
         } else {
-            std::cout << "=== pairwise compare: same start 1.0, factor 1.02 ===\n";
-            auto row = [&](FmtId id, const RunResult& r, const std::string& label) {
+            std::cout << cui::section(tr("pairwise 双引擎对照", "pairwise dual-engine"),
+                                      tr("同起点 1.0，倍率 1.02", "same start 1.0, factor 1.02"));
+            cui::Table t;
+            t.col(tr("格式", "Format"), false);
+            t.col(tr("引擎", "engine"), false);
+            t.col(tr("位数", "bits"), true);
+            t.col(tr("字节", "bytes"), true);
+            t.col(tr("步数", "steps"), true);
+            t.col(tr("退出", "reason"), false);
+            t.col(tr("耗时ms", "elapsed_ms"), true);
+            auto add = [&](FmtId id, const RunResult& r, const std::string& label) {
                 Meta m = meta(id);
-                std::cout << "  " << label << " [" << m.engine << "] bits=" << m.bits
-                          << " bytes=" << m.bytes << " steps=" << to_string_u128(r.steps)
-                          << " reason=" << pair_tok(r.reason) << " elapsed_ms=" << r.elapsed_ms << "\n";
+                char msbuf[32];
+                std::snprintf(msbuf, sizeof(msbuf), "%.1f", r.elapsed_ms);
+                t.row({label, m.engine, std::to_string(m.bits), std::to_string(m.bytes),
+                       cui::count(r.steps), pair_tok(r.reason), msbuf});
             };
-            row(pa, ra, toks[0]);
-            row(pb, rb, toks[1]);
-            std::cout << "  verdict: " << (match ? "MATCH (same steps and reason)" : "DIFF (steps/reason differ)") << "\n";
+            add(pa, ra, toks[0]);
+            add(pb, rb, toks[1]);
+            t.print(std::cout);
+            std::cout << "  " << cui::label(tr("结论", "verdict")) << "  "
+                      << (match ? cui::ok("MATCH") : cui::err("DIFF"))
+                      << (match ? tr("  (步数与退出原因一致)", "  (same steps and reason)")
+                                : tr("  (步数或退出原因不同)", "  (steps or reason differ)"))
+                      << "\n";
         }
         return 0;
     }
@@ -979,13 +996,28 @@ int main(int argc, char** argv) {
             }
             std::printf("]}\n");
         } else {
-            std::cout << "=== probe: boundaries (fixed 32 steps/cell; standalone, not the natural-termination baseline) ===\n";
+            std::cout << cui::section(tr("probe · boundaries", "probe · boundaries"),
+                                      tr("每格固定 32 步；独立模式，不进入自然终止基线",
+                                         "fixed 32 steps/cell; standalone, not the natural-termination baseline"));
+            cui::Table t;
+            t.col(tr("格式", "Format"), false);
+            t.col(tr("起点", "boundary"), false);
+            t.col(tr("步数", "steps"), true);
+            t.col(tr("退出", "reason"), false);
+            t.col(tr("耗时ms", "elapsed_ms"), true);
+            t.col(tr("值有效", "value_ok"), false);
+            double total_ms = 0.0;
             for (const auto& c : cells) {
-                std::cout << "  " << c.tok << " [" << c.btag << "] steps=" << to_string_u128(c.steps)
-                          << " reason=" << p_tok(c.reason) << " elapsed_ms=" << c.ms
-                          << " value_ok=" << (c.empty ? "false" : "true") << "\n";
+                total_ms += c.ms;
+                char msbuf[32];
+                std::snprintf(msbuf, sizeof(msbuf), "%.2f", c.ms);
+                t.row({c.tok, c.btag, cui::count(c.steps), p_tok(c.reason), msbuf,
+                       c.empty ? "false" : "true"});
             }
-            std::cout << "cells=" << cells.size() << "\n";
+            t.print(std::cout);
+            std::cout << "  " << cui::label(tr("格数 ", "cells ")) << cells.size()
+                      << cui::dim("  ·  ") << tr("合计 ", "total ")
+                      << cui::num(cui::elapsed(total_ms)) << "\n";
         }
         return 0;
     }
