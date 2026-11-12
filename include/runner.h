@@ -93,29 +93,40 @@ using Runner = void (*)(double delay_ms, StartKind kind, StepMode sm, DispFmt df
 struct FmtSpec {
     FmtId            id;
     const char*      name;          // display name, exactly as printed in tables
+    int              bytes;         // natural serialized record width for --dump
     std::string_view aliases[3];    // accepted CLI spellings; empty slot = unused
     Runner           run;           // engine entry point
 };
 
 inline constexpr std::array<FmtSpec, 17> kFormats{{
-    {FmtId::FP4,     "FP4",          {"fp4",                "",                    ""},                  run_fp4},
-    {FmtId::FP6,     "FP6",          {"fp6",                "",                    ""},                  run_fp6},
-    {FmtId::FP8E4M3, "FP8(E4M3)",    {"fp8",                "fp8-e4m3",            "e4m3"},              run_fp8_e4m3},
-    {FmtId::FP8E5M2, "FP8(E5M2)",    {"fp8-e5m2",           "e5m2",                ""},                  run_fp8_e5m2},
-    {FmtId::FP16,    "FP16",         {"f16",                "fp16",                ""},                  run_fp16},
-    {FmtId::BF16,    "BF16",         {"bf16",               "",                    ""},                  run_bf16},
-    {FmtId::TF32,    "TF32",         {"tf32",               "",                    ""},                  run_tf32},
-    {FmtId::FP32,    "FP32",         {"f32",                "fp32",                ""},                  run_fp32},
-    {FmtId::Dec32,   "Dec32[BID]",   {"dec32",              "decimal32",           ""},                  run_dec32},
-    {FmtId::DPD32,   "DPD32",        {"dpd32",              "dpd-dec32",           ""},                  run_dpd32},
-    {FmtId::FP64,    "FP64",         {"f64",                "fp64",                ""},                  run_fp64},
-    {FmtId::Dec64,   "Dec64[BID]",   {"dec64",              "decimal64",           ""},                  run_dec64},
-    {FmtId::DPD64,   "DPD64",        {"dpd64",              "dpd-dec64",           ""},                  run_dpd64},
-    {FmtId::X87,     "x87",          {"x87",                "",                    ""},                  run_x87},
-    {FmtId::FP128,   "FP128",        {"fp128",              "",                    ""},                  run_fp128},
-    {FmtId::Dec128,  "Dec128[BID]",  {"dec128",             "decimal128",          ""},                  run_dec128},
-    {FmtId::DPD128,  "DPD128",       {"dpd128",             "dpd-dec128",          ""},                  run_dpd128},
+    {FmtId::FP4, "FP4",  1,          {"fp4",                "",                    ""},                  run_fp4},
+    {FmtId::FP6, "FP6",  1,          {"fp6",                "",                    ""},                  run_fp6},
+    {FmtId::FP8E4M3, "FP8(E4M3)",  1,    {"fp8",                "fp8-e4m3",            "e4m3"},              run_fp8_e4m3},
+    {FmtId::FP8E5M2, "FP8(E5M2)",  1,    {"fp8-e5m2",           "e5m2",                ""},                  run_fp8_e5m2},
+    {FmtId::FP16, "FP16",  2,         {"f16",                "fp16",                ""},                  run_fp16},
+    {FmtId::BF16, "BF16",  2,         {"bf16",               "",                    ""},                  run_bf16},
+    {FmtId::TF32, "TF32",  4,         {"tf32",               "",                    ""},                  run_tf32},
+    {FmtId::FP32, "FP32",  4,         {"f32",                "fp32",                ""},                  run_fp32},
+    {FmtId::Dec32, "Dec32[BID]",  4,   {"dec32",              "decimal32",           ""},                  run_dec32},
+    {FmtId::DPD32, "DPD32",  4,        {"dpd32",              "dpd-dec32",           ""},                  run_dpd32},
+    {FmtId::FP64, "FP64",  8,         {"f64",                "fp64",                ""},                  run_fp64},
+    {FmtId::Dec64, "Dec64[BID]",  8,   {"dec64",              "decimal64",           ""},                  run_dec64},
+    {FmtId::DPD64, "DPD64",  8,        {"dpd64",              "dpd-dec64",           ""},                  run_dpd64},
+    {FmtId::X87, "x87", 16,          {"x87",                "",                    ""},                  run_x87},
+    {FmtId::FP128, "FP128", 16,        {"fp128",              "",                    ""},                  run_fp128},
+    {FmtId::Dec128, "Dec128[BID]", 16,  {"dec128",             "decimal128",          ""},                  run_dec128},
+    {FmtId::DPD128, "DPD128", 16,       {"dpd128",             "dpd-dec128",          ""},                  run_dpd128},
 }};
+
+[[nodiscard]] inline const FmtSpec* fmt_spec(FmtId id) noexcept {
+    for (const auto& f : kFormats) if (f.id == id) return &f;
+    return nullptr;
+}
+
+[[nodiscard]] inline int fmt_record_bytes(FmtId id) noexcept {
+    const FmtSpec* f = fmt_spec(id);
+    return f ? f->bytes : 0;
+}
 
 [[nodiscard]] inline std::string_view fmt_name(FmtId id) noexcept {
     for (const auto& f : kFormats) if (f.id == id) return f.name;
@@ -143,12 +154,11 @@ struct RunParams {
     int digits;
 };
 
-inline void run_format(FmtId id, const RunParams& p, RunResult* out) {
-    for (const auto& f : kFormats) {
-        if (f.id != id) continue;
-        f.run(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits,
-              ShowBits::OFF, out, 0);
-        return;
+inline void run_format(FmtId id, const RunParams& p, RunResult* out,
+                       ShowBits showbits = ShowBits::OFF, std::int64_t refresh_ms = 0) {
+    if (const FmtSpec* f = fmt_spec(id)) {
+        f->run(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits,
+               showbits, out, refresh_ms);
     }
 }
 

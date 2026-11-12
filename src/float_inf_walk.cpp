@@ -409,6 +409,199 @@ static void print_help() {
     ex("float_inf_walk.exe --self-test", "# 自检，不进压测", "# self-test, no stress run");
 }
 
+// Exit hook (atexit): fill the v2 256-byte header, append payload CRC, close the dump file.
+static void finalize_dump_file() {
+    if (g_dump_file) {
+    std::fflush(g_dump_file);
+    if (g_dump_raw) { std::fclose(g_dump_file); g_dump_file = nullptr; return; } // raw: no header/CRC; flush and close only
+    long payload_n = g_dump_bytes_written;
+    // payload CRC-32/IEEE over records at offset 256 .. EOF
+    std::uint32_t payload_crc = crc32_payload(g_dump_file, 256, payload_n);
+
+    // ---- v2 fixed 256-byte header, all integers little-endian ----
+    // 0x00 char[8] magic "EAFRDT2\0"
+    // 0x08 u8 schema=2 (fixed 256B header) ; 0x09 reserved
+    // 0x0A u8 payload_endian(0 LE/1 BE) ; 0x0B u8 packed(0 natural/1 tight)
+    // 0x0C u32 flags(bit2=empty) ; 0x10 u32 header_crc32 ; 0x14 u32 payload_crc32
+    // 0x18 u64 payload_bytes ; 0x20 u64 record_count ; 0x28 u32 record_size
+    // 0x2C u8 format_id ;0x2D u8 step_mode ;0x2E u8 start_kind ;0x2F u8 reason(0xFF=unknown)
+    // 0x30 f64 start_value ; 0x38 f64 factor
+    // 0x40 i64 timestamp_unix_s ; 0x48 u64 elapsed_us
+    // 0x50 u32 timeout_sec ;0x54 i32 loop_count ;0x58 f64 delay_ms
+    // 0x60 char[32] format_name ; 0x80 char[32] tool_version ; 0xA0..0xFF reserved zero
+    std::rewind(g_dump_file);
+    unsigned char hdr[256] = {0};
+    std::memcpy(hdr+0x00, "EAFRDT2", 7);
+    hdr[0x08] = 2;  // schema v2: fixed 256-byte header; 0x09 reserved zero
+    hdr[0x0A] = (unsigned char)g_dump_endian;
+    hdr[0x0B] = (unsigned char)g_dump_packed_active;
+    {
+        std::uint32_t flags = (payload_n == 0) ? 0x4u : 0u;  // bit2: empty (no records)
+        std::memcpy(hdr+0x0C, &flags, 4);
+    }
+    std::memcpy(hdr+0x14, &payload_crc, 4);
+    std::uint64_t payload_bytes = (std::uint64_t)payload_n;
+    std::memcpy(hdr+0x18, &payload_bytes, 8);
+    std::uint32_t rsize = (std::uint32_t)g_dump_record_size;
+    std::uint64_t record_count = (rsize > 0) ? (std::uint64_t)(payload_n / (long)rsize) : 0ull;
+    std::memcpy(hdr+0x20, &record_count, 8);
+    std::memcpy(hdr+0x28, &rsize, 4);
+    hdr[0x2C] = (unsigned char)g_dump_format_id;
+    hdr[0x2D] = (unsigned char)g_dump_step_mode;
+    hdr[0x2E] = (unsigned char)g_dump_start_kind;
+    hdr[0x2F] = (payload_n > 0) ? (unsigned char)g_result.reason : (unsigned char)0xFF;
+    {
+        double sv = g_dump_start_value;
+        double fac = g_dump_factor;
+        std::memcpy(hdr+0x30, &sv, 8);
+        std::memcpy(hdr+0x38, &fac, 8);
+        std::int64_t ts = (std::int64_t)std::time(nullptr);
+        std::memcpy(hdr+0x40, &ts, 8);
+        std::uint64_t elapsed_us = (std::uint64_t)(g_result.elapsed_ms * 1000.0);
+        std::memcpy(hdr+0x48, &elapsed_us, 8);
+        std::uint32_t timeout_s = (std::uint32_t)g_timeout_sec.load();
+        std::memcpy(hdr+0x50, &timeout_s, 4);
+        std::int32_t loop = g_json_loop;
+        std::memcpy(hdr+0x54, &loop, 4);
+        double delay_ms = g_json_delay_ms;
+        std::memcpy(hdr+0x58, &delay_ms, 8);
+    }
+    {
+        std::memset(hdr+0x60, 0, 32);
+        std::size_t nc = g_fmt_name.size() < 31 ? g_fmt_name.size() : 31;
+        std::memcpy(hdr+0x60, g_fmt_name.data(), nc);
+        const char* ver = "v1.0.6";
+        std::memset(hdr+0x80, 0, 32);
+        std::memcpy(hdr+0x80, ver, std::strlen(ver));
+    }
+    // header CRC32 over the 256 bytes with the header_crc slot (0x10..0x13) kept zeroed
+    std::uint32_t header_crc = crc32_buffer(hdr, 256);
+    std::memcpy(hdr+0x10, &header_crc, 4);
+
+    std::fwrite(hdr, 1, 256, g_dump_file);
+    std::fflush(g_dump_file);
+#ifdef _WIN32
+    _chsize(_fileno(g_dump_file), 256 + payload_n);
+#endif
+    std::fclose(g_dump_file); g_dump_file = nullptr;
+    }
+}
+
+// Exit hook (atexit): emit the single-format JSON shell (suppressed for -m all, which prints its own).
+static void emit_single_format_json() {
+    if (!g_json) return;
+    if (g_fmt_name == "all") return;  // run_all emits its own JSON summary
+    const char* rn = reason_token(g_result.reason);
+    const char* sm = "x1.02";
+    if (g_json_step_mode == 1) sm = "mululp";
+    else if (g_json_step_mode == 2) sm = "addulp";
+    else if (g_json_step_mode == 3) sm = "subulp";
+    double rate = g_result.elapsed_ms > 0.0 ? (double)g_result.steps / (g_result.elapsed_ms / 1000.0) : 0.0;
+    auto now = std::time(nullptr);
+    // A1: deterministic anchor comparison (steps/reason only; rate/wall are host-dependent).
+    std::string bc;
+    if (!g_compare_path.empty()) {
+        AnchorCompare ac = compare_anchor(g_compare_path, g_compare_key,
+                                          to_string_u128(g_result.steps), rn);
+        if (!ac.available) {
+            bc = "{\"available\":false}";
+        } else {
+            if (!ac.matched) {
+                cui::note() << "[compare] " << g_compare_key
+                          << " MISMATCH exp_steps=" << ac.exp_steps
+                          << " exp_reason=" << ac.exp_reason
+                          << " got_steps=" << to_string_u128(g_result.steps)
+                          << " got_reason=" << rn << "\n";
+            }
+            bc = "{\"available\":true,\"matched\":";
+            bc += ac.matched ? "true" : "false";
+            bc += ",\"expected_steps\":\"" + ac.exp_steps + "\"";
+            bc += ",\"expected_reason\":\"" + ac.exp_reason + "\"}";
+        }
+    } else {
+        bc = "{\"available\":false}";
+    }
+    // W3-B5: optional throughput block; empty string when --sample-window is off so the
+    // default JSON shape stays byte-identical.
+    std::string tp_field;
+    if (g_sample_window_ms > 0) {
+        char tb[256];
+        std::snprintf(tb, sizeof(tb),
+            "\"throughput\":{\"window_ms\":%lld,\"samples\":%d,\"min\":%.1f,\"avg\":%.1f,\"p95\":%.1f,\"max\":%.1f},",
+            g_sample_window_ms, g_rate_n, g_rate_min, g_rate_avg, g_rate_p95, g_rate_max);
+        tp_field = tb;
+    }
+    std::printf(
+        "{"
+        "\"tool\":\"ea-FRDT\","
+        "\"version\":\"1.0\","
+        "\"format\":\"%s\","
+        "\"steps\":%s,"
+        "\"elapsed_ms\":%.3f,"
+        "\"elapsed_s\":%.6f,"
+        "\"steps_per_sec\":%.1f,"
+        "\"reason\":\"%s\","
+        "\"final_value\":\"%s\","
+        "\"params\":{"
+          "\"start\":%.17g,"
+          "\"factor\":%.17g,"
+          "\"step_mode\":\"%s\","
+          "\"digits\":%d,"
+          "\"delay_ms\":%.17g,"
+          "\"timeout_s\":%d,"
+          "\"loop\":%d,"
+          "\"fixed_steps\":%s,"
+          "\"max_seconds\":%d,"
+          "\"preset\":\"%s\""
+        "},"
+        "\"system\":{"
+          "\"hardware_threads\":%u,"
+          "\"physical_threads\":%d,"
+          "\"hires_timer\":%s,"
+          "\"affinity\":%s,"
+          "\"compiler\":\"%s\","
+          "\"cpp_std\":23"
+        "},"
+        "%s"
+        "\"baseline_compare\":%s,"
+        "\"timestamp\":%ld"
+        "}\n",
+        g_result.name.empty() ? g_fmt_name.c_str() : g_result.name.c_str(),
+        to_string_u128(g_result.steps).c_str(),
+        g_result.elapsed_ms,
+        g_result.elapsed_ms / 1000.0,
+        rate,
+        rn,
+        g_result.cur_value.empty() ? "" : g_result.cur_value.c_str(),
+        g_json_start,
+        g_json_factor,
+        sm,
+        g_json_digits,
+        g_json_delay_ms,
+        g_timeout_sec.load(),
+        g_json_loop,
+        to_string_u128(g_fixed_steps).c_str(),
+        g_max_seconds.load(),
+        g_iron_preset ? "iron" : "default",
+        (unsigned)std::thread::hardware_concurrency(),
+        fw::plat::physical_cores(),
+        tf(fw::plat::hires_timer_effective()),
+        tf(fw::plat::affinity_available()),
+        FW_CC_NAME,
+        tp_field.c_str(),
+        bc.c_str(),
+        (long)now
+    );
+}
+
+// Exit hook (atexit): flush and close the --dump-events JSONL trace.
+static void close_event_trace() {
+    if (!g_events_file) return;
+    std::fflush(g_events_file);
+    std::fclose(g_events_file);
+    g_events_file = nullptr;
+}
+
 int main(int argc, char** argv) {
 #ifdef _WIN32
     fw::plat::set_high_res_timer();
@@ -423,199 +616,10 @@ int main(int argc, char** argv) {
         fw::plat::teardown_on_exit();
         std::_Exit(130);
     });
-    std::atexit([](){ if (g_dump_file) {
-        std::fflush(g_dump_file);
-        if (g_dump_raw) { std::fclose(g_dump_file); g_dump_file = nullptr; return; } // raw: no header/CRC; flush and close only
-        long payload_n = g_dump_bytes_written;
-        // payload CRC-32/IEEE over records at offset 256 .. EOF
-        std::uint32_t payload_crc = crc32_payload(g_dump_file, 256, payload_n);
-
-        // ---- v2 fixed 256-byte header, all integers little-endian ----
-        // 0x00 char[8] magic "EAFRDT2\0"
-        // 0x08 u8 schema=2 (fixed 256B header) ; 0x09 reserved
-        // 0x0A u8 payload_endian(0 LE/1 BE) ; 0x0B u8 packed(0 natural/1 tight)
-        // 0x0C u32 flags(bit2=empty) ; 0x10 u32 header_crc32 ; 0x14 u32 payload_crc32
-        // 0x18 u64 payload_bytes ; 0x20 u64 record_count ; 0x28 u32 record_size
-        // 0x2C u8 format_id ;0x2D u8 step_mode ;0x2E u8 start_kind ;0x2F u8 reason(0xFF=unknown)
-        // 0x30 f64 start_value ; 0x38 f64 factor
-        // 0x40 i64 timestamp_unix_s ; 0x48 u64 elapsed_us
-        // 0x50 u32 timeout_sec ;0x54 i32 loop_count ;0x58 f64 delay_ms
-        // 0x60 char[32] format_name ; 0x80 char[32] tool_version ; 0xA0..0xFF reserved zero
-        std::rewind(g_dump_file);
-        unsigned char hdr[256] = {0};
-        std::memcpy(hdr+0x00, "EAFRDT2", 7);
-        hdr[0x08] = 2;  // schema v2: fixed 256-byte header; 0x09 reserved zero
-        hdr[0x0A] = (unsigned char)g_dump_endian;
-        hdr[0x0B] = (unsigned char)g_dump_packed_active;
-        {
-            std::uint32_t flags = (payload_n == 0) ? 0x4u : 0u;  // bit2: empty (no records)
-            std::memcpy(hdr+0x0C, &flags, 4);
-        }
-        std::memcpy(hdr+0x14, &payload_crc, 4);
-        std::uint64_t payload_bytes = (std::uint64_t)payload_n;
-        std::memcpy(hdr+0x18, &payload_bytes, 8);
-        std::uint32_t rsize = (std::uint32_t)g_dump_record_size;
-        std::uint64_t record_count = (rsize > 0) ? (std::uint64_t)(payload_n / (long)rsize) : 0ull;
-        std::memcpy(hdr+0x20, &record_count, 8);
-        std::memcpy(hdr+0x28, &rsize, 4);
-        hdr[0x2C] = (unsigned char)g_dump_format_id;
-        hdr[0x2D] = (unsigned char)g_dump_step_mode;
-        hdr[0x2E] = (unsigned char)g_dump_start_kind;
-        hdr[0x2F] = (payload_n > 0) ? (unsigned char)g_result.reason : (unsigned char)0xFF;
-        {
-            double sv = g_dump_start_value;
-            double fac = g_dump_factor;
-            std::memcpy(hdr+0x30, &sv, 8);
-            std::memcpy(hdr+0x38, &fac, 8);
-            std::int64_t ts = (std::int64_t)std::time(nullptr);
-            std::memcpy(hdr+0x40, &ts, 8);
-            std::uint64_t elapsed_us = (std::uint64_t)(g_result.elapsed_ms * 1000.0);
-            std::memcpy(hdr+0x48, &elapsed_us, 8);
-            std::uint32_t timeout_s = (std::uint32_t)g_timeout_sec.load();
-            std::memcpy(hdr+0x50, &timeout_s, 4);
-            std::int32_t loop = g_json_loop;
-            std::memcpy(hdr+0x54, &loop, 4);
-            double delay_ms = g_json_delay_ms;
-            std::memcpy(hdr+0x58, &delay_ms, 8);
-        }
-        {
-            std::memset(hdr+0x60, 0, 32);
-            std::size_t nc = g_fmt_name.size() < 31 ? g_fmt_name.size() : 31;
-            std::memcpy(hdr+0x60, g_fmt_name.data(), nc);
-            const char* ver = "v1.0.6";
-            std::memset(hdr+0x80, 0, 32);
-            std::memcpy(hdr+0x80, ver, std::strlen(ver));
-        }
-        // header CRC32 over the 256 bytes with the header_crc slot (0x10..0x13) kept zeroed
-        std::uint32_t header_crc = crc32_buffer(hdr, 256);
-        std::memcpy(hdr+0x10, &header_crc, 4);
-
-        std::fwrite(hdr, 1, 256, g_dump_file);
-        std::fflush(g_dump_file);
-#ifdef _WIN32
-        _chsize(_fileno(g_dump_file), 256 + payload_n);
-#endif
-        std::fclose(g_dump_file); g_dump_file = nullptr; } });
-    std::atexit([](){
-        if (!g_json) return;
-        if (g_fmt_name == "all") return;  // run_all emits its own JSON summary
-        const char* rn = "unknown";
-        switch (g_result.reason) {
-            case RunResult::OVERFLOW:  rn = "overflow"; break;
-            case RunResult::UNDERFLOW: rn = "underflow"; break;
-            case RunResult::IDENTITY:  rn = "identity"; break;
-            case RunResult::SAFETY:    rn = "safety"; break;
-            case RunResult::TIMEOUT:   rn = "timeout"; break;
-            case RunResult::NOT_A_NUMBER: rn = "nan"; break;
-            case RunResult::FIXED_STEPS: rn = "fixed"; break;
-        }
-        const char* sm = "x1.02";
-        if (g_json_step_mode == 1) sm = "mululp";
-        else if (g_json_step_mode == 2) sm = "addulp";
-        else if (g_json_step_mode == 3) sm = "subulp";
-        double rate = g_result.elapsed_ms > 0.0 ? (double)g_result.steps / (g_result.elapsed_ms / 1000.0) : 0.0;
-        auto now = std::time(nullptr);
-        // A1: deterministic anchor comparison (steps/reason only; rate/wall are host-dependent).
-        std::string bc;
-        if (!g_compare_path.empty()) {
-            AnchorCompare ac = compare_anchor(g_compare_path, g_compare_key,
-                                              to_string_u128(g_result.steps), rn);
-            if (!ac.available) {
-                bc = "{\"available\":false}";
-            } else {
-                if (!ac.matched) {
-                    cui::note() << "[compare] " << g_compare_key
-                              << " MISMATCH exp_steps=" << ac.exp_steps
-                              << " exp_reason=" << ac.exp_reason
-                              << " got_steps=" << to_string_u128(g_result.steps)
-                              << " got_reason=" << rn << "\n";
-                }
-                bc = "{\"available\":true,\"matched\":";
-                bc += ac.matched ? "true" : "false";
-                bc += ",\"expected_steps\":\"" + ac.exp_steps + "\"";
-                bc += ",\"expected_reason\":\"" + ac.exp_reason + "\"}";
-            }
-        } else {
-            bc = "{\"available\":false}";
-        }
-        // W3-B5: optional throughput block; empty string when --sample-window is off so the
-        // default JSON shape stays byte-identical.
-        std::string tp_field;
-        if (g_sample_window_ms > 0) {
-            char tb[256];
-            std::snprintf(tb, sizeof(tb),
-                "\"throughput\":{\"window_ms\":%lld,\"samples\":%d,\"min\":%.1f,\"avg\":%.1f,\"p95\":%.1f,\"max\":%.1f},",
-                g_sample_window_ms, g_rate_n, g_rate_min, g_rate_avg, g_rate_p95, g_rate_max);
-            tp_field = tb;
-        }
-        std::printf(
-            "{"
-            "\"tool\":\"ea-FRDT\","
-            "\"version\":\"1.0\","
-            "\"format\":\"%s\","
-            "\"steps\":%s,"
-            "\"elapsed_ms\":%.3f,"
-            "\"elapsed_s\":%.6f,"
-            "\"steps_per_sec\":%.1f,"
-            "\"reason\":\"%s\","
-            "\"final_value\":\"%s\","
-            "\"params\":{"
-              "\"start\":%.17g,"
-              "\"factor\":%.17g,"
-              "\"step_mode\":\"%s\","
-              "\"digits\":%d,"
-              "\"delay_ms\":%.17g,"
-              "\"timeout_s\":%d,"
-              "\"loop\":%d,"
-              "\"fixed_steps\":%s,"
-              "\"max_seconds\":%d,"
-              "\"preset\":\"%s\""
-            "},"
-            "\"system\":{"
-              "\"hardware_threads\":%u,"
-              "\"physical_threads\":%d,"
-              "\"hires_timer\":%s,"
-              "\"affinity\":%s,"
-              "\"compiler\":\"%s\","
-              "\"cpp_std\":23"
-            "},"
-            "%s"
-            "\"baseline_compare\":%s,"
-            "\"timestamp\":%ld"
-            "}\n",
-            g_result.name.empty() ? g_fmt_name.c_str() : g_result.name.c_str(),
-            to_string_u128(g_result.steps).c_str(),
-            g_result.elapsed_ms,
-            g_result.elapsed_ms / 1000.0,
-            rate,
-            rn,
-            g_result.cur_value.empty() ? "" : g_result.cur_value.c_str(),
-            g_json_start,
-            g_json_factor,
-            sm,
-            g_json_digits,
-            g_json_delay_ms,
-            g_timeout_sec.load(),
-            g_json_loop,
-            to_string_u128(g_fixed_steps).c_str(),
-            g_max_seconds.load(),
-            g_iron_preset ? "iron" : "default",
-            (unsigned)std::thread::hardware_concurrency(),
-            fw::plat::physical_cores(),
-            tf(fw::plat::hires_timer_effective()),
-            tf(fw::plat::affinity_available()),
-            FW_CC_NAME,
-            tp_field.c_str(),
-            bc.c_str(),
-            (long)now
-        );
-    });
+    std::atexit(finalize_dump_file);
+    std::atexit(emit_single_format_json);
     // C2 --dump-events: close the JSONL trace after the run; normal exit only (SIGINT skips atexit).
-    std::atexit([](){ if (g_events_file) {
-        std::fflush(g_events_file);
-        std::fclose(g_events_file);
-        g_events_file = nullptr;
-    } });
+    std::atexit(close_event_trace);
     std::string mode = "f32";
     double delay_ms = 0;
     bool has_delay = false;
@@ -904,18 +908,6 @@ int main(int argc, char** argv) {
             cui::err() << tr("错误：--pairwise 与 -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events 互斥\n",
                             "error: --pairwise conflicts with -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events\n"); return 2;
         }
-        auto pair_tok = [](RunResult::Reason r) -> const char* {
-            switch (r) {
-                case RunResult::OVERFLOW:    return "overflow";
-                case RunResult::UNDERFLOW:   return "underflow";
-                case RunResult::IDENTITY:     return "identity";
-                case RunResult::SAFETY:       return "safety";
-                case RunResult::TIMEOUT:      return "timeout";
-                case RunResult::NOT_A_NUMBER: return "nan";
-                case RunResult::FIXED_STEPS: return "fixed";
-            }
-            return "?";
-        };
         struct Meta { const char* engine; int bits; int bytes; };
         auto meta = [](FmtId id) -> Meta {
             switch (id) {
@@ -946,9 +938,9 @@ int main(int argc, char** argv) {
                 match ? "true" : "false",
                 toks[0].c_str(), toks[1].c_str(),
                 toks[0].c_str(), meta(pa).engine, meta(pa).bits, meta(pa).bytes,
-                to_string_u128(ra.steps).c_str(), pair_tok(ra.reason), ra.elapsed_ms,
+                to_string_u128(ra.steps).c_str(), reason_token(ra.reason), ra.elapsed_ms,
                 toks[1].c_str(), meta(pb).engine, meta(pb).bits, meta(pb).bytes,
-                to_string_u128(rb.steps).c_str(), pair_tok(rb.reason), rb.elapsed_ms);
+                to_string_u128(rb.steps).c_str(), reason_token(rb.reason), rb.elapsed_ms);
         } else {
             std::cout << cui::section(tr("pairwise 双引擎对照", "pairwise dual-engine"),
                                       tr("同起点 1.0，倍率 1.02", "same start 1.0, factor 1.02"));
@@ -965,7 +957,7 @@ int main(int argc, char** argv) {
                 char msbuf[32];
                 std::snprintf(msbuf, sizeof(msbuf), "%.1f", r.elapsed_ms);
                 t.row({label, m.engine, std::to_string(m.bits), std::to_string(m.bytes),
-                       cui::count(r.steps), pair_tok(r.reason), msbuf});
+                       cui::count(r.steps), reason_token(r.reason), msbuf});
             };
             add(pa, ra, toks[0]);
             add(pb, rb, toks[1]);
@@ -1003,18 +995,6 @@ int main(int argc, char** argv) {
             {StartKind::Default,"default"}, {StartKind::MinNormal,"min-normal"},
             {StartKind::MaxFinite,"max-finite"}, {StartKind::Subnormal,"subnormal"}
         };
-        auto p_tok = [](RunResult::Reason r) -> const char* {
-            switch (r) {
-                case RunResult::OVERFLOW:    return "overflow";
-                case RunResult::UNDERFLOW:   return "underflow";
-                case RunResult::IDENTITY:    return "identity";
-                case RunResult::SAFETY:       return "safety";
-                case RunResult::TIMEOUT:      return "timeout";
-                case RunResult::NOT_A_NUMBER: return "nan";
-                case RunResult::FIXED_STEPS: return "fixed";
-            }
-            return "?";
-        };
         bool as_json = g_json;
         g_json = false; // standalone path owns stdout; suppress the single-format atexit JSON shell
         constexpr unsigned long long PROBE_STEPS = 32;
@@ -1037,7 +1017,7 @@ int main(int argc, char** argv) {
                 if (i) std::printf(",");
                 const auto& c = cells[i];
                 std::printf("{\"format\":\"%s\",\"boundary\":\"%s\",\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f,\"value_ok\":%s}",
-                            c.tok, c.btag, to_string_u128(c.steps).c_str(), p_tok(c.reason), c.ms,
+                            c.tok, c.btag, to_string_u128(c.steps).c_str(), reason_token(c.reason), c.ms,
                             c.empty ? "false" : "true");
             }
             std::printf("]}\n");
@@ -1057,7 +1037,7 @@ int main(int argc, char** argv) {
                 total_ms += c.ms;
                 char msbuf[32];
                 std::snprintf(msbuf, sizeof(msbuf), "%.2f", c.ms);
-                t.row({c.tok, c.btag, cui::count(c.steps), p_tok(c.reason), msbuf,
+                t.row({c.tok, c.btag, cui::count(c.steps), reason_token(c.reason), msbuf,
                        c.empty ? "false" : "true"});
             }
             t.print(std::cout);
@@ -1199,20 +1179,10 @@ int main(int argc, char** argv) {
     // dump metadata: format_id and record_size
     if (g_dump_file) {
         if (!g_dump_raw) std::fseek(g_dump_file, 256, SEEK_SET); // reserve v2 header space; raw stream starts at offset 0
-        if (mode=="fp4")       { g_dump_format_id=0;  g_dump_record_size=1; }
-        else if (mode=="fp6") { g_dump_format_id=1;  g_dump_record_size=1; }
-        else if (mode=="fp8"||mode=="fp8-e4m3") { g_dump_format_id=2; g_dump_record_size=1; }
-        else if (mode=="fp8-e5m2") { g_dump_format_id=3; g_dump_record_size=1; }
-        else if (mode=="f16"||mode=="fp16") { g_dump_format_id=4; g_dump_record_size=2; }
-        else if (mode=="bf16") { g_dump_format_id=5; g_dump_record_size=2; }
-        else if (mode=="tf32") { g_dump_format_id=6; g_dump_record_size=4; }
-        else if (mode=="f32"||mode=="fp32") { g_dump_format_id=7; g_dump_record_size=4; }
-        else if (mode=="dec32"||mode=="decimal32") { g_dump_format_id=8; g_dump_record_size=4; }
-        else if (mode=="dpd32"||mode=="dpd-dec32") { g_dump_format_id=9; g_dump_record_size=4; }
-        else if (mode=="f64"||mode=="fp64") { g_dump_format_id=10; g_dump_record_size=8; }
-        else if (mode=="dec64"||mode=="decimal64") { g_dump_format_id=11; g_dump_record_size=8; }
-        else if (mode=="dpd64"||mode=="dpd-dec64") { g_dump_format_id=12; g_dump_record_size=8; }
-        else if (mode=="x87")  { g_dump_format_id=13; g_dump_record_size=16; } // 16B slot: 10B valid + 6B zero padding
+        if (FmtId id = fmt_canon(mode); id != FmtId::COUNT) {
+            g_dump_format_id = (int)id;
+            g_dump_record_size = fmt_record_bytes(id);
+        }
         else if (mode=="fp128"){ g_dump_format_id=14; g_dump_record_size=16; }
         else if (mode=="dec128"||mode=="decimal128") { g_dump_format_id=15; g_dump_record_size=16; }
         else if (mode=="dpd128"||mode=="dpd-dec128") { g_dump_format_id=16; g_dump_record_size=16; }
@@ -1231,24 +1201,11 @@ int main(int argc, char** argv) {
     g_seg_prev_ms = 0.0; g_seg_prev_steps = 0;
     g_rate_min = g_rate_avg = g_rate_p95 = g_rate_max = 0.0;
     RunResult* q = (quiet || g_json || g_dump_file || g_events_file ? &g_result : nullptr);
-    if (mode == "f16" || mode == "fp16")            { run_fp16(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "f32" || mode == "fp32")            { run_fp32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "f64" || mode == "fp64")            { run_fp64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "x87")                              { run_x87(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "fp4")        { run_fp4(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "fp6")        { run_fp6(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "fp8" || mode == "fp8-e4m3") { run_fp8_e4m3(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "fp8-e5m2")   { run_fp8_e5m2(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "bf16")       { run_bf16(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "tf32")       { run_tf32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "dec32" || mode == "decimal32") { run_dec32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "dec64" || mode == "decimal64") { run_dec64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "dec128" || mode == "decimal128") { run_dec128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "dpd32" || mode == "dpd-dec32") { run_dpd32(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "dpd64" || mode == "dpd-dec64") { run_dpd64(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "dpd128" || mode == "dpd-dec128") { run_dpd128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-    if (mode == "fp128") { run_fp128(delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits, show_bits, q, refresh_ms); return 0; }
-
+    if (FmtId id = fmt_canon(mode); id != FmtId::COUNT) {
+        run_format(id, RunParams{delay_ms, start_kind, step_mode, disp_fmt, start_val, factor, digits},
+                   q, show_bits, refresh_ms);
+        return 0;
+    }
     cui::err() << tr("错误：未知模式 '", "error: unknown mode '") << sanitize(mode) << tr("'（见 -h）\n", "' (see -h)\n");
     return 2;
 }

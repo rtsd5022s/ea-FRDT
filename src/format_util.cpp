@@ -1,12 +1,13 @@
 // format_util.cpp — Bit string and numeric formatting implementations
 #include <cmath>
 #include <stdexcept>
+#include <string_view>
 #include "format_util.h"
 
 namespace fw {
 
-std::string bits_to_hex(const std::string& bits) {
-    std::string p = bits;
+std::string bits_to_hex(std::string_view bits) {
+    std::string p(bits);
     while (p.size() % 4 != 0) p = "0" + p;  // left-pad to nibble boundary
     std::string out;
     for (size_t i = 0; i < p.size(); i += 4) {
@@ -26,13 +27,14 @@ std::string raw_to_bits(std::uint64_t raw, int bits) {
     return b;
 }
 
-std::string group_bits(const std::string& b, int expBits, int manBits) {
-    return b.substr(0, 1) + " " + b.substr(1, expBits) + " " + b.substr(1 + expBits, manBits);
+std::string group_bits(std::string_view b, int expBits, int manBits) {
+    return std::string(b.substr(0, 1)) + " " + std::string(b.substr(1, expBits))
+         + " " + std::string(b.substr(1 + expBits, manBits));
 }
 
-std::string group_dec_bits(const std::string& bits, int exp_cont, int coeff_bits) {
-    return bits.substr(0, 1) + " " + bits.substr(1, 5) + " "
-         + bits.substr(6, exp_cont) + " " + bits.substr(6 + exp_cont, coeff_bits);
+std::string group_dec_bits(std::string_view bits, int exp_cont, int coeff_bits) {
+    return std::string(bits.substr(0, 1)) + " " + std::string(bits.substr(1, 5)) + " "
+         + std::string(bits.substr(6, exp_cont)) + " " + std::string(bits.substr(6 + exp_cont, coeff_bits));
 }
 
 std::string format_value(double v, DispFmt fmt, int digits) {
@@ -67,9 +69,9 @@ std::string format_value(double v, DispFmt fmt, int digits) {
     return buf;
 }
 
-double parse_number(const std::string& s) {
+double parse_number(std::string_view s) {
     if (s.size() >= 2 && (s.substr(0, 2) == "0x" || s.substr(0, 2) == "0X")) {
-        const std::string hex = s.substr(2);
+        const std::string hex(s.substr(2));
         if (hex.size() > 32) throw std::invalid_argument("hex too long");
         for (char c : hex) {
             if (!std::isxdigit((unsigned char)c)) throw std::invalid_argument("bad hex char");
@@ -88,10 +90,10 @@ double parse_number(const std::string& s) {
         return v;
     }
     if (s.size() > 128) throw std::invalid_argument("number too long");
-    return std::stod(s);
+    return std::stod(std::string(s));
 }
 
-std::string sanitize(const std::string& s) {
+std::string sanitize(std::string_view s) {
     std::string out;
     out.reserve(s.size());
     for (char c : s) {
