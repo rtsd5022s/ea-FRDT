@@ -152,15 +152,14 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
         std::cout << cui::bid_header(start.coeff, start.exp10, bid_bits_to_hex(bits));
         bid_selfcheck(start.neg ? 1 : 0, start.exp10, start.coeff, bf);
     }
-    std::function<std::string(const BigDec&)> big_extra;
-    if (showbits != ShowBits::OFF && !quiet) {
-        big_extra = [showbits](const BigDec& v) -> std::string {
-            BidFmt bf = bid_fmt128();
-            std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10, v.coeff, bf);
-            return showbits == ShowBits::HEX ? bid_bits_to_hex(bits)
-                   : group_dec_bits(bits, bf.exp_cont, bf.coeff_bits);
-        };
-    }
+    const bool want_bits = showbits != ShowBits::OFF && !quiet;
+    auto big_extra = [showbits, want_bits](const BigDec& v) -> std::string {
+        if (!want_bits) return {};
+        BidFmt bf = bid_fmt128();
+        std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10, v.coeff, bf);
+        return showbits == ShowBits::HEX ? bid_bits_to_hex(bits)
+               : group_dec_bits(bits, bf.exp_cont, bf.coeff_bits);
+    };
     // dump callback: write packed BID128 bit-pattern (16 bytes)
     auto big_dump = [](const BigDec& v) {
         BidFmt bf = bid_fmt128();
@@ -195,7 +194,7 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
           [](BigDec v) { return v.coeff.empty() || v.coeff == "0"; },
           [](BigDec) { return false; },  // BigDec never produces NaN
           [&](const BigDec& v) { return dec_fmt_text(v.coeff, v.exp10, v.neg, df, digits); },
-          delay_ms, big_extra, quiet, refresh_ms, std::function<void(const BigDec&)>(big_dump));
+          delay_ms, big_extra, quiet, refresh_ms, big_dump);
 }
 
 } // namespace fw

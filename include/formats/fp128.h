@@ -151,13 +151,12 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
     if (!quiet) std::cout << cui::walk_header(
         tr("FP128(binary128,纯软件112位)", "FP128(binary128,software 112-bit)"),
         tag, step_factor_str(sm, factor), delay_ms);
-    std::function<std::string(const Q128&)> q_extra;
-    if (showbits != ShowBits::OFF && !quiet) {
-        q_extra = [showbits](const Q128& v) -> std::string {
-            std::string b = q128_bits(v);
-            return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 112);
-        };
-    }
+    const bool want_bits = showbits != ShowBits::OFF && !quiet;
+    auto q_extra = [showbits, want_bits](const Q128& v) -> std::string {
+        if (!want_bits) return {};
+        std::string b = q128_bits(v);
+        return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 112);
+    };
     // dump callback: fp128 128-bit = 16 bytes
     auto q128_dump = [](const Q128& v) {
         std::string b = q128_bits(v);
@@ -191,7 +190,7 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
           [](Q128) { return false; },  // Q128 never produces NaN
           [&](const Q128& v) { return q128_format(v, df, digits); },
           delay_ms, q_extra, quiet, refresh_ms,
-          std::function<void(const Q128&)>(q128_dump));
+          q128_dump);
 }
 
 inline void run_fp128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,

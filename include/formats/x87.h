@@ -116,13 +116,12 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
     if (!quiet) std::cout << cui::walk_header(
         tr("x87(80位,纯软件)", "x87(80-bit,software)"),
         tag, step_factor_str(sm, factor), delay_ms);
-    std::function<std::string(const X87&)> x87_extra;
-    if (showbits != ShowBits::OFF && !quiet) {
-        x87_extra = [showbits](const X87& v) -> std::string {
-            std::string b = x87_bits(v);
-            return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 64);
-        };
-    }
+    const bool want_bits = showbits != ShowBits::OFF && !quiet;
+    auto x87_extra = [showbits, want_bits](const X87& v) -> std::string {
+        if (!want_bits) return {};
+        std::string b = x87_bits(v);
+        return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, 15, 64);
+    };
     // dump callback: x87 80-bit value in a fixed 16-byte slot.
     // 10 bytes carry the valid 80-bit pattern; the remaining 6 bytes are zero-filled.
     // LE: valid bytes in low half (little-endian order), upper 6 bytes zero;
@@ -163,7 +162,7 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
           [](X87) { return false; },  // X87 never produces NaN
           [&](const X87& v) { return x87_format(v, df, digits); },
           delay_ms, x87_extra, quiet, refresh_ms,
-          std::function<void(const X87&)>(x87_dump));
+          x87_dump);
 }
 
 inline void run_x87(double delay_ms, StartKind kind, StepMode sm, DispFmt df,

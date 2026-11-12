@@ -50,19 +50,18 @@ void run_native(const char* tag, double delay_ms, StartKind kind, StepMode sm, D
     else { one = T(1); start_tag = "1.0"; }
     T fac = (T)factor;
     if (!quiet) std::cout << cui::walk_header(tag, start_tag, step_factor_str(sm, factor), delay_ms);
-    std::function<std::string(const T&)> nat_extra;
-    if (showbits != ShowBits::OFF && !quiet && sizeof(T) <= 8) {
-        nat_extra = [showbits](const T& v) -> std::string {
-            std::uint64_t raw = 0; std::memcpy(&raw, &v, sizeof(T));
-            std::string b = raw_to_bits(raw, (int)sizeof(T) * 8);
-            if (showbits == ShowBits::HEX) return bits_to_hex(b);
-            int expBits, manBits;
-            if constexpr (sizeof(T) == 2)      { expBits = 5;  manBits = 10; }
-            else if constexpr (sizeof(T) == 4) { expBits = 8;  manBits = 23; }
-            else                              { expBits = 11; manBits = 52; }
-            return group_bits(b, expBits, manBits);
-        };
-    }
+    const bool want_bits = showbits != ShowBits::OFF && !quiet && sizeof(T) <= 8;
+    auto nat_extra = [showbits, want_bits](const T& v) -> std::string {
+        if (!want_bits) return {};
+        std::uint64_t raw = 0; std::memcpy(&raw, &v, sizeof(T));
+        std::string b = raw_to_bits(raw, (int)sizeof(T) * 8);
+        if (showbits == ShowBits::HEX) return bits_to_hex(b);
+        int expBits, manBits;
+        if constexpr (sizeof(T) == 2)      { expBits = 5;  manBits = 10; }
+        else if constexpr (sizeof(T) == 4) { expBits = 8;  manBits = 23; }
+        else                              { expBits = 11; manBits = 52; }
+        return group_bits(b, expBits, manBits);
+    };
     drive(one,
           [=](T v) -> T {
               const T up = std::numeric_limits<T>::infinity();

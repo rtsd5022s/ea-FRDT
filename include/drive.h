@@ -5,10 +5,10 @@
 #endif
 #include <chrono>
 #include <cstdio>
-#include <functional>
 #include <iostream>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include "base_types.h"
 #include "cui.h"
 #include "lang.h"
@@ -71,14 +71,20 @@ static inline int active_wall_cap() {
     return cap;
 }
 
+// Callables used when a format has no per-step annotation / no custom record writer.
+// Both are compile-time defaults, so drive_core stays a pure template call.
+struct no_extra_fn { template <class T> std::string operator()(const T&) const { return {}; } };
+struct no_dump_fn  { template <class T> void operator()(const T&) const {} };
+
 // Template driver (must stay in header for explicit instantiation)
-template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Render>
+template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Render,
+          class Extra = no_extra_fn, class Dump = no_dump_fn>
 void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render render,
                 double delay_ms,
-                std::function<std::string(const S&)> extra = {},
+                Extra extra = Extra{},
                 RunResult* quiet = nullptr,
                 std::int64_t refresh_ms = 0,
-                std::function<void(const S&)> dump_cb = nullptr) {
+                Dump dump_cb = Dump{}) {
     static const u128 SAFETY_LIMIT = ((u128)1 << 120);
     [[maybe_unused]] constexpr size_t INPLACE_MAX = 110;
     constexpr u128 SLOW_INTERVAL = 256;
@@ -139,9 +145,7 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             break;
         }
         if (g_dump_file && g_dump_records_enabled) {
-            if (dump_cb) {
-                dump_cb(s);
-            } else {
+            if constexpr (std::is_same_v<Dump, no_dump_fn>) {
                 std::size_t sz = sizeof(S);
                 if (g_dump_endian == 1) {
                     std::array<char, sizeof(S)> buf{};
@@ -151,6 +155,8 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
                     std::fwrite(&s, 1, sz, g_dump_file);
                 }
                 g_dump_bytes_written += sz;
+            } else {
+                dump_cb(s);
             }
         }
         if (quiet) {
@@ -190,7 +196,10 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
             }
         }
         std::string line = render(s);
-        if (extra) line += " (" + extra(s) + ")";
+        if constexpr (!std::is_same_v<Extra, no_extra_fn>) {
+            std::string note = extra(s);
+            if (!note.empty()) line += " (" + note + ")";
+        }
         std::string out = cui::dim("[step " + to_string_u128(step) + "]") + " x = " + line;
         auto now = std::chrono::steady_clock::now();
         bool due = (refresh_ms <= 0) ||
@@ -241,12 +250,13 @@ void drive_core(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Render 
     }
 }
 
-template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Disp>
+template <class S, class Next, class IsInf, class IsZero, class IsNaN, class Disp,
+          class Extra = no_extra_fn, class Dump = no_dump_fn>
 void drive(S s, Next next, IsInf isInf, IsZero isZero, IsNaN isNaN, Disp disp,
            double delay_ms, DispFmt df, int digits,
-           std::function<std::string(const S&)> extra = {}, RunResult* quiet = nullptr,
+           Extra extra = Extra{}, RunResult* quiet = nullptr,
            std::int64_t refresh_ms = 0,
-           std::function<void(const S&)> dump_cb = nullptr) {
+           Dump dump_cb = Dump{}) {
     drive_core(s, next, isInf, isZero, isNaN,
                [&](const S& v) { return format_value(disp(v), df, digits); },
                delay_ms, extra, quiet, refresh_ms, dump_cb);

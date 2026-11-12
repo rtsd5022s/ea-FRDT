@@ -127,20 +127,19 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
     else if (!std::isnan(start_val)) { start = encode(start_val, f); start_tag = "custom"; }
     else { start = encode(1.0, f); start_tag = "1.0"; }
     if (!quiet) std::cout << cui::walk_header(f.name, start_tag, step_factor_str(sm, factor), delay_ms);
-    std::function<std::string(const SVal&)> sim_extra;
-    if (showbits != ShowBits::OFF && !quiet) {
-        sim_extra = [&](const SVal& v) -> std::string {
-            std::string b;
-            b += v.sign ? '1' : '0';
-            int eb;
-            if (v.man < (1ULL << f.M)) eb = 0;
-            else eb = v.exp + f.bias;
-            for (int i = f.E - 1; i >= 0; --i) b += ((eb >> i) & 1) ? '1' : '0';
-            std::uint64_t m = v.man & ((1ULL << f.M) - 1);
-            for (int i = f.M - 1; i >= 0; --i) b += ((m >> i) & 1) ? '1' : '0';
-            return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, f.E, f.M);
-        };
-    }
+    const bool want_bits = showbits != ShowBits::OFF && !quiet;
+    auto sim_extra = [&, want_bits](const SVal& v) -> std::string {
+        if (!want_bits) return {};
+        std::string b;
+        b += v.sign ? '1' : '0';
+        int eb;
+        if (v.man < (1ULL << f.M)) eb = 0;
+        else eb = v.exp + f.bias;
+        for (int i = f.E - 1; i >= 0; --i) b += ((eb >> i) & 1) ? '1' : '0';
+        std::uint64_t m = v.man & ((1ULL << f.M) - 1);
+        for (int i = f.M - 1; i >= 0; --i) b += ((m >> i) & 1) ? '1' : '0';
+        return showbits == ShowBits::HEX ? bits_to_hex(b) : group_bits(b, f.E, f.M);
+    };
     // dump callback: write bit-pattern bytes
     int total_bits = 1 + f.E + f.M;
     int b = (total_bits + 7) / 8;
@@ -199,7 +198,7 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
           [](SVal) { return false; },  // SVal never produces NaN (inf flag covers overflow)
           [&](SVal v) { return to_double(v, f); },
           delay_ms, df, digits, sim_extra, quiet, refresh_ms,
-          std::function<void(const SVal&)>(sim_dump));
+          sim_dump);
 }
 
 } // namespace fw

@@ -153,15 +153,14 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
         bid_selfcheck(start.neg ? 1 : 0, start.exp10, cb, bf);
     }
     BidFmt dbf = (fmt.sig <= 7) ? bid_fmt32() : bid_fmt64();
-    std::function<std::string(const DecNum&)> dec_extra;
-    if (showbits != ShowBits::OFF && !quiet) {
-        dec_extra = [showbits, dbf](const DecNum& v) -> std::string {
-            std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10,
-                                          std::to_string(v.coeff), dbf);
-            return showbits == ShowBits::HEX ? bid_bits_to_hex(bits)
-                   : group_dec_bits(bits, dbf.exp_cont, dbf.coeff_bits);
-        };
-    }
+    const bool want_bits = showbits != ShowBits::OFF && !quiet;
+    auto dec_extra = [showbits, dbf, want_bits](const DecNum& v) -> std::string {
+        if (!want_bits) return {};
+        std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10,
+                                      std::to_string(v.coeff), dbf);
+        return showbits == ShowBits::HEX ? bid_bits_to_hex(bits)
+               : group_dec_bits(bits, dbf.exp_cont, dbf.coeff_bits);
+    };
     // dump callback: write packed BID bit-pattern bytes (4 for dec32, 8 for dec64)
     auto dec_dump = [dbf](const DecNum& v) {
         std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10,
@@ -196,7 +195,7 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
           [](DecNum v) { return v.coeff == 0; },
           [](DecNum) { return false; },  // DecNum never produces NaN
           [&](const DecNum& v) { return dec_fmt_text(std::to_string(v.coeff), v.exp10, v.neg, df, digits); },
-          delay_ms, dec_extra, quiet, refresh_ms, std::function<void(const DecNum&)>(dec_dump));
+          delay_ms, dec_extra, quiet, refresh_ms, dec_dump);
 }
 
 } // namespace fw
