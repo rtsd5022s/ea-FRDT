@@ -23,6 +23,7 @@
 - x87 dump record uses a fixed 16-byte slot (10 valid bytes + 6 zero padding); the earlier v1.0.6 note about a 10-byte record described the pre-widening behavior and is retained as history.
 - Diagnostic warnings (slow-engine level, critical warnings) are emitted on `stderr`; the interactive confirmation prompt remains on `stdout`, so `--json` stdout stays a single pure JSON object with no ANSI warning prefix.
 - `--dump-packed`: the v2 header active bit at `0x0B` is set only when a record actually shrinks; native whole-width formats keep it 0 while tight formats such as tf32 (3B < 4B) set it 1.
+- Help page `-m all` entry states the real default chain (13 of 17 formats; DPD32/64/128 and dec128 join only via `--only`), matching `runner.h` and the docs instead of the stale "17 formats" claim.
 
 ### Fixed
 - Single-format mode rejects `-l/--loop`, `--only`, and `-j/--jobs` with exit code 2 and a bilingual error instead of silently accepting them; outside `-m all` the JSON `loop` field always reports the honest value 1.
@@ -30,6 +31,10 @@
 - New `-y/--yes` skips the interactive critical-warning confirmation for non-interactive/CI use; a cancelled `-m all` run now exits 1 (was 0) so a cancellation is never read as success in automation.
 - Engineering (`eng`) display falls back to scientific notation when the normalized mantissa underflows to infinity, preventing a broken `infe-324` string; quiet mode no longer calls `slow_update()` on exit, preserving the true terminal value such as the underflow result `"0"`.
 - `tests/run_tests.ps1` resolves a real `python`/`python3` executable by scanning `PATH` directly and ignoring same-name aliases/functions whose `Source` is empty, so the runner reaches both strict verifiers in MSYS2 Clang environments.
+- Options given without the positional `delay_ms` now report `error: missing positional delay_ms` on `stderr` and exit 2; the help page is no longer reprinted for what is a usage error.
+- An invalid `-m` value can no longer produce a machine record: rejection paths disable the atexit single-format JSON shell (and discard an early `--dump` stub), so `--json -m foo 0` prints one `stderr` error, no stdout, exit 2.
+- Single-format runs close with one `TOTAL <n> steps · <reason> · wall <t>` footer: `-q` prints that line instead of nothing, the `--dump`/`--dump-events` implicit-quiet runs get the same closing line, and `--json` output stays a pure single object.
+- DPD32/64/128 now honour `--steps N` and `--max-seconds` exactly like the shared driver (the hand-written DPD loop previously walked to overflow and ignored the cap), and emit the same footer; natural-termination step counts are unchanged.
 
 ## v1.0.6 (2026-11-03)
 

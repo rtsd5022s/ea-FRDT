@@ -46,7 +46,7 @@ float_inf_walk 0 -m x87 -t 10
 
 **`-l <n>`**：循环次数；默认 `1`；`0` 归 1；`-1` 无限；`>1` 重复（上限 1,000,000）；`< -1` 拒绝。
 
-**`-q` / `--quiet`**：抑制实时行与结束行；结果仍写入 `RunResult`。`--json`/`--dump` 隐式静默。
+**`-q` / `--quiet`**：抑制实时行与结束行；结果仍写入 `RunResult`，并在退出时打印一行 `总计 <N> 步 · <退出原因> · 墙钟 <t>` 尾行（`--json` 下不打印，机器输出独占 stdout）。`--dump`/`--dump-events` 隐式静默，同样只留尾行。
 
 **`--json`**：输出一个机器可读对象（format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp）。
 

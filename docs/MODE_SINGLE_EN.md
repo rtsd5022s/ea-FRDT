@@ -46,7 +46,7 @@ The first positional argument is `delay_ms` (per-step throttle, `0` = no throttl
 
 **`-l <n>`**: loop count; default `1`; `0` treated as `1`; `-1` infinite; `>1` repeats (cap 1,000,000); values `< -1` rejected.
 
-**`-q` / `--quiet`**: suppress the live per-step and finish lines; the result is still captured in `RunResult`. `--json`/`--dump` imply quiet.
+**`-q` / `--quiet`**: suppress the live per-step and finish lines; the result is still captured in `RunResult`, and the run closes with one `TOTAL <n> steps · <reason> · wall <t>` footer (omitted under `--json`, which owns stdout). `--dump`/`--dump-events` imply quiet and keep that same footer.
 
 **`--json`**: one machine-readable object (format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp).
 

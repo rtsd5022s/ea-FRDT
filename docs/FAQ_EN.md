@@ -110,7 +110,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 **A: `--bits hex|bin|off` (`--showbits`), default `off`; `bin` groups sign/exponent/coefficient. There is no `-x` flag.**
 
 ### Q: `-q`?
-**A: Suppresses live per-step and finish lines; the result still lands in `RunResult` (for `--json`/summary). `--json` and `--dump` imply quiet.**
+**A: It suppresses the live per-step and finish lines, leaving only the one-line `TOTAL <n> steps · <reason> · wall <t>` footer printed on exit; the result still lands in `RunResult`. `--json` owns stdout and never prints that footer; `--dump`/`--dump-events` imply quiet and keep the same footer.**
 
 ### Q: Monitor elapsed format?
 **A: Layered by magnitude (s → m:s → h:m:s → d:h:m:s …), refreshed in place with `\r`.**

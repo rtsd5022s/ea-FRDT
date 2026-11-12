@@ -110,7 +110,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 **A: `--bits hex|bin|off`（`--showbits`），默认 `off`；`bin` 按 sign/exponent/coefficient 分段。不存在 `-x` 开关。**
 
 ### Q: `-q` 做什么？
-**A: 抑制实时逐步行与结束行，结果仍写入 `RunResult`（供 `--json`/汇总）；`--json`、`--dump` 隐式静默。**
+**A: 抑制实时逐步行与结束行，只保留退出时的一行 `总计 <N> 步 · <退出原因> · 墙钟 <t>` 尾行；结果仍写入 `RunResult`。`--json` 独占 stdout，不打印该尾行；`--dump`/`--dump-events` 隐式静默，同样只留尾行。**
 
 ### Q: 监视器时间显示规则？
 **A: 按已耗时量级逐层渲染（秒 → 分:秒 → 时:分:秒 → 天:时:分:秒…），`\r` 原地刷新。**

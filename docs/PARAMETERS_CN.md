@@ -58,7 +58,7 @@
 | `--fmt <f>` | `-f` | `eng` | `eng` / `sci` / `full` | 数值显示格式。`eng` = 工程计数法；`sci` = 科学计数法；`full` = 完整小数展开。 |
 | `--digits <n>` | `-d` | `6` | `-1` 或 `0~100` | sci/eng 尾数小数位；`-1` = 完整精度。 |
 | `--bits <m>` | `--showbits` | `off` | `hex` / `bin` / `off`（或 `none`） | 值后面括号内附原始位型；`bin` 按 sign/exponent/coefficient 分段空格分组。 |
-| `--quiet` | `-q` | 关 | 无值 | 抑制单格式引擎的实时行与结束行；结果仍写入 `RunResult` 供 `--json`/汇总使用。`--json`、`--dump` 隐式静默。 |
+| `--quiet` | `-q` | 关 | 无值 | 抑制单格式引擎的实时行与结束行；结果仍写入 `RunResult`，退出时只打印一行 `总计 <N> 步 · <退出原因> · 墙钟 <t>` 尾行（`--json` 下不打印）。`--dump`/`--dump-events` 隐式静默并保留该尾行。 |
 | `--json` | 无 | 关 | 无值 | 机器可读 JSON，自动静默；每次运行一个对象（format/steps/elapsed/steps_per_sec/reason/final_value/params/system/timestamp）。 |
 | `--dump <file>` | 无 | 关 | 文件路径 | `wb+` 二进制日志，**仅单格式模式生效**：schema v2 固定 256 字节头（`0x10` 头部 CRC-32、`0x14` 载荷 CRC-32、`0x18` 载荷字节数、`0x20` 记录数、`0x28` 记录宽度）后接 offset `256..EOF` 的记录；用 `python dump_inspect.py <file>` 复算双 CRC 与 `记录数×记录宽度=载荷字节数` 几何。`-m all` 不写记录，仅产出 flags bit2=empty 空头部。自动静默。完整布局见 `IMPLEMENTATION_CN.md`。 |
 | `--dump-packed` | 无 | 关 | 无值 | 紧凑记录宽度（如 tf32=3 B 而非 4 B）；仅作用于单格式 `--dump`，宽度写入 `0x28`。 |
