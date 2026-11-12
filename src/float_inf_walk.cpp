@@ -218,145 +218,195 @@ static int run_self_test() {
 }
 
 static void print_help() {
-    using cui::section;
-    using cui::title;
-    using cui::ok;
-    using cui::accent;
     std::ostream& os = std::cout;
+    const int LW = 21;   // option-name column, display cells
 
-    // Section header: one blank line above, styled name, body follows verbatim.
-    auto sec = [&](const char* cn, const char* en) { os << "\n" << title(tr(cn, en)) << "\n"; };
+    auto sec = [&](const char* cn, const char* en) {
+        os << "\n" << cui::title(tr(cn, en)) << "\n";
+    };
+    auto opt = [&](const std::string& left, const std::string& right, const char* code = clr::YEL) {
+        os << cui::row(left, right, LW, code);
+    };
+    auto ex = [&](const char* cmd, const char* cn = "", const char* en = "") {
+        os << "  " << cmd;
+        std::string c = tr(cn, en);
+        if (!c.empty()) {
+            int gap = 44 - cui::w(cmd);
+            if (gap < 2) gap = 2;
+            os << std::string((std::size_t)gap, ' ') << c;
+        }
+        os << "\n";
+    };
 
-    os << "\n" << section(tr("ea-FRDT — 面向硅片魔鬼高压硬件测试 (C++23)",
-                             "ea-FRDT — Silicon-level Devil Hardware Stress Test (C++23)"));
+    os << "\n" << cui::section(
+        tr("ea-FRDT — 面向硅片魔鬼高压硬件测试 (C++23)",
+           "ea-FRDT — Silicon-level Devil Hardware Stress Test (C++23)"),
+        tr("确定性浮点步进遍历 · 17 格式位级参考",
+           "deterministic float stepping · 17 format bit-level references"));
 
-    sec("用法:", "Usage:");
+    sec("用法：", "Usage:");
     os << tr(
 "  float_inf_walk.exe [选项] <delay_ms>\n"
-"  float_inf_walk.exe -h | --help\n",
+"  float_inf_walk.exe -h | --help\n"
+"  不带参数时只打印本页。\n",
 "  float_inf_walk.exe [options] <delay_ms>\n"
-"  float_inf_walk.exe -h | --help\n");
+"  float_inf_walk.exe -h | --help\n"
+"  no arguments prints this page only.\n");
 
-    sec("模式 -m（默认 f32）:", "Modes -m (default f32):");
-    os << "  " << ok(tr("原生", "Native"))
-       << tr("       f16  f32(默认)  f64\n", "       f16  f32(default)  f64\n")
-       << "  " << ok(tr("自写位级", "Software-bit"))
-       << tr("   fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32\n",
-             " fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32\n")
-       << "  " << ok(tr("纯软件", "Pure software"))
-       << tr("     x87  fp128\n", " x87  fp128\n")
-       << "  " << ok(tr("十进制", "Decimal"))
-       << tr("     ", "      ")
-       << "dec32[" << accent("BID") << "]  dec64[" << accent("BID") << "]  dec128[" << accent("BID") << "]\n"
-       << "                  dpd32[" << accent("DPD") << "]  dpd64[" << accent("DPD") << "]  dpd128[" << accent("DPD") << "]\n"
-       << "  " << ok("all")
-       << tr("        并发跑全部格式，每线程独立状态机\n",
-             "        run all formats concurrently, independent state per thread\n");
+    sec("模式 -m（默认 f32）：", "Modes -m (default f32):");
+    opt(tr("原生", "Native"),
+        tr("f16   f32(默认)   f64", "f16   f32(default)   f64"), clr::GRN);
+    opt(tr("自写位级", "Software-bit"),
+        tr("fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32",
+           "fp4(E2M1)  fp6(E3M2)  fp8-e4m3  fp8-e5m2  bf16  tf32"), clr::GRN);
+    opt(tr("纯软件", "Pure software"),
+        tr("x87   fp128", "x87   fp128"), clr::GRN);
+    opt(tr("十进制", "Decimal"),
+        std::string("dec32[") + cui::accent("BID") + "]  dec64[" + cui::accent("BID")
+        + "]  dec128[" + cui::accent("BID") + "]", clr::GRN);
+    opt("",
+        std::string("dpd32[") + cui::accent("DPD") + "]  dpd64[" + cui::accent("DPD")
+        + "]  dpd128[" + cui::accent("DPD") + "]", clr::GRN);
+    opt("all",
+        tr("17 个格式并发，每线程独立状态机",
+           "all 17 formats concurrently, one state machine per thread"), clr::GRN);
 
-    sec("位置参数:", "Positional:");
-    os << tr(
-"  delay_ms        每步限速毫秒；0=不限速。无参=只显示帮助。\n",
-"  delay_ms        delay per step; 0=unlimited. No arg = show this help.\n");
+    sec("位置参数：", "Positional:");
+    opt("delay_ms",
+        tr("每步限速毫秒数；0 = 不限速",
+           "per-step delay in milliseconds; 0 = unlimited"));
 
-    sec("核心选项:", "Core options:");
-    os << tr(
-"  -a, --start <x>    起点（默认1）。支持负数，数字/科学/工程/0x Raw/min-normal/max-finite\n"
-"  -k, --factor <r>   每步倍率（默认1.02）。>1递增到+inf，0<r<1递减到0，支持科学计数法\n"
-"  -g, --step <s>     x1.02(默认) / mululp(×1+1ULP) / addulp(+1ULP) / subulp(-1ULP)\n"
-"  -m, --mode <m>     浮点格式（见上方模式列表）\n",
-"  -a, --start <x>    start value (default 1). supports negatives, num/sci/eng/0x Raw/min-normal/max-finite\n"
-"  -k, --factor <r>   multiplier per step (default 1.02). >1 to +inf, 0<r<1 to 0, supports sci notation\n"
-"  -g, --step <s>     x1.02(default) / mululp(x1+1ULP) / addulp(+1ULP) / subulp(-1ULP)\n"
-"  -m, --mode <m>     float format (see modes above)\n");
+    sec("核心选项：", "Core options:");
+    opt("-a, --start <x>",
+        tr("起点，默认 1；接受负数、十进制/科学/工程记数、\n"
+           "0x 原始位串、min-normal、max-finite",
+           "start value, default 1; negatives, decimal/scientific/\n"
+           "engineering notation, 0x raw bits, min-normal, max-finite"));
+    opt("-k, --factor <r>",
+        tr("每步倍率，默认 1.02；>1 递增到 +inf，\n"
+           "0<r<1 递减到 0；支持科学记数",
+           "multiplier per step, default 1.02; >1 climbs to +inf,\n"
+           "0<r<1 falls to 0; scientific notation accepted"));
+    opt("-g, --step <s>",
+        tr("x1.02(默认) / mululp(×(1+1ULP)) /\n"
+           "addulp(+1ULP) / subulp(-1ULP)",
+           "x1.02(default) / mululp(x1+1ULP) /\naddulp(+1ULP) / subulp(-1ULP)"));
+    opt("-m, --mode <m>",
+        tr("目标格式，取上表任一项",
+           "target format, any entry from the table above"));
 
-    sec("显示选项:", "Display:");
-    os << tr(
-"  -f, --fmt <f>      eng(默认) / sci / full\n"
-"  -d, --digits <n>   sci/eng 小数位（默认6，-1=完整，0~100）\n"
-"  --bits <m>         hex / bin / off(默认)，括号内追加位表示\n"
-"  -q, --quiet        静默模式：不显示实时监视器，直接出汇总表\n"
-"  --json             机器可读 JSON 输出（无 ANSI，供评测脚本采集）\n"
-"  --dump <file>      二进制序列化每步原始字节到文件\n"
-"  --dump-endian <e>  字节序：little(默认,x86原生)/big\n"
-"  --dump-packed      请求紧凑记录；仅在实际缩宽时置位（如 tf32 写3字节<4字节，整字宽格式不缩减）\n"
-"  --dump-raw / --dump-no-header  省略256字节头：从偏移0直接写连续原始位流（仅单格式）\n"
-"  -lang <zh|en>      界面语言（默认 zh）\n",
-"  -f, --fmt <f>      eng(default) / sci / full\n"
-"  -d, --digits <n>   sci/eng decimals (default 6, -1=full, 0~100)\n"
-"  --bits <m>         hex / bin / off(default), append bit repr in parens\n"
-"  -q, --quiet        quiet: skip live monitor, print summary directly\n"
-"  --json             machine-readable JSON output (no ANSI, for benchmarking)\n"
-"  --dump <file>      binary serialize every step raw bytes to file\n"
-"  --dump-endian <e>  byte order: little(default, x86 native)/big\n"
-"  --dump-packed      request tight records; flag set only when width actually shrinks (e.g. tf32 3B<4B)\n"
-"  --dump-raw / --dump-no-header  omit the 256B header; continuous raw bit stream from offset 0 (single format only)\n"
-"  -lang <zh|en>      UI language (default zh)\n");
+    sec("显示选项：", "Display:");
+    opt("-f, --fmt <f>",
+        tr("eng(默认) / sci / full", "eng(default) / sci / full"));
+    opt("-d, --digits <n>",
+        tr("sci / eng 小数位，默认 6；-1 = 完整；范围 0~100",
+           "sci/eng decimals, default 6; -1 = full; range 0~100"));
+    opt("--bits <m>",
+        tr("hex / bin / off(默认)；在数值后括号内追加位表示",
+           "hex / bin / off(default); append bit representation in parens"));
+    opt("-q, --quiet",
+        tr("静默：不打印实时监视器，直接出汇总表",
+           "quiet: no live monitor, print the summary directly"));
+    opt("--json",
+        tr("机器可读 JSON，输出不含 ANSI 转义",
+           "machine-readable JSON, no ANSI escapes"));
+    opt("--dump <file>",
+        tr("把每步原始字节二进制序列化到文件",
+           "binary-serialize every step's raw bytes to a file"));
+    opt("--dump-endian <e>",
+        tr("little(默认，x86 原生) / big", "little(default, x86 native) / big"));
+    opt("--dump-packed",
+        tr("请求紧凑记录；仅在实际缩宽时置位（如 tf32 写 3 字节\n"
+           "小于 4 字节；整字宽格式不缩）",
+           "request tight records; set only when width shrinks\n"
+           "(e.g. tf32 3B < 4B; whole-word formats never shrink)"));
+    opt("--dump-raw",
+        tr("省略 256 字节头，从偏移 0 起写连续原始位流",
+           "omit the 256-byte header; raw bit stream from offset 0"));
+    opt("--dump-no-header",
+        tr("同 --dump-raw，别名写法", "same as --dump-raw, alias spelling"));
+    opt("-lang <zh|en>",
+        tr("界面语言，默认 zh", "UI language, default zh"));
 
-    sec("并发选项（-m all）:", "Concurrency (-m all):");
-    os << tr(
-"  -j, --jobs <spec>  核心编号：单值(4) / 逗号(1,3) / 范围(1-3) / 混合\n"
-"  --only <list>      逗号分隔格式子集（默认全部17个）\n"
-"  -r, --refresh <ms> 刷新间隔(ms)，0=每步(默认)；-m all 默认1000\n",
-"  -j, --jobs <spec>  core ids: single(4) / comma(1,3) / range(1-3) / mixed\n"
-"  --only <list>      comma-separated format subset (default all 17)\n"
-"  -r, --refresh <ms> refresh interval, 0=every step; -m all default 1000\n");
+    sec("并发选项（-m all）：", "Concurrency (-m all):");
+    opt("-j, --jobs <spec>",
+        tr("核心编号：单值 4 / 逗号 1,3 / 范围 1-3 / 混合",
+           "core ids: single 4 / comma 1,3 / range 1-3 / mixed"));
+    opt("--only <list>",
+        tr("逗号分隔的格式子集，默认全部 17 个",
+           "comma-separated format subset, default all 17"));
+    opt("-r, --refresh <ms>",
+        tr("刷新间隔；0 = 每步；-m all 下默认 1000",
+           "refresh interval; 0 = every step; 1000 by default under -m all"));
 
-    sec("控制选项:", "Control:");
-    os << tr(
-"  -t, --timeout <s>  超时停止(秒)，0=直到inf/下溢(默认)\n"
-"  -l, --loop <n>     循环次数（仅 -m all 有效）：-1=无限，1=关闭(默认)，>1=N次\n"
-"  -y, --yes          跳过 critical 警告交互确认（非交互/CI 用）\n"
-"  --compare <file>  与基线 JSON 比对确定性 steps/reason；差异仅走 stderr，退出码不变\n"
-"  --steps <n>       固定跑 N 步即停（默认0=关闭；与 -t 墙钟超时互补）\n"
-"  --pin <core>      单格式可选：把本线程绑定到指定逻辑核（默认关闭）\n"
-"  --boost           单格式可选：提升线程优先级（默认关闭；Linux 无提级则为 no-op）\n"
-"  --dump-events <f> 单格式 JSONL 轨迹：start/exit 事件记录（默认关闭）\n"
-"  --self-test       运行纯逻辑编解码/CRC/解析自检后退出，不进入压测\n"
-"  -s, --subnormal    从最小非规格化数开始（与 -a 互斥）\n",
-"  -t, --timeout <s>  timeout seconds, 0=until inf/underflow (default)\n"
-"  -l, --loop <n>     loops (-m all only): -1=infinite, 1=off(default), >1=N times\n"
-"  -y, --yes          skip interactive critical-warning confirmation (non-interactive/CI)\n"
-"  --compare <file>  compare deterministic steps/reason against a baseline JSON; diff on stderr, exit code unchanged\n"
-"  --steps <n>       stop after exactly N steps (default 0=disabled; complements -t wall-clock)\n"
-"  --pin <core>      single-format opt-in: bind this thread to one logical core (default off)\n"
-"  --boost           single-format opt-in: raise thread priority (default off; no-op on Linux)\n"
-"  --dump-events <f> single-format JSONL trace: start/exit event records (default off)\n"
-"  --self-test       run pure-logic codec/CRC/parser checks and exit; no stress run\n"
-"  -s, --subnormal    start from min subnormal (mutually exclusive with -a)\n");
+    sec("控制选项：", "Control:");
+    opt("-t, --timeout <s>",
+        tr("墙钟超时秒数；0 = 跑到 inf 或下溢为止（默认）",
+           "wall-clock timeout secs; 0 = run to inf/underflow (default)"));
+    opt("--steps <n>",
+        tr("满 N 步即停，默认 0 = 关闭；与 -t 互补",
+           "stop after N steps, default 0 = off; complements -t"));
+    opt("--max-seconds <s>",
+        tr("墙钟硬熔断，到点按 timeout 退出；与 -t 独立",
+           "hard wall-clock cap, fires as timeout; independent of -t"));
+    opt("-l, --loop <n>",
+        tr("循环次数（仅 -m all）：-1 无限 / 1 关(默认) / >1 为 N 次",
+           "loop count (-m all only): -1 infinite, 1 off\n(default), >1 = N times"));
+    opt("-y, --yes",
+        tr("跳过 critical 警告的人工确认（CI / 非交互）",
+           "skip critical-warning confirmation (CI/non-interactive)"));
+    opt("--compare <file>",
+        tr("与基线 JSON 比对确定性 steps/reason；差异只走 stderr，\n"
+           "退出码不变",
+           "compare deterministic steps/reason against a baseline JSON;\n"
+           "diff on stderr only, exit code unchanged"));
+    opt("--self-test",
+        tr("只跑纯逻辑自检（编解码 / CRC / 解析）后退出，不进压测",
+           "run pure-logic checks (codec/CRC/parser); no stress run"));
+    opt("-s, --subnormal",
+        tr("从最小非规格化数起步（与 -a 互斥）",
+           "start from the minimum subnormal (exclusive with -a)"));
 
-    sec("高级可选（默认关闭；除注明外仅单格式）:", "Advanced opt-in (default off; single format unless noted):");
-    os << tr(
-"  --max-seconds <s> 墙钟硬熔断上限(秒)，到点以 timeout 退出；与 -t 独立\n"
-"  --preset iron / --iron  开启提级 + 60s 安全上限；不自动绑核；不读温度/节流、不自动降频\n"
-"  --pairwise A,B    最小同起点双引擎对照（白名单 dec32,dpd32 / dec64,dpd64 / f32,tf32）\n"
-"  --sample-window <ms>  仅静默/JSON：按墙钟窗统计 steps/s 的 min/avg/p95/max 分布（0=关）\n"
-"  --probe boundaries  独立固定步批量表：快格式 × 四类边界起点\n",
-"  --max-seconds <s>  hard wall-clock cap in seconds; fires as timeout; independent of -t\n"
-"  --preset iron / --iron  priority boost + 60s safety cap; never auto-pins; no temperature readout or automatic throttling\n"
-"  --pairwise A,B    minimal same-start dual-engine compare (whitelist dec32,dpd32 / dec64,dpd64 / f32,tf32)\n"
-"  --sample-window <ms>  quiet/JSON-only steps/s segments: min/avg/p95/max distribution (0=off)\n"
-"  --probe boundaries  standalone fixed-step batch table: quick formats x four boundary starts\n");
+    sec("高级可选（默认关闭；除注明外仅单格式）：",
+        "Advanced opt-in (default off; single format unless noted):");
+    opt("--pin <core>",
+        tr("单格式可选：绑本线程到指定逻辑核（默认关）",
+           "bind this thread to one logical core (default off)"));
+    opt("--boost",
+        tr("单格式可选：提升线程优先级（默认关；Linux 无提级即 no-op）",
+           "raise this thread's priority (default off; no-op on Linux)"));
+    opt("--dump-events <file>",
+        tr("单格式 JSONL 轨迹：start / exit 事件（默认关）",
+           "single-format JSONL trace: start/exit events (default off)"));
+    opt("--preset iron",
+        tr("提级 + 60s 安全上限；不自动绑核、不读温度 / 节流、不自动降频",
+           "priority boost + 60s safety cap; never auto-pins;\n"
+           "no temperature/throttling readout, no auto clock cut"));
+    opt("--iron",
+        tr("上一条的简写", "shorthand for --preset iron"));
+    opt("--pairwise A,B",
+        tr("同起点双引擎对照，白名单 dec32,dpd32 / dec64,dpd64 / f32,tf32",
+           "same-start dual-engine compare, whitelist\n"
+           "dec32,dpd32 / dec64,dpd64 / f32,tf32"));
+    opt("--sample-window <ms>",
+        tr("仅静默 / JSON：按墙钟窗统计 steps/s 的 min / avg / p95 / max",
+           "quiet/JSON only: steps/s segments, min/avg/p95/max"));
+    opt("--probe boundaries",
+        tr("独立固定步批量表：快格式 × 四类边界起点",
+           "standalone fixed-step batch table:\n"
+           "quick formats x four boundary starts"));
 
-    sec("示例:", "Examples:");
-    os << tr(
-"  float_inf_walk.exe 0                          # f32 从1.0 ×1.02\n"
-"  float_inf_walk.exe 0 -a 100 -k 1.1            # 从100起步 ×1.1\n"
-"  float_inf_walk.exe 0 -a 0x3F800000 -m f32     # Raw 位串起点\n"
-"  float_inf_walk.exe 0 -a max-finite -k 0.5     # 最大值递减到0\n"
-"  float_inf_walk.exe 0 -m fp4 -g addulp         # 逐值枚举到 inf\n"
-"  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
-"  float_inf_walk.exe 0 -m all -l 3 -t 10        # 循环3次，每次最多10s\n"
-"  float_inf_walk.exe 0 -m f32 --json            # JSON 输出供脚本采集\n"
-"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n",
-"  float_inf_walk.exe 0                          # f32 from 1.0 x1.02\n"
-"  float_inf_walk.exe 0 -a 100 -k 1.1            # start at 100 x1.1\n"
-"  float_inf_walk.exe 0 -a 0x3F800000 -m f32     # raw bit start\n"
-"  float_inf_walk.exe 0 -a max-finite -k 0.5     # max value descending to 0\n"
-"  float_inf_walk.exe 0 -m fp4 -g addulp         # enumerate to inf\n"
-"  float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q\n"
-"  float_inf_walk.exe 0 -m all -l 3 -t 10        # loop 3x, max 10s each\n"
-"  float_inf_walk.exe 0 -m f32 --json            # JSON output for scripts\n"
-"  float_inf_walk.exe 0 -m f64 --dump walk.bin\n");
+    sec("示例：", "Examples:");
+    ex("float_inf_walk.exe 0", "# f32，从 1.0 起 ×1.02", "# f32 from 1.0 x1.02");
+    ex("float_inf_walk.exe 0 -a 100 -k 1.1", "# 从 100 起 ×1.1", "# start at 100 x1.1");
+    ex("float_inf_walk.exe 0 -a 0x3F800000 -m f32", "# Raw 位串起点", "# raw bit start");
+    ex("float_inf_walk.exe 0 -a max-finite -k 0.5", "# 最大值递减到 0", "# max value down to 0");
+    ex("float_inf_walk.exe 0 -m fp4 -g addulp", "# 逐值枚举到 inf", "# enumerate to inf");
+    ex("float_inf_walk.exe 0 -m all --only fp32,dec128 -j 1,3 -q");
+    ex("float_inf_walk.exe 0 -m all -l 3 -t 10", "# 循环 3 次，每次 10s 上限", "# loop 3x, 10s cap each");
+    ex("float_inf_walk.exe 0 -m f32 --json", "# JSON 供脚本采集", "# JSON for scripts");
+    ex("float_inf_walk.exe 0 -m f64 --dump walk.bin", "# 原始字节落盘", "# dump raw bytes");
+    ex("float_inf_walk.exe --self-test", "# 自检，不进压测", "# self-test, no stress run");
 }
 
 int main(int argc, char** argv) {
@@ -584,6 +634,17 @@ int main(int argc, char** argv) {
     bool quiet = false;
     bool refresh_explicit = false;
     int loop_count = 1;
+
+    // `-lang` must win over `-h` whatever the argument order, otherwise the
+    // documented bilingual help can only be reached by typing -lang first.
+    for (int i = 1; i + 1 < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "-lang" || a == "--lang" || a == "--language") {
+            std::string l = argv[i + 1];
+            g_lang = (l == "en" || l == "EN") ? Lang::EN : Lang::ZH;
+            break;
+        }
+    }
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];

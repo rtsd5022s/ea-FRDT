@@ -140,6 +140,28 @@ inline std::string kv(const std::string& k, const std::string& v, int label_w) {
     return std::string("  ") + paint(clr::GRY, pad_r(k, label_w)) + "  " + v + "\n";
 }
 
+// "  NAME   description" row: the name column is measured and padded on plain
+// text, then coloured, and every continuation line is indented to the same
+// column, so a long description wraps as a block instead of drifting left.
+inline std::string row(const std::string& left, const std::string& right, int left_w,
+                       const char* left_code = clr::YEL) {
+    std::string out = std::string("  ") + paint(left_code, pad_r(left, left_w)) + "  ";
+    const std::string indent((std::size_t)(left_w + 4), ' ');
+    bool first = true;
+    std::size_t pos = 0;
+    for (;;) {
+        std::size_t nl = right.find('\n', pos);
+        std::string seg = right.substr(pos, nl == std::string::npos ? right.size() - pos : nl - pos);
+        if (!first) out += indent;
+        out += seg;
+        out += '\n';
+        if (nl == std::string::npos) break;
+        first = false;
+        pos = nl + 1;
+    }
+    return out;
+}
+
 // ------------------------------------------------------------- formatters
 // 12345678 -> "12,345,678"; grouping only, never locale-dependent.
 inline std::string group(const std::string& digits) {
