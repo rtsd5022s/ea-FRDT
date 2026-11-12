@@ -6,6 +6,7 @@
 #endif
 #include "engine_dpd_codec.h"
 #include "engine_emit.h"
+#include "../drive.h"   // active_wall_cap() + print_run_summary(), shared with the template driver
 
 namespace fw {
 
@@ -351,6 +352,15 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
         if (nxt.digits.size()==1 && nxt.digits[0]==0) { reason = RunResult::UNDERFLOW; if (out) out->reason = reason; done = true; break; }
         cur = nxt;
 
+        // W2-A3 parity with drive_core: --steps N must cap every format, including this
+        // hand-written loop. Checked before the dump so the capped step is not serialized,
+        // exactly like the shared driver.
+        if (g_fixed_steps > 0 && steps >= g_fixed_steps) {
+            reason = RunResult::FIXED_STEPS;
+            if (out) { out->steps = steps; out->reason = reason; out->cur_value = dpd_to_string(cur, df, digits); }
+            break;
+        }
+
         // binary dump: write packed DPD bit pattern as bytes
         if (g_dump_file) {
             char buf[16] = {0};
@@ -358,18 +368,21 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
             dump_record(buf, bw);
         }
 
-        // timeout
-        if (g_timeout_sec.load() > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= (double)g_timeout_sec.load()) {
-                reason = RunResult::TIMEOUT;
-                if (out) { out->steps = steps; out->reason = reason; }
-                if (print) {
-                    std::string tag = "[step " + std::to_string((unsigned long long)steps) + "]";
-                    std::cout << cui::CLEAR_LINE << cui::dim(tag) << " "
-                              << cui::warn("timeout (" + std::to_string(g_timeout_sec.load()) + "s)") << "\n";
+        // timeout: -t and --max-seconds both funnel through active_wall_cap()
+        {
+            int cap = active_wall_cap();
+            if (cap > 0) {
+                double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+                if (es >= (double)cap) {
+                    reason = RunResult::TIMEOUT;
+                    if (out) { out->steps = steps; out->reason = reason; out->cur_value = dpd_to_string(cur, df, digits); }
+                    if (print) {
+                        std::string tag = "[step " + std::to_string((unsigned long long)steps) + "]";
+                        std::cout << cui::CLEAR_LINE << cui::dim(tag) << " "
+                                  << cui::warn("timeout (" + std::to_string(cap) + "s)") << "\n";
+                    }
+                    break;
                 }
-                break;
             }
         }
 
@@ -412,6 +425,7 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
         out->cur_value = dpd_to_string(cur, df, digits);
         out->name = fmt.name;
     }
+    print_run_summary(steps, reason, ms);
 }
 
 } // namespace fw
