@@ -5,6 +5,7 @@ ea-FRDT core algorithm as a standalone static library, with C ABI.
 ## Relationship to the main CLI
 
 - This directory is a **separate, optional** artifact. The CLI executable `float_inf_walk` (`src/`, `include/`) does **not** `#include` or link this library.
+- One-way dependency: `eafrdt.h` includes `../include/uint256.h` so both sides share a single 256-bit big-integer type (`fw::UInt256`, aliased as `fw::core::UInt256`). That header is pure `uint64_t` arithmetic with no IO, no globals and no `__int128`, so the archive still builds standalone on Linux; nothing else from `include/` or `src/` is pulled in.
 - The root `CMakeLists.txt` builds only the CLI; it does **not** compile or archive `libeafrdt`. The GitHub Actions workflow `.github/workflows/ci.yml` likewise builds and smoke-tests only the CLI.
 - Only seven source/documentation files are tracked in git: `eafrdt.h`, `eafrdt.cpp`, `eafrdt.cppm`, `c_api.h`, `c_api.cpp`, `test_capi.cpp`, and this `README.md`. Build outputs (`*.o`, `*.a`, `test_capi.exe`) are ignored by the root `.gitignore` (`*.o`, `*.a`, `*.exe`) and are never committed.
 - The library itself contains no IO, threads, ANSI/Windows-specific calls, or globals; the CLI's Windows-only `SetThreadAffinityMask`/`winmm` timer code lives outside this library, so the archive compiles on Linux as well.
@@ -13,7 +14,7 @@ ea-FRDT core algorithm as a standalone static library, with C ABI.
 
 | File | Purpose |
 |---|---|
-| `eafrdt.h` | C++ public header (namespace `fw::core`) |
+| `eafrdt.h` | C++ public header (namespace `fw::core`); includes the shared `../include/uint256.h` for `UInt256` |
 | `eafrdt.cpp` | Walk implementations (17 formats, no IO/threads/globals) |
 | `eafrdt.cppm` | C++23 module interface (`import eafrdt;`) |
 | `c_api.h` | `extern "C"` ABI for C/Rust/other languages |
@@ -71,7 +72,7 @@ long long steps = walk_binary(fmt_f32(), 1.0, 1.02, 0, &reason);
 
 Implemented:
 
-- UInt256: pure schoolbook 64-bit arithmetic, no `__int128`; x87/q128 (fp128) use UInt256 and do not rely on `unsigned __int128`.
+- UInt256: the CLI's `include/uint256.h` implementation (pure schoolbook 64-bit arithmetic, no `__int128`), shared instead of duplicated; x87/q128 (fp128) use UInt256 and do not rely on `unsigned __int128`.
 - DPD/BID walks produce correct relative step counts (dec32=11279, dec64=44767, matching the recorded baseline).
 
 Status versus the CLI (measured with `start=1.0`, `factor=1.02`, default X102 multiply walk, `timeout=0`):
