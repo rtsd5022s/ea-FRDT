@@ -39,7 +39,9 @@ There are seven enumerated exit reasons:
 
 Outer control messages `cancelled` (confirmation declined/timed out) and `sigint` (Ctrl+C) are not enum reasons.
 
-In quiet mode `-q`, the driver suppresses live/finish lines and writes the result into a `RunResult` struct (consumed by `--json`/summary). In normal mode, each step uses `\r` carriage return plus `\033[K` clear-line to refresh in place; lines wider than the terminal wrap to a new line.
+In quiet mode `-q`, the driver suppresses live/finish lines, writes the result into a `RunResult` struct, and leaves exactly one `TOTAL <n> steps · <reason> · wall <t>` footer on exit (omitted under `--json`; `--dump`/`--dump-events` imply quiet but keep it). In normal mode, each step uses `\r` carriage return plus `\033[K` clear-line to refresh in place; lines wider than the terminal wrap to a new line.
+
+The `extra` and dump callbacks are template parameters (`no_extra_fn`/`no_dump_fn` compile-time defaults), so the hot path carries no `std::function` type erasure or indirect call; the `--steps` cap is checked before the record is written, in the same order as natural termination.
 
 ## 3. Binary Float Formats
 

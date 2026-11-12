@@ -32,7 +32,7 @@ It supports 17 floating-point formats across five paths: native hardware, hand-r
 
 ## Module architecture
 
-The codebase is modular: 11 top-level headers in `include/`, a `formats/` sub-module (6 shared engines + `formats_all.h` + one binding header `builtin_formats.h` + 3 self-contained format headers), and 5 non-template source files in `src/`. There is no monolithic format header.
+The codebase is modular: 11 top-level headers in `include/`, a `formats/` sub-module (6 shared engines + `formats_all.h` + the shared `engine_emit.h` helper + one binding header `builtin_formats.h` + 3 self-contained format headers, 12 headers in total), and 5 non-template source files in `src/`. There is no monolithic format header.
 
 ```
 include/
@@ -41,8 +41,10 @@ include/
   common.h          Standard-library aggregation; NativeF16/F32/F64 aliases
   lang.h            Bilingual tr() table (zh/en)
   color.h           ANSI color constants
+  cui.h             Single presentation layer: grouped numbers, elapsed/count formats, table rules, labels
   format_util.h    Bit-string to hex/bin, number formatting, parse_number
-  drive.h           Stepping driver template, reason/step name tables
+  drive.h           Stepping driver template (optional extra/dump callbacks as template params,
+                    compile-time defaults), single-format TOTAL footer, reason/step name tables
   runner.h          ALL mode: worker pool, monitor, summary table, warning confirm
   platform.h        OS abstraction: affinity, high-res timer, core counts
   uint128.h         Derived from UInt256 for 128-bit helpers
@@ -56,10 +58,12 @@ include/
     engine_dpd_codec.h  Single declet (3 digits -> 10 bits) Clarke table
     engine_dpd.h        combo5 + fixed-length symmetric pack/unpack, real
                         pack->unpack self-check, run_dpd for dpd32/64/128
+    engine_emit.h       Shared helpers: start picking, bits/coefficient into a record, dump record emission
     builtin_formats.h   14 format bindings (Fmt / DecFmt constants + run_* shims)
     dec128.h x87.h fp128.h   the three self-contained formats
 src/
-  float_inf_walk.cpp  main(), argv parsing, single-format dispatch,
+  float_inf_walk.cpp  main(), `Options`/`parse_options` (including `--pairwise`/`--probe`),
+                      single-format dispatch,
                       256-byte schema v2 dump header (header+payload dual CRC-32, explicit length/record geometry/run snapshot)
   drive.cpp           Non-template driver definitions (reason_name, ...)
   lang.cpp format_util.cpp platform.cpp
@@ -149,6 +153,7 @@ The step counter is `unsigned __int128` (`u128`); the driver safety limit is `2^
 - `--bits hex|bin|off` (`--showbits`) appends the bit pattern in parentheses; `bin` groups sign/exponent/coefficient.
 - `--json` emits one machine-readable object (implies quiet); `--dump <file>` applies to single-format mode only: it writes a 256-byte schema v2 fixed header plus per-step records, with a header CRC-32, a payload CRC-32, and explicit payload length/record geometry; `python dump_inspect.py <file>` verifies both CRCs and length. `-m all` runs concurrent mixed-width workers and does not serialize records; it emits only an empty header stub with flags bit2=empty.
 - Bilingual UI via `--lang zh|en` (default `zh`).
+- Every single-format run closes with one `TOTAL <n> steps · <reason> · wall <t>` footer (`print_run_summary`, shared by the template driver and the hand-written DPD loop): `-q` keeps only that line, `--dump`/`--dump-events` imply quiet but keep it, `--json` omits it; `-m all` never prints it and still ends with its summary table.
 
 ## Dump file format (schema v2, fixed 256 bytes; multi-byte integers little-endian)
 

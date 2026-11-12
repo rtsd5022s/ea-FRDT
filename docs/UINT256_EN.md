@@ -4,6 +4,8 @@
 
 `include/uint256.h` and `include/uint128.h` are two **standalone drop-in single-header libraries** depending only on `<cstdint>`, `<cstring>`, `<string>`, with no dependency on any other project header. `#include "uint256.h"` works in any C++23 GCC/Clang project; it does not couple to ea-FRDT's floating-point engines.
 
+The CLI and the `libeafrdt/` C-ABI library now share this single implementation: the library's private `UInt256` copy is gone and it includes `../include/uint256.h` with `using fw::UInt256` (keeping the existing `fw::core::UInt256` spelling). The dependency is one-way: the library depends on the main header, never the reverse.
+
 They started as internal parts of the dec128(BID) walker — four 64-bit words, only multiply-by-10, divide-by-10, and compare — because the walker only needed those three. As the BID codec layer grew (combo5 joint encoding in `engine_bid_codec.h` needs leading-decimal-digit extraction), dec128 rounding needed exact carry chains (`dec_round` walks inc/add_small through coefficient carries), and an independent self-test was demanded, the header grew into a complete small-integer library: operator overloads, decimal string conversion, left/right shift, general small-integer division, bit-length query, zero detection, all covered by a 10-assertion self-test (`tests/tmp/uint_selftest.cpp`).
 
 `UInt128` is the symmetric two-word variant: `w[2]` of `uint64_t`, serving x87 and FP128 pure-software mantissa intermediates (128 bits suffices for two 56-bit mantissa products), and the step counter in `drive.h` (u128). The two APIs are fully symmetric; only the word width halves.

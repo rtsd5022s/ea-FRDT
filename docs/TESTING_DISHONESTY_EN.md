@@ -62,9 +62,9 @@ The point is verifying that reference steps remain identical under contention, f
 
 Because the tool allows infinite/descending/negative/raw-bit walks, guards are confirmations and warnings rather than blanket hard rejects:
 
-- `-l -1` without `-t`: level-1 yellow `[!]` confirmation in `-m all` recommending a timeout; press `y` within 10 s, else `cancelled`; it is not refused outright.
-- Factor anomalies: `0`/negative/NaN/Inf exit `2`; a factor `< 1e-10` only yields a level-1 warning in `-m all`; `safety->limit` (`2^120`) is the real backstop.
-- Slow formats: including DPD×3 or Dec128(BID) raises a level-2 red `[!!!]` confirmation in `-m all`; single mode skips the gate.
+- `-l -1` without `-t`: level-1 yellow `[!]` confirmation in `-m all` recommending a timeout; press `y` within 10 s, else `cancelled` (exit `1`); it is not refused outright.
+- Factor anomalies: `0`/negative/NaN/Inf exit `2`; a factor `< 1e-10` yields a level-1 warning (confirmed in `-m all`, printed to stderr in single mode); `safety->limit` (`2^120`) is the real backstop.
+- Slow formats: including DPD×3 or Dec128(BID) raises a level-2 red `[!!!]` confirmation in `-m all`; single mode skips the gate but still prints the warnings on stderr.
 - Ctrl+C sets `sigint` and exits gracefully with a bilingual message.
 
 ## 4. What ea-FRDT does not do

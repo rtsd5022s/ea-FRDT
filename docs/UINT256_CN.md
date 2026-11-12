@@ -4,6 +4,8 @@
 
 `include/uint256.h` 与 `include/uint128.h` 是两个**独立 drop-in single-header 库**，只依赖 `<cstdint>`、`<cstring>`、`<string>` 三个标准头，不依赖项目内任何其他头文件。`#include "uint256.h"` 即可在任意 C++23 GCC/Clang 工程里使用，不耦合 ea-FRDT 的浮点引擎。
 
+主程序与 `libeafrdt/` C ABI 静态库共用这一份实现：库里原来自带的 `UInt256` 副本已删除，改为 `#include "../include/uint256.h"` 加 `using fw::UInt256`（保持 `fw::core::UInt256` 的既有拼写），依赖方向单向——库依赖主头文件，主头文件不反向依赖库。
+
 最初它们只是 dec128(BID) 行走器的内部零件——四个 64 位字，只有乘 10、除以 10、比较大小三个函数，因为行走器只用到这三件事。随着 BID 编码层补全（`engine_bid_codec.h` 的 combo5 联合编码需要前导十进制位提取）、dec128 舍入逻辑需要精确的进位链（`dec_round` 在系数末尾进位时要逐级 inc/add_small）、以及独立自测的需要，这个头文件逐步长成了一个完整的小整数库：运算符重载、十进制字符串互转、左移右移、通用小整数除法、位长查询、零检测，全部带 10 项断言的独立 self-test（`tests/tmp/uint_selftest.cpp`）。
 
 `UInt128` 是 `UInt256` 的对称两字版本：`w[2]` 两个 `uint64_t`，服务于 x87 与 FP128 的纯软件尾数中间积辅助（那里 128 位足够装下两个 56 位尾数的乘积），以及 `drive.h` 里的步数计数器（u128）。两者 API 完全对称，只是字长减半。

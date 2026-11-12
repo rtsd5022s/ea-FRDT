@@ -127,7 +127,7 @@ clang64 uses its own libc++/compiler-rt/lld; do not add GCC-only `-static-libgcc
 | Decimal BID | `dec32` `dec64` `dec128` | IEEE 754-2008 binary integer decimal; dec128 uses hand-rolled UInt256 |
 | Decimal DPD | `dpd32` `dpd64` `dpd128` | IEEE 754-2008 densely packed decimal; digit-array arithmetic, real pack→unpack self-check |
 
-The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are excluded (pure-decimal paths, much slower); add them with `--only dpd32,dpd64,dpd128,dec128` (or run them singly). The confirmation gate appears only in `-m all`: inclusion of DPD32/64/128 or `dec128` raises a level-2 red `[!!!]`; a level-1 yellow `[!]` covers other cases (e.g. `-l -1` without `-t`, or a tiny factor). Press `y` within 10 s to continue; another key or timeout prints `cancelled` and exits 0. Single-format mode skips the gate.
+The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are excluded (pure-decimal paths, much slower); add them with `--only dpd32,dpd64,dpd128,dec128` (or run them singly). The confirmation gate appears only in `-m all`: inclusion of DPD32/64/128 or `dec128` raises a level-2 red `[!!!]`; a level-1 yellow `[!]` covers other cases (e.g. `-l -1` without `-t`, or a tiny factor). Press `y` within 10 s to continue; another key or timeout prints `cancelled` and exits 1. Single-format mode skips the gate (it prints the warnings straight to stderr).
 
 ## Command-line reference
 
@@ -163,7 +163,7 @@ The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are exc
 | `-f eng`/`sci`/`full` | Display notation; `eng` default. |
 | `-d <n>` / `--digits <n>` | sci/eng decimals; default `6`, `-1` full, range `0..100`. |
 | `--bits hex`/`bin`/`off` (`--showbits`) | Append bit representation; `bin` groups sign/exponent/coefficient; default `off`. |
-| `-q` / `--quiet` | Suppress live/finish lines for every single format; results still captured. `--json`/`--dump` imply quiet. |
+| `-q` / `--quiet` | Suppress live/finish lines for every single format; results are still captured, and the run ends with one `TOTAL <n> steps · <reason> · wall <t>` footer. `--json` omits that footer; `--dump`/`--dump-events` imply quiet but keep it. |
 | `--json` | One machine-readable JSON object per run; no ANSI/progress. |
 | `--dump <file>` | Single-format only: fixed 256-byte schema v2 header (`0x10` header CRC-32, `0x14` payload CRC-32, `0x18` payload bytes, `0x20` record count, `0x28` record size) + records at `256..EOF`; `dump_inspect.py` recomputes both CRCs and the `count×size=payload_bytes` geometry. `-m all` emits only a flags bit2=empty stub, no records. |
 | `--dump-endian little`/`big` | Record byte order; `little` default; single-format `--dump` only, stored at `0x0A`. |
@@ -183,7 +183,7 @@ The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are exc
 | `-t <s>` / `--timeout <s>` | Seconds; `0` = until termination (default). |
 | `-l <n>` / `--loop <n>` | `1` default (`0`→1), `-1` infinite, `>1` repeats (cap 1,000,000). |
 | `-r <ms>` / `--refresh <ms>` | Monitor refresh; default `0` (every step), `1000` ms in `-m all`. |
-| `--steps <n>` | Stop after exactly N steps with reason `fixed` (default `0`=off, complementary to wall-clock `-t`); invalid value exits 2; default behavior unchanged. |
+| `--steps <n>` | Stop after exactly N steps (JSON token `fixed`, terminal/footer text `fixed-steps`; default `0`=off, complementary to wall-clock `-t`); applies to all 17 formats including DPD×3; invalid value exits 2; default behavior unchanged. |
 | `--self-test` | Pure-logic preflight (CRC-32 / DPD round-trip / BID bit-width metadata / hex parse / sanitize); prints `CHECKS=n FAILS=n` and exits without stressing. |
 | `--pin <core>` | Single format only: bind to one logical core (default off); rejected in `-m all` (exit 2); affinity restored on exit. |
 | `--boost` | Single format only: raise thread priority (default off); rejected in `-m all` (exit 2); restored on exit; no-op where unsupported. |
@@ -195,15 +195,15 @@ The default `-m all` chain has 13 of 17 formats: DPD32/64/128 and Dec128 are exc
 
 ### Safety
 
-Hard exits (code `2`, stderr) on invalid input only: zero/negative/non-finite factor, unparseable start, unknown format/flag, out-of-range `--loop`, malformed `0x` pattern, conflicting special starts. Non-fatal warnings are confirmed in `-m all` (level-1 yellow `[!]`, level-2 red `[!!!]`; `y` within 10 s else `cancelled`): `-l -1` with `-t 0` (level-1, warns rather than rejects), `-k < 1e-10` (level-1), included DPD×3 and Dec128 (level-2). User strings in errors are sanitized against ANSI/C0 injection.
+Hard exits (code `2`, stderr) on invalid input only: zero/negative/non-finite factor, unparseable start, unknown format/flag, out-of-range `--loop`, malformed `0x` pattern, conflicting special starts, missing positional `delay_ms` (one line, no help-page reprint, and no JSON record from a rejected run). Non-fatal warnings are confirmed in `-m all` (level-1 yellow `[!]`, level-2 red `[!!!]`; `y` within 10 s else `cancelled` with exit `1`): `-l -1` with `-t 0` (level-1, warns rather than rejects), `-k < 1e-10` (level-1), included DPD×3 and Dec128 (level-2); single-format runs print those warnings straight to stderr with no interactive gate. User strings in errors are sanitized against ANSI/C0 injection.
 
 ## Exit reasons
 
 Seven enumerated driver reasons:
 
-- `overflow->inf`; `underflow->0`; `identity->stop` (no progress); `safety->limit` (step counter `2^120`); `timeout`; `nan->nan` (native paths only); `fixed` (only from `--steps <n>`; JSON token `fixed`, terminal text `fixed-steps`).
+- `overflow->inf`; `underflow->0`; `identity->stop` (no progress); `safety->limit` (step counter `2^120`); `timeout`; `nan->nan` (native paths only); `fixed-steps` (only from `--steps <n>`; the JSON token stays `fixed`).
 
-Outer control messages (not enum reasons): `cancelled` (DPD/dec128 confirmation declined/timed out), `sigint` (Ctrl+C).
+Outer control messages (not enum reasons): `cancelled` (DPD/dec128 confirmation declined or timed out, exit `1`), `sigint` (Ctrl+C, exit `0`).
 
 ## Known compromises
 
@@ -215,12 +215,12 @@ Outer control messages (not enum reasons): `cancelled` (DPD/dec128 confirmation 
 
 ```
 include/
-  base_types.h common.h lang.h color.h format_util.*
+  base_types.h common.h lang.h color.h cui.h format_util.*
   drive.h runner.h platform.h uint128.h uint256.h
   formats/
     formats_all.h
     engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
-    engine_dpd_codec.h engine_dpd.h
+    engine_dpd_codec.h engine_dpd.h engine_emit.h   shared start-pick / record emission helpers
     builtin_formats.h   14 format bindings (Fmt / DecFmt constants + run_* shims)
     dec128.h x87.h fp128.h   the three self-contained formats
 src/
@@ -230,7 +230,7 @@ libeafrdt/                standalone optional C-ABI static library (outside root
 dump_inspect.py           schema v2 validator: header+payload dual CRC-32, size and record-geometry checks, exit codes, legacy tolerance
 ```
 
-Key choices: enum switch dispatch in the hot path (no `std::function`); value-copied `RunParams` and chain per worker; `alignas(64)` `WorkerSlot` (cache-line isolation); `SetThreadAffinityMask`/`pthread_setaffinity_np` with graceful unpinned fallback; no `long double`/`__float128`/libquadmath; DPD keeps a `std::vector<int>` digit coefficient and runs a real pack→unpack self-check at startup.
+Key choices: enum switch dispatch in the hot path (no `std::function`); value-copied `RunParams` and chain per worker; `alignas(64)` `WorkerSlot` (cache-line isolation); optional per-step and per-record callbacks are template parameters (`no_extra_fn`/`no_dump_fn` defaults, no runtime type erasure); `SetThreadAffinityMask`/`pthread_setaffinity_np` with graceful unpinned fallback; no `long double`/`__float128`/libquadmath; DPD keeps a `std::vector<int>` digit coefficient and runs a real pack→unpack self-check at startup.
 
 ## Output samples
 
@@ -242,9 +242,13 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
   [BID-SELFCHECK] OK
 [step 1234] x = 1.299...e+00 (hex=3F...C)
 [step 5678] overflow->inf  (42 ms)
+
+TOTAL 5,678 steps  ·  overflow->inf  ·  wall 42ms
 ```
 
 DPD single mode additionally prints `[DPD-SELFCHECK] OK` (a `MISMATCH` on stderr means the pack→unpack round-trip failed). Concurrent mode shows per-worker live throughput and, after completion, a summary table of per-worker/per-format step counts and aggregate throughput.
+
+Every single-format run closes with that `TOTAL` footer, quiet or not (omitted under `--json`, which owns stdout; `--dump`/`--dump-events` imply quiet yet keep the footer). `-m all` never prints it and still ends with its summary table.
 
 ## Risks of concurrent mode
 

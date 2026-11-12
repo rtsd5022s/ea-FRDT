@@ -82,7 +82,7 @@ FP4 → FP6 → FP8E4M3 → FP8E5M2 → FP16 → BF16 → TF32 → FP32 → Dec3
 **A: Only in `-m all`: including DPD×3 or Dec128 raises a level-2 red `[!!!]` confirmation; press `y` within 10 s, otherwise `cancelled`. Single mode runs directly.**
 
 ### Q: Invalid input exit code?
-**A: Code `2` on stderr; normal end, `cancelled`, and `sigint` are `0`. There is no code `1` convention.**
+**A: Code `2` on stderr for usage/validation errors (missing positional `delay_ms` included); `0` for a normal end or `sigint`; `1` for a declined/timed-out slow-format confirmation (`cancelled`).**
 
 ### Q: Malicious hex / ANSI escapes?
 **A: Malformed `0x` is rejected; echoed user input passes through `sanitize()` (ESC/C0/DEL stripped) against terminal injection.**

@@ -222,11 +222,13 @@ No `-Werror`; compiler warnings do not fail the job. **macOS, BSD, ARM Linux, an
 
 ### Safety
 
-Hard exits (code `2`) on invalid input: bad factor, unknown format, invalid flag values, conflicting special starts, malformed `0x` patterns, etc. Non-fatal warnings only appear in `-m all` (yellow `[!]` / red `[!!!]`, 10 s y/n gate).
+Hard exits (code `2`) on invalid input: bad factor, unknown format, invalid flag values, conflicting special starts, malformed `0x` patterns, a missing positional `delay_ms` (one stderr line instead of the help page), etc. Rejection paths never emit a partial JSON record. Slow-format warnings go to stderr: single-format runs print them directly, while `-m all` adds the yellow `[!]` / red `[!!!]` 10 s y/n gate.
+
+Single-format runs end with one `TOTAL <n> steps · <reason> · wall <t>` footer, including quiet runs; `--json` suppresses it and `-m all` still closes with its summary table.
 
 ## Exit reasons
 
-`overflow->inf` · `underflow->0` · `identity->stop` · `safety->limit` · `timeout` · `nan->nan` · `fixed`. Outer control: `cancelled`, `sigint`.
+`overflow->inf` · `underflow->0` · `identity->stop` · `safety->limit` · `timeout` · `nan->nan` · `fixed-steps`. Outer control: `cancelled`, `sigint`.
 
 ## Limitations
 
@@ -244,12 +246,14 @@ This is an extreme microarchitecture stress tool. `-l -1` without `-t` fully sat
 ```
 include/
   base_types.h        enums, u128 step counter, RunResult, globals
-  drive.h             stepping driver template, reason_name(), SAFETY_LIMIT
+  drive.h             stepping driver template (optional callbacks as template params), reason_name(), SAFETY_LIMIT
   runner.h            -m all worker pool, monitor, summary table
   platform.h          OS abstraction: thread affinity, timer, core count
+  cui.h               single presentation layer: colours, number grouping, tables, labels
   uint128.h           hand-rolled UInt128 (drop-in single-header)
   uint256.h           hand-rolled UInt256 (drop-in single-header)
-  formats/            14 bindings in builtin_formats.h + shared engine_*.h + dec128/x87/fp128
+  formats/            12 headers: 14 bindings in builtin_formats.h, shared engine_*.h,
+                      engine_emit.h (start pick / record emission), dec128/x87/fp128
 src/
   float_inf_walk.cpp  main(), argv parsing, dispatch, dump header
   drive.cpp lang.cpp format_util.cpp platform.cpp
@@ -269,7 +273,7 @@ Key design choices:
 ## Repository layout
 
 ```
-include/   shared engines + 17 per-format headers
+include/   shared engines + 12 format headers (14 bindings, 3 self-contained formats)
 src/       main + non-template function definitions
 docs/      paired CN/EN documentation
 libeafrdt/ standalone optional C-ABI static library

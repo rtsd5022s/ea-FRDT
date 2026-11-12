@@ -10,13 +10,13 @@ float_inf_walk 0 -m dec64 -k 1.5
 float_inf_walk 0 -m x87 -t 10
 ```
 
-第一个位置参数是 `delay_ms`（每步限速毫秒，`0` = 不限速）；起点永远用 `-a`，不是位置参数。单格式缺位置参数会打印帮助并退出码 `2`。
+第一个位置参数是 `delay_ms`（每步限速毫秒，`0` = 不限速）；起点永远用 `-a`，不是位置参数。单格式缺位置参数只在 stderr 打一行提示（`错误：缺少位置参数 delay_ms …`）并退出码 `2`，不再重打帮助页。
 
 ## 启动流程
 
 1. Windows 下 `#ifdef _WIN32`：`timeBeginPeriod(1)`、UTF-8 控制台、ANSI 虚拟终端处理；注册 SIGINT（Ctrl+C）处理。
-2. 解析 argv：各 flag + 可选位置参数 `delay_ms`。
-3. 按 `-m` 选格式、做参数校验，再调用该格式的 drive 函数。
+2. 解析 argv：`parse_options` 把全部开关收进一个 `Options` 结构（18 个字段），`-y/--yes`、`--steps`、`--max-seconds`、`--pairwise`、`--probe` 都在这里落地；唯一位置参数 `delay_ms` 缺席即报错退出。
+3. 按 `-m` 选格式、做参数校验，再调用该格式的 drive 函数（`--pairwise`/`--probe` 走各自独立入口，不进入格式链）。
 
 ## 参数
 
@@ -56,7 +56,7 @@ float_inf_walk 0 -m x87 -t 10
 
 ## 主循环
 
-drive 模板循环：查超时 → 算下一步 → 步数+1 → 判定溢出/下溢/identity/NaN → 渲染（非静默）→ 睡 `delay_ms`。伪代码：
+drive 模板循环：查超时/墙上限 → 算下一步 → 步数+1 → 判定溢出/下溢/identity/NaN → 渲染（非静默）→ 睡 `delay_ms`；`--steps` 上限在记录落盘之前检查，与自然终止同序。伪代码：
 
 ```
 当前值 = 起点；步数 = 0；t0 = now
@@ -65,11 +65,14 @@ while (未退出) {
     当前值 = step(当前值)      // factor / mululp / addulp / subulp
     步数++
     classify(当前值)            // overflow / underflow / identity / nan
+    if (步数 达到 --steps) { reason=fixed-steps; break }
     if (!quiet) 打印当前值
     if (delay_ms > 0) sleep(delay_ms)
 }
-结果写入 RunResult
+结果写入 RunResult；非 JSON 单格式打印 总计 尾行
 ```
+
+DPD 三格式走手写循环，但遵守同一组上限（`--steps`、`--max-seconds`/`-t`）并调用同一个尾行函数，行为与模板驱动一致。
 
 ## 退出判定（按路线）
 
@@ -101,8 +104,9 @@ while (未退出) {
 
 ## 退出码
 
-- `0`：正常结束（任一驱动原因）、`sigint` 或 `cancelled`。
-- `2`：参数/校验错误（不存在码 `1` 的约定运行时错误）。
+- `0`：正常结束（任一驱动原因）或 `sigint`。
+- `1`：慢格式确认门被拒/超时（`cancelled`），单格式不经过此门。
+- `2`：参数/校验错误（含缺少位置参数 `delay_ms`）。
 
 ## 选型指南
 

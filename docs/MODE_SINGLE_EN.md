@@ -10,13 +10,13 @@ float_inf_walk 0 -m dec64 -k 1.5
 float_inf_walk 0 -m x87 -t 10
 ```
 
-The first positional argument is `delay_ms` (per-step throttle, `0` = no throttle); the start value is always `-a`, never positional. A missing positional in single format prints help and exits `2`.
+The first positional argument is `delay_ms` (per-step throttle, `0` = no throttle); the start value is always `-a`, never positional. A missing positional in single format now prints one stderr line (`error: missing positional delay_ms …`) and exits `2`, without reprinting the help page.
 
 ## Startup sequence
 
 1. Windows: `timeBeginPeriod(1)`, UTF-8 console, ANSI virtual-terminal processing under `#ifdef _WIN32`; register the SIGINT (Ctrl+C) handler.
-2. Parse argv: flags plus the optional positional `delay_ms`.
-3. Select the format via `-m`, validate parameters, then call the format's drive function.
+2. Parse argv: `parse_options` collects every switch into one `Options` struct (18 fields), including `-y/--yes`, `--steps`, `--max-seconds`, `--pairwise` and `--probe`; the single positional `delay_ms` is mandatory.
+3. Select the format via `-m`, validate parameters, then call the format's drive function (`--pairwise`/`--probe` take their own entry points and never join the chain).
 
 ## Arguments
 
@@ -56,7 +56,7 @@ The first positional argument is `delay_ms` (per-step throttle, `0` = no throttl
 
 ## Main loop
 
-The drive template loops: check timeout → compute next value → increment step → classify overflow/underflow/identity/NaN → render (unless quiet) → sleep `delay_ms`. Pseudocode:
+The drive template loops: check timeout/wall cap → compute next value → increment step → classify overflow/underflow/identity/NaN → render (unless quiet) → sleep `delay_ms`; the `--steps` cap is checked before the record is written, in the same order as natural termination. Pseudocode:
 
 ```
 current = start; steps = 0; t0 = now
@@ -65,11 +65,14 @@ while (!exited) {
     current = step(current)          // factor / mululp / addulp / subulp
     steps++
     classify(current)                 // overflow / underflow / identity / nan
+    if (steps hit --steps) { reason = fixed-steps; break }
     if (!quiet) print(current)
     if (delay_ms > 0) sleep(delay_ms)
 }
-store result in RunResult
+store result in RunResult; non-JSON single runs print the TOTAL footer
 ```
+
+The three DPD formats use a hand-written loop, but obey the same caps (`--steps`, `--max-seconds`/`-t`) and call the same footer helper, so they behave exactly like the template driver.
 
 ## Exit detection by path
 
@@ -113,13 +116,22 @@ Unknown format/flag; unparseable start/factor; factor 0/negative/non-finite; `--
 
 ## Exit codes
 
-- `0`: normal end (any driver reason), `sigint`, or `cancelled`.
-- `2`: argument/validation error.
+- `0`: normal end (any driver reason) or `sigint`.
+- `1`: slow-format confirmation declined/timed out (`cancelled`); single-format runs never hit that gate.
+- `2`: argument/validation error (missing positional `delay_ms` included).
 
 ## Choosing a format
 
 - Quick smoke: FP32/FP64; low precision: FP4/FP6/FP8; high precision: FP128/Dec128; decimal behavior: dec32/64/128 or DPD×3; 80-bit extended: x87.
 - `-q` suppresses flooding on very long formats; `--bits bin` inspects field transitions; `--dump` records every raw record for offline replay.
+
+## Latency argument
+
+The first positional argument `delay_ms` is the per-step wait: `0` = unthrottled, `10` = 10 ms per step for slow-motion observation. It is implemented with `std::this_thread::sleep_for`; on Windows `timeBeginPeriod(1)` brings the granularity down to 1 ms.
+
+## Output and colour
+
+stdout carries results, stderr carries errors. `-q` trims the output for scripting but still leaves the closing `TOTAL …` footer, so a quiet run keeps reporting steps, reason and wall clock. ANSI colours: cyan banners, grey info, green normal, yellow warnings, red errors; terminals without ANSI support show escape remnants. `--lang` switches the `tr()` pair.
 
 ## Notes
 

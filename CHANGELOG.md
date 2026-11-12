@@ -15,7 +15,7 @@
   - `--pairwise <A,B>` (alias `--crosscheck`): standalone same-start compare over the minimal whitelist `dec32,dpd32` / `dec64,dpd64` / `f32,tf32`, reporting `MATCH`/`DIFF` on steps and reason; mutually exclusive with the walk/concurrency/dump/scheduling switches (exit 2); `--json` emits `mode=pairwise`, `match`, `engines[]`.
   - `--sample-window <ms>`: quiet/JSON-only per-wall-clock-window steps/s segments summarized as `min`/`avg`/`p95`/`max` in the optional JSON `throughput` object; off by default, in which case the default JSON shape omits the block; no histogram.
   - `--probe boundaries`: standalone fixed-32-step batch table of 8 quick formats × 4 boundary starts (`default`/`min-normal`/`max-finite`/`subnormal`); `--json` emits `mode=probe`, `target=boundaries`, `cells[]` (8×4=32); it never runs the natural-termination walk.
-- `tests/verify_cli_contract.ps1`: CLI contract assertion suite (groups A–L, 76 checks) wired into `run_tests.ps1`, covering mode guards, pure-JSON stdout, stderr-only warnings, dump active bits, help drift, and the W2/W3 opt-in behaviors (fixed steps, pin/boost, events, iron/max-seconds, pairwise, sample-window, probe).
+- `tests/verify_cli_contract.ps1`: CLI contract assertion suite (groups A–L, 75 checks) wired into `run_tests.ps1`, covering mode guards, pure-JSON stdout, stderr-only warnings, dump active bits, help drift, and the W2/W3 opt-in behaviors (fixed steps, pin/boost, events, iron/max-seconds, pairwise, sample-window, probe).
 - Scheduling resources are reset deterministically between runs: the high-resolution timer uses a ref-counted pair, and thread affinity/priority are restored on exit instead of leaking state.
 
 ### Changed

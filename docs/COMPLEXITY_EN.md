@@ -247,7 +247,7 @@ Key observations:
 
 ### 6.5 Scheduler Fixed Overhead (`drive_core` / `run_dpd` / `runner.h`)
 
-- On the silent path every step fixed-costs: `++step`, three boundary predicates, one state equality comparison, and a safety-limit compare; the `quiet` result object refreshes `cur_value`/timing once per 256 steps. These are the same small constant for every format and are folded into the negligible housekeeping of the 1× baseline.
+- On the silent path every step fixed-costs: `++step`, three boundary predicates, one state equality comparison, and a safety-limit compare; the `quiet` result object refreshes `cur_value`/timing once per 256 steps. These are the same small constant for every format and are folded into the negligible housekeeping of the 1× baseline. The `--steps` reach check adds one constant compare per step, and the hand-written DPD loop now performs the same `--steps`/`--max-seconds` checks in the same order without changing per-step cost.
 - Concurrent `-m all` (`runner.h`): each worker binds a core, value-copies the parameter chain, and writes a 64-byte-aligned lock-free `WorkerSlot`; parallelism only raises aggregate throughput and does not change the per-step complexity of a single format; the default chain excludes dpd×3 and dec128 precisely to avoid the high-constant tiers.
 
 ---

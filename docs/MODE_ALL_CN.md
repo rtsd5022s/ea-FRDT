@@ -81,7 +81,7 @@ while (!done) {
 
 ## 确认警告（此门仅存在于 `-m all`）
 
-`confirm_warnings` 在 worker 启动前汇总非致命警告；10 秒内按 `y` 继续，否则本次 `cancelled`、退出码 `0`：
+`confirm_warnings` 在 worker 启动前汇总非致命警告；10 秒内按 `y` 继续，否则本次 `cancelled`、退出码 `1`（`-y/--yes` 可跳过确认，供 CI/管道使用）：
 
 - 一级黄色 `[!]`：`-l -1` 配 `-t 0`；倍率 `< 1e-10`。
 - 二级红色 `[!!!]`：链含 DPD32/DPD64/DPD128（慢速软件 declet）；链含 Dec128（慢速 UInt256 算术）。均为警告而非拒绝。

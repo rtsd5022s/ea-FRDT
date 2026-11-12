@@ -88,7 +88,7 @@ Key decisions:
 
 **Ctrl+C.** In multi-threaded mode Ctrl+C sets a stop flag so all workers exit gracefully with a bilingual message rather than being killed abruptly.
 
-**Slow-format confirmation gate.** DPD is pure per-digit decimal arithmetic and Dec128 uses the UInt256 big-integer multiply; both are slow. The gate appears only in `-m all`: DPD32/64/128 or Dec128 inclusion raises a level-2 red `[!!!]`; other cases (e.g. `-l -1` without `-t`, or a tiny factor) raise a level-1 yellow `[!]`. Press `y` within 10 s to continue; otherwise it prints `cancelled` and exits 0. Single-format mode skips the gate.
+**Slow-format confirmation gate.** DPD is pure per-digit decimal arithmetic and Dec128 uses the UInt256 big-integer multiply; both are slow. The gate appears only in `-m all`: DPD32/64/128 or Dec128 inclusion raises a level-2 red `[!!!]`; other cases (e.g. `-l -1` without `-t`, or a tiny factor) raise a level-1 yellow `[!]`. Press `y` within 10 s to continue; otherwise it prints `cancelled` and exits 1. Single-format mode skips the gate (it prints the warnings straight to stderr instead).
 
 **Input safety.** Echoes strip ESC, C0 controls, and DEL; `0x` Raw input is validated, and malformed or out-of-range input exits with code 2, preventing terminal corruption by escape sequences.
 

@@ -150,7 +150,7 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 | `-f eng`/`sci`/`full` | 显示记法；`eng` 默认。 |
 | `-d <n>` / `--digits <n>` | sci/eng 小数位；默认 `6`，`-1` 完整，范围 `0..100`。 |
 | `--bits hex`/`bin`/`off`（`--showbits`） | 括号内追加位表示；`bin` 按 sign/exponent/coefficient 空格分组；默认 `off`。 |
-| `-q` / `--quiet` | 抑制各单格式引擎的实时行与结束行，结果仍写入 `RunResult`；`--json`/`--dump` 隐式静默。 |
+| `-q` / `--quiet` | 抑制各单格式引擎的实时行与结束行，结果仍写入 `RunResult`，退出前只留一行 `总计 <N> 步 · <退出原因> · 墙钟 <t>` 尾行；`--json` 不打印该尾行，`--dump`/`--dump-events` 隐式静默但保留它。 |
 | `--json` | 每次运行输出一个机器可读 JSON；无 ANSI、无进度。 |
 | `--dump <file>` | 仅单格式模式：256 字节 schema v2 头（`0x10` 头 CRC-32、`0x14` 载荷 CRC-32、`0x18` 载荷长度、`0x20` 记录数、`0x28` 记录宽度）+ offset `256..EOF` 记录；`dump_inspect.py` 复算双 CRC 与 `记录数×宽度=载荷字节数` 几何。`-m all` 仅产出 flags bit2=empty 空头部、不写记录。 |
 | `--dump-endian little`/`big` | 记录字节序；`little` 默认；仅单格式 `--dump`，值写 `0x0A`。 |
@@ -170,7 +170,7 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 | `-t <s>` / `--timeout <s>` | 超时秒数；`0` = 直到终止（默认）。 |
 | `-l <n>` / `--loop <n>` | `1` 默认（`0` 归 1），`-1` 无限，`>1` 重复（上限 1,000,000）。 |
 | `-r <ms>` / `--refresh <ms>` | 监视器刷新间隔；默认 `0`（每步），`-m all` 默认 `1000` ms。 |
-| `--steps <n>` | 固定跑满 N 步以 `fixed` 退出（默认 `0`=关，与墙钟 `-t` 互补）；非法值 exit 2，默认行为不变。 |
+| `--steps <n>` | 固定跑满 N 步即终止（JSON token `fixed`、终端与尾行文案 `fixed-steps`；默认 `0`=关，与墙钟 `-t` 互补）；17 个格式一致生效，含 DPD×3；非法值 exit 2，默认行为不变。 |
 | `--self-test` | 进入压测前跑纯逻辑自检（CRC-32/DPD 往返/BID 位宽元数据/hex 解析/净化），打印 `CHECKS=n FAILS=n` 后退出。 |
 | `--pin <core>` | 仅单格式：绑定到指定逻辑核（默认关、不绑核）；`-m all` 拒绝（exit 2），退出自动复位亲和。 |
 | `--boost` | 仅单格式：提升线程优先级（默认关、不提级）；`-m all` 拒绝（exit 2），退出复位；无提级能力平台为 no-op。 |
@@ -182,15 +182,15 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 
 ### 安全保护
 
-以下无效输入硬退出（`2`，stderr 报错）：倍率为 0/负/非有限、起点无法解析、未知格式/开关、`--loop` 越界、畸形 `0x` 位串、特殊起点互相冲突。非致命警告在 `-m all` 汇总确认（一级黄色 `[!]`、二级红色 `[!!!]`；10 秒内按 `y`，否则 `cancelled`）：`-l -1` 配 `-t 0`（一级，警告而非拒绝）、`-k < 1e-10`（一级）、纳入 DPD×3 与 Dec128（二级）。错误信息中的用户字符串经 sanitize 过滤（剥离 ANSI 转义与 C0 控制字符），防终端注入。
+以下无效输入硬退出（`2`，stderr 报错）：倍率为 0/负/非有限、起点无法解析、未知格式/开关、`--loop` 越界、畸形 `0x` 位串、特殊起点互相冲突、缺少位置参数 `delay_ms`（一行提示，不再重打帮助页；被拒的运行不产出 JSON 记录）。非致命警告在 `-m all` 汇总确认（一级黄色 `[!]`、二级红色 `[!!!]`；10 秒内按 `y`，否则 `cancelled`、退出码 `1`）：`-l -1` 配 `-t 0`（一级，警告而非拒绝）、`-k < 1e-10`（一级）、纳入 DPD×3 与 Dec128（二级）；单格式把这些警告直接打到 stderr，不做交互确认。错误信息中的用户字符串经 sanitize 过滤（剥离 ANSI 转义与 C0 控制字符），防终端注入。
 
 ## 退出原因
 
 驱动记录七种枚举原因，打印/JSON 文案为：
 
-- `overflow->inf`；`underflow->0`；`identity->stop`（无进展）；`safety->limit`（撞到 `2^120` 步数计数器）；`timeout`；`nan->nan`（仅原生路径）；`fixed`（仅 `--steps <n>` 触发的固定步数退出，JSON token 为 `fixed`，终端文案 `fixed-steps`）。
+- `overflow->inf`；`underflow->0`；`identity->stop`（无进展）；`safety->limit`（撞到 `2^120` 步数计数器）；`timeout`；`nan->nan`（仅原生路径）；`fixed-steps`（仅 `--steps <n>` 触发的固定步数退出；JSON token 为 `fixed`）。
 
-外层控制文案（非枚举原因）：`cancelled`（DPD/dec128 确认被拒或超时）、`sigint`（收到 Ctrl+C）。
+外层控制文案（非枚举原因）：`cancelled`（DPD/dec128 确认被拒或超时，退出码 `1`）、`sigint`（收到 Ctrl+C，退出码 `0`）。
 
 ## 已知妥协
 
@@ -202,12 +202,12 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 
 ```
 include/
-  base_types.h common.h lang.h color.h format_util.*
+  base_types.h common.h lang.h color.h cui.h format_util.*
   drive.h runner.h platform.h uint128.h uint256.h
   formats/
     formats_all.h
     engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
-    engine_dpd_codec.h engine_dpd.h
+    engine_dpd_codec.h engine_dpd.h engine_emit.h   起点选择/记录落盘的共享小件
     builtin_formats.h   14 个格式的参数绑定（Fmt / DecFmt 常量 + run_* 薄包装）
     dec128.h x87.h fp128.h   自带算法的三种格式
 src/
@@ -217,7 +217,7 @@ libeafrdt/                独立可选 C ABI 静态库（不进根 CMake/CI，�
 dump_inspect.py           schema v2 校验器：头/载荷双 CRC-32、长度与记录几何对账，带退出码与旧版容错
 ```
 
-关键设计：热路径走 `enum` switch 分发（无 `std::function`）；每 worker 值拷贝 `RunParams` 与格式链；`alignas(64)` 的 `WorkerSlot` 消除伪共享；`SetThreadAffinityMask`/`pthread_setaffinity_np` 绑核、失败则降级不绑；不依赖 `long double`/`__float128`/libquadmath；DPD 系数存 `std::vector<int>` 十进制数字，启动执行真实 pack→unpack 往返自检。
+关键设计：热路径走 `enum` switch 分发（无 `std::function`）；每 worker 值拷贝 `RunParams` 与格式链；`alignas(64)` 的 `WorkerSlot` 消除伪共享；`SetThreadAffinityMask`/`pthread_setaffinity_np` 绑核、失败则降级不绑；驱动器把可选的逐步回调与记录回调做成模板参数（`no_extra_fn`/`no_dump_fn` 编译期缺省），运行期没有类型擦除；不依赖 `long double`/`__float128`/libquadmath；DPD 系数存 `std::vector<int>` 十进制数字，启动执行真实 pack→unpack 往返自检。
 
 ## 输出样例
 
@@ -229,9 +229,13 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
   [BID-SELFCHECK] OK
 [step 1234] x = 1.299...e+00 (hex=3F...C)
 [step 5678] overflow->inf  (42 ms)
+
+总计 5,678 步  ·  overflow->inf  ·  墙钟 42ms
 ```
 
 DPD 单模式额外打印 `[DPD-SELFCHECK] OK`；若 pack→unpack 往返不一致，stderr 报 `MISMATCH`。并发模式每 worker 实时一行吞吐，结束后出每 worker 每格式步数与全局汇总表。
+
+单格式无论是否 `-q`，都在退出前打出这一行 `总计` 尾行（`--json` 不打印，机器输出独占 stdout；`--dump`/`--dump-events` 隐式静默但保留尾行）；`-m all` 不打印该尾行，仍以汇总表收尾。
 
 ## 并发模式的风险
 

@@ -1,13 +1,13 @@
 # KNOWN_ISSUES — 已知问题、限制与待办清单（防遗忘）
 
 - 用途：集中记录本项目**已出现的缺陷、未入库改动、文档不一致、设计限制、使用风险、已证伪疑点、流程陷阱与待授权决策**，避免反复排查或遗忘。
-- 核对基线：本地 `main` 与远端共同 HEAD = `2fb2f5a`（x87 dump 16B 固定容器，10 有效 + 6 零填充）；本周期 B1–B7 修复、runner 探测修复与文档对齐在此基础上做**本地提交（尚未 push）**。
-- 状态图例：`[本轮已修复]` 已逐项实测 + 回归全绿、随本次提交入库；`[待决策]` 需用户拍板；`[文档不一致]` 已对齐项 / 待授权项分列；`[设计限制]` 非缺陷、勿误改；`[使用风险]` 运行须知；`[已证伪]` 禁止据此改动；`[流程陷阱]` 方法学/提交纪律；`[历史已修]` 已入库、防回归；`[覆盖缺口]` 未单独实跑或可选增强。
-- 关联文档（本清单只做索引与摘要，不复制全文）：`docs/RISKS_CN.md`、`docs/IMPLEMENTATION_CN.md`、`docs/COMPLEXITY_CN.md`、`tests/PARAM_MATRIX_BUG_REPORT.md`、`CHANGELOG.md`、`README.md`。
+- 核对基线：本地 `main` = `origin/main` = `8413d2d`（代码级四块翻新 + 五项可用性修复 + DPD 引擎对齐，已 push；CI run `43258487555` 三个 job 全绿；`run_tests.ps1` 75/0、17 格式文本与 51 份 dump 逐字节回归全过）。本条不再写"尚未 push"之类的临时状态。
+- 状态图例：`[历史已修]` 已入库、保留作根因档案；`[待决策]` 需用户拍板；`[文档一致性]` 已对齐项 / 待授权项分列；`[设计限制]` 非缺陷、勿误改；`[使用风险]` 运行须知；`[已证伪]` 禁止据此改动；`[流程陷阱]` 方法学/提交纪律；`[覆盖缺口]` 未单独实跑或可选增强。
+- 关联文档（本清单只做索引与摘要，不复制全文）：`docs/RISKS_CN.md`、`docs/IMPLEMENTATION_CN.md`、`docs/COMPLEXITY_CN.md`、`docs/TESTING_DISHONESTY_CN.md`、`CHANGELOG.md`、`README.md`。
 
 ---
 
-## 1. `[本轮已修复]` B1–B7 缺陷修复（逐项实测 + 完整回归全绿，随本次分组提交入库）
+## 1. `[历史已修]` B1–B7 缺陷修复（已入库并 push，保留作根因档案）
 
 基线 HEAD=`2fb2f5a`。本周期为 7 个已跟踪文件（6 个源码 + `tests/run_tests.ps1` 测试设施修复，`git diff --stat` 约 87 insertions / 27 deletions）。质量门：`clang++ -std=c++23 -O2 -Wall -Wextra` 零 warning；`run_tests.ps1` 两处 `TOTAL_FAILS=0`、`ALL TESTS PASSED`、`ec=0`；B1–B7 行为结论见 1.2。设计限制 / 已证伪疑点 / 运营决策不在本节（见第 3、5、6 节，刻意保留、不作为 bug 修改）。
 
@@ -53,19 +53,31 @@
 
 - 精确 `git add -- <文件>`，禁止 `git add -A` / `git add .`；提交前 `git diff --cached --stat` 核对暂存集；提交后 `git show --stat HEAD`。
 - 提交信息用英文 conventional commit；不用 `--amend`、`--force`、`--no-verify`；push 后 `git ls-remote origin refs/heads/main` 直连核对完整 SHA，不信退出码与本地缓存 ref。
-- 本轮执行：先以实时 `git diff --stat` 取得真实增删（不采信旧摘要统计）；代码修复 / 测试脚本 / 文档分三笔精确提交；提交前 `git diff --cached --stat`、提交后 `git show --stat HEAD`。本地 commit 完成即停止，`push` 等待用户单独明确指令。
+- 已按此执行：`b630002` / `171ea81` / `8413d2d` 三笔，`push f3ab53c..8413d2d`，CI 全绿。
+
+### 1.6 代码级翻新与五项可用性修复（`b630002` / `171ea81` / `8413d2d`，已 push）
+
+| 项 | 原状 | 现状 | 防回归点 |
+|---|---|---|---|
+| 缺位置参数 `delay_ms` | 重打整页帮助、stderr 全空、退出 2 | stderr 一行 `错误：缺少位置参数 delay_ms …`、stdout 空、退出 2 | `run_tests.ps1` 断言 stderr 非空且无帮助页 |
+| 未知 `-m` 与 `--json` | 打出半截 JSON 并伪造 `"format":"foo"` | 拒绝路径 `g_json=false` 并删除早开的 `--dump` 空壳 | 契约脚本断言 stdout 0 字节 |
+| `-q` 单格式 | 0 行输出 | 一行 `总计 N 步 · reason · 墙钟 t` 尾行 | 尾行只在 `g_single_summary && !g_json` 时打印 |
+| 默认单格式刷屏 | 4481 行后无收尾 | 同上尾行收尾 | 三处调用点：正常/静默/超时 |
+| 帮助 `-m all` | 写"17 个格式并发""`--only` 默认全部 17" | 13 个并发、`--only` 默认 13 且点名 DPD×3 与 dec128 须显式加入 | 与 `runner.h` 默认链一致 |
+| DPD 引擎 | 手写 `run_dpd` 不吃 `--steps`/`--max-seconds`（`--steps 2` 实跑 11,279 步） | 与共享驱动同序检查上限、同样打尾行；自然终止步数不变 | 17 格式 dump 51/51 逐字节回归；DPD 新 dump 为旧全量记录严格前缀 |
+| 结构翻新 | `std::function` 类型擦除、六引擎重复起点/落盘代码、`libeafrdt` 自带 `UInt256` 副本 | `Options`+`parse_options`、`drive.h` 模板回调、`engine_emit.h` 共享小件、lib 改为 `#include "../include/uint256.h"` | clang 695,296 B（仍 < 1 MiB 红线）；`-Wall -Wextra` 双零 warning |
 
 ---
 
-## 2. `[文档不一致]` 待对齐（未授权不改动）
+## 2. `[文档一致性]` 已对齐项与仍需注意的口径（2026-11 全库文档翻新后）
 
-| 位置 | 冲突/缺口 | 处理状态 |
+| 位置 | 事项 | 处理状态 |
 |---|---|---|
-| `CHANGELOG.md:24`（v1.0.6 Fixed） | 历史行写 "x87 dump record width is 10 bytes (not 16)"，系 `2fb2f5a` 加宽**前**事实，与现行 16B 固定容器并存易误读 | 已处理：历史行原样保留不篡改，`Unreleased > Changed` 新增 16B（10 有效 + 6 零填充）条目并注明旧行背景 |
-| `CHANGELOG.md` `## Unreleased (main)` | 原为空，未记录 x87 宽度变更与本周期 B1–B7 修复 | 已处理：补 Changed/Fixed 英文条目（警告流 stderr、packed active 位、`-y`、min-normal、`infe-324` 兜底、runner python 探测） |
-| `CHANGELOG.md:49`（v1.0.3 Removed 草案语境） | "x87/fp128=16B" 为旧草案口径 | 旧版本段不改写；现行 dump 契约由 `Unreleased` 与 `dump_inspect.py` 承载，读者不再需要依赖该行判断当前行为 |
-| `docs/*.md` | 仅描述 x87 的 80 位数学位宽，不描述 dump 容器字节宽度；无事实错误 | 维持现状，补 dump 槽宽度说明非必须、不属本轮范围 |
-| 线上 Description / Topics | Description 现状 `Silicon-level devil-grade hardware stress testing`；Topics 已盘点；**未经授权不修改线上元数据** | 维持只读现状，除非用户明确授权；本轮不动远端与线上任何配置 |
+| `CHANGELOG.md` | 断言套件原写 "76 checks"，实测 `CONTRACT_CHECKS=75` | 已改为 75 |
+| `CHANGELOG.md:24`（v1.0.6 Fixed 历史行） | "x87 dump 记录宽 10 字节"是 `2fb2f5a` 加宽**前**的事实 | 历史段原样保留，现行口径由 `Unreleased > Changed`（16B = 10 有效 + 6 零填充）承载 |
+| `docs/*`（全库 30 篇 + 根 `README.md` / `KNOWN_ISSUES.md`） | 本轮翻新：单格式 `总计` 尾行、拒绝路径不产 JSON、缺 `delay_ms` 报错、帮助 13 口径、DPD 遵守 `--steps`/`--max-seconds`、`cancelled` 退出码 `1`、模块表补 `cui.h` 与 `engine_emit.h`、`drive.h` 模板回调、libeafrdt 共用 `uint256.h` | 已对齐（中英成对） |
+| 本文档自身 | 旧版大量引用 `<文件>:<行号>` 形式的定位（如 README 的默认链构建行、`runner.h` 的绑定处），代码一动即漂移 | 本期起只记文件与机制，不再记行号；旧行号引用已就地替换 |
+| 线上 Description / Topics | 现状 `Silicon-level devil-grade hardware stress testing` | **未经授权不修改线上元数据**，维持只读 |
 
 ---
 
@@ -73,20 +85,20 @@
 
 | 项 | 事实 | 位置/依据 |
 |---|---|---|
-| 编译器 | 强制 C++23、GCC 13+ 或 Clang 16+；**不支持 MSVC**（使用 GNU/Clang 专有属性与 `__int128` 辅助） | `README.md:68,237`、`docs/FAQ_CN.md:13` |
-| 已知编译器缺陷 | g++ 16.2.0 在本代码库触发已知 ICE；改用 Clang 16+ 或 g++ 13/14 | `README.md:238` |
-| 第三方依赖 | 零依赖：无 libquadmath、无 Boost、无 Eigen；无 `long double` / `__float128` | `README.md:71,148`、`docs/IMPLEMENTATION_CN.md:205` |
-| 发布形态 | 预编译二进制仅 Windows x86_64；Linux/macOS 仅源码构建；CI 在 Ubuntu 用 GCC+Clang 跑 smoke，未启用 `-Werror`（warning 不失败） | `README.md:7`、`IMPLEMENTATION_CN.md:205` |
-| Linux 调度能力 | 仅 `pthread_setaffinity_np` 绑核；**无线程提级、无高分辨率定时器**；`physical_cores()` 返回 0（跳过显示） | `src/platform.cpp:49-59`、`IMPLEMENTATION_CN.md:213` |
-| 绑定/提级作用域 | `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL` 仅作用于 `-m all` worker；单格式直跑不绑核、不提级 | `runner.h:258`、`platform.cpp:14-15` |
-| all 模式 dump | 多 worker 记录宽度交织，不序列化记录；`--dump` 仅写出 flags bit2=empty 的 256B 空头（`payload_bytes=0`）；逐步二进制记录须用**单格式** `--dump` | `CHANGELOG.md:8`、`MODE_ALL_CN.md:131` |
-| 默认格式链 | `-m all` 默认 13/17 格式，主动排除 DPD32/64/128 与 Dec128；慢格式需 `--only` 显式进入 | `README.md:236`、`runner.h:186-187` |
-| 慢格式成本 | DPD×3 为纯软件十进制数组运算（约 20–30× 慢，level-2 警告）；Dec128(BID) 为最高成本档，含十进制串 `O(n·m)` schoolbook 与 string/vector 分配 | `README.md:216`、`COMPLEXITY_CN.md:200,315` |
-| 未提供目标 | 无 GPU offload、无 WebAssembly 目标 | `README.md:239-240`、`IMPLEMENTATION_CN.md:212` |
-| UInt256 能力 | 无加/减/移位，仅服务乘法与除以 10；`mul128` 为 2×2 字 schoolbook；更宽位宽算法后续需重估 | `IMPLEMENTATION_CN.md:209`、`README.md:259` |
-| `__int128` 使用边界 | `u128` 计数器、x87/fp128 的 64×64 尾数中间积使用编译器 `unsigned __int128`；dec128(BID) 系数路径不用 `__int128`（自研 UInt256） | `README.md:235`、`FAQ_CN.md:8` |
-| 测量口径 | 唯一对标自身基线（FP32=1×、BASELINE 步数、costX 档），不产出跨厂商排名；短样本失真需标注；总步数由数学动态范围决定，不等于单步快慢；`steps/s` 受热降频、调度、频率波动影响 | `COMPLEXITY_CN.md`、`RISKS_CN.md:87-96` |
-| BID 系数显示 helper 非严格互逆 | `bid_dec_to_bin` 内层用十进制 `/10`、`%10`（逐位），`bid_bin_to_dec` 用二进制 `×2`，二者约定不对称、不保证字符串互逆；`bid_selfcheck()` 系数比较对 `expect` 尾随补零，而 `unpack.coeffDec` 走 `bid_strip0`，口径不同（启动仅打印、返回值不阻断）。两者只服务**显示系数串/诊断打印**，步进算术走独立 UInt 大整数，17 格式确定性步数基线不受影响；**勿为追求字符串互逆改 pack/unpack 位布局**（会破坏 v2 字节几何回归） | `engine_bid_codec.h:16-50,132-145`、`engine_decnum.h:154`、`dec128.h:152` |
+| 编译器 | 强制 C++23、GCC 13+ 或 Clang 16+；**不支持 MSVC**（使用 GNU/Clang 专有属性与 `__int128` 辅助） | 根 `README.md` 构建/局限小节、`docs/FAQ_CN.md` |
+| 已知编译器缺陷 | g++ 16.2.0 在本代码库触发已知 ICE；改用 Clang 16+ 或 g++ 13/14 | 根 `README.md` 局限小节、`GCC_ICE.md` |
+| 第三方依赖 | 零依赖：无 libquadmath、无 Boost、无 Eigen；无 `long double` / `__float128` | 根 `README.md`、`docs/IMPLEMENTATION_CN.md` |
+| 发布形态 | 预编译二进制仅 Windows x86_64；Linux/macOS 仅源码构建；CI 在 Ubuntu 用 GCC+Clang 跑 smoke，未启用 `-Werror`（warning 不失败） | 根 `README.md`、`docs/IMPLEMENTATION_CN.md` 构建小节 |
+| Linux 调度能力 | 仅 `pthread_setaffinity_np` 绑核；**无线程提级、无高分辨率定时器**；`physical_cores()` 返回 0（跳过显示） | `src/platform.cpp` 物理核探测、`docs/IMPLEMENTATION_CN.md` 平台小节 |
+| 绑定/提级作用域 | `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL` 仅作用于 `-m all` worker；单格式直跑不绑核、不提级 | `include/runner.h` worker 绑核处、`src/platform.cpp` 亲和/提级 |
+| all 模式 dump | 多 worker 记录宽度交织，不序列化记录；`--dump` 仅写出 flags bit2=empty 的 256B 空头（`payload_bytes=0`）；逐步二进制记录须用**单格式** `--dump` | `CHANGELOG.md` Unreleased、`docs/MODE_ALL_CN.md` dump 小节 |
+| 默认格式链 | `-m all` 默认 13/17 格式，主动排除 DPD32/64/128 与 Dec128；慢格式需 `--only` 显式进入 | 根 `README.md`、`include/runner.h` 默认链构建 |
+| 慢格式成本 | DPD×3 为纯软件十进制数组运算（约 20–30× 慢，level-2 警告）；Dec128(BID) 为最高成本档，含十进制串 `O(n·m)` schoolbook 与 string/vector 分配 | 根 `README.md`、`docs/COMPLEXITY_CN.md` 慢格式成本 |
+| 未提供目标 | 无 GPU offload、无 WebAssembly 目标 | 根 `README.md` 局限小节、`docs/IMPLEMENTATION_CN.md` |
+| UInt256 能力 | 无加/减/移位，仅服务乘法与除以 10；`mul128` 为 2×2 字 schoolbook；更宽位宽算法后续需重估 | `docs/IMPLEMENTATION_CN.md` 已知局限、`docs/UINT256_CN.md` |
+| `__int128` 使用边界 | `u128` 计数器、x87/fp128 的 64×64 尾数中间积使用编译器 `unsigned __int128`；dec128(BID) 系数路径不用 `__int128`（自研 UInt256） | 根 `README.md` 局限小节、`docs/FAQ_CN.md` |
+| 测量口径 | 唯一对标自身基线（FP32=1×、BASELINE 步数、costX 档），不产出跨厂商排名；短样本失真需标注；总步数由数学动态范围决定，不等于单步快慢；`steps/s` 受热降频、调度、频率波动影响 | `COMPLEXITY_CN.md`、`docs/RISKS_CN.md` 测量干扰小节 |
+| BID 系数显示 helper 非严格互逆 | `bid_dec_to_bin` 内层用十进制 `/10`、`%10`（逐位），`bid_bin_to_dec` 用二进制 `×2`，二者约定不对称、不保证字符串互逆；`bid_selfcheck()` 系数比较对 `expect` 尾随补零，而 `unpack.coeffDec` 走 `bid_strip0`，口径不同（启动仅打印、返回值不阻断）。两者只服务**显示系数串/诊断打印**，步进算术走独立 UInt 大整数，17 格式确定性步数基线不受影响；**勿为追求字符串互逆改 pack/unpack 位布局**（会破坏 v2 字节几何回归） | `include/formats/engine_bid_codec.h` 显示 helper、`engine_decnum.h`、`dec128.h` |
 | W2 `--self-test` 覆盖边界 | 纯逻辑自测只覆盖：CRC-32/IEEE 已知向量、DPD `encode3/decode3` 0..999 往返、BID 编码位宽与 sign/exp 元数据、十六进制解析与 `sanitize`；**不含**上表 BID 显示 helper 互逆，也不跑真实压测/墙钟性能 | `src/float_inf_walk.cpp` `run_self_test()` |
 
 ---
@@ -156,8 +168,10 @@
 
 | 优先级 | 事项 | 状态/前置条件 |
 |---|---|---|
-| P0 | 工作树 B1–B7 修复零 warning + 全回归全绿 → 按主题分英文 conventional 本地提交；`PARAM_MATRIX_BUG_REPORT.md` 留本地不入库 | **本轮完成（本地 commit）**；远端 `push` 待单独明确指令；提交前 `--cached --stat` 精确 |
-| P1 | `CHANGELOG.md` 补 `Unreleased` x87 16B 与 B1–B7 条目，消解第 2 节口径冲突 | **本轮完成**：旧版本段保留不改写，现行口径由 Unreleased 承载 |
-| P2 | 可选增强：把 B1–B7 断言固化为自动化脚本；单格式绑核/提级；高压档交互提示；跨平台温度/节流检测（实现受限）；将报告 md 归档改名 | 单独授权、独立提交，不随本轮 |
-| P2 | 线上 Description/Topics 是否调整 | 仅在用户明确授权后用 `gh` 只读核对、再受控写入；本轮维持只读 |
-| P3 | C1 维持 `libeafrdt` 外置；C3 历史 blob 清理不建议执行 | 维持现状即可，对应任务 #87 |
+| P0 | 工作树 B1–B7 修复零 warning + 全回归全绿 → 按主题分英文 conventional 提交 | **完成**：已 push，CI run `43258487555` 全绿 |
+| P1 | `CHANGELOG.md` 补 Unreleased 条目，消解 x87 16B 口径冲突 | **完成**：历史段不改写，现行口径由 Unreleased 承载；本轮又补 5 条（尾行、拒绝路径、DPD 上限、帮助 13 口径） |
+| P2 | 可选增强：把 B1–B7 断言固化进脚本（部分已由 `verify_cli_contract.ps1` 覆盖）；高压档交互提示；跨平台温度/节流检测（实现受限）；将 `tests/PARAM_MATRIX_BUG_REPORT.md` 归档改名 | 单独授权、独立提交 |
+| P3 | `-m all --only <单个格式> -j 0` 会起与逻辑核数相同的 worker 各跑同一格式（如 `--only dpd32` = 11,279 × worker 数），属"每线程独立跑完整链"的既有设计 | 非缺陷；若要改成"多 worker 分摊同一格式"需重做 worker 与记录归属，**待用户决策** |
+| P4 | `libeafrdt/` 是否"全量托管主引擎"（会牵动 `libeafrdt/README.md` 公开步数） | 仅有外置复用 `uint256.h` 的改动；全量托管**未获授权**，不动 |
+| P5 | 线上 Description/Topics 是否调整 | 仅在用户明确授权后用 `gh` 只读核对、再受控写入；维持只读 |
+| P6 | C1 维持 `libeafrdt` 外置；C3 历史 blob 清理不建议执行 | 维持现状即可，对应任务 #87 |

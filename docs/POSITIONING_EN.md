@@ -68,7 +68,7 @@ Benchmark users find us "no numbers to compare". We do not compare CPUs; we veri
 
 ## 4. Why we are not educational software
 
-Educational tools want visualization, interactivity, browser execution, zero install. We are a 600 KB CLI that requires MSYS2 on Windows, no GUI, no web page.
+Educational tools want visualization, interactivity, browser execution, zero install. We are a roughly 680 KB CLI that requires MSYS2 on Windows, no GUI, no web page.
 
 An education user wants "type 0.1+0.2 and see why it is not 0.3". We want "starting from 0.1, multiply by 1.02 each step, count overflow steps, dump every hex, and compare BID vs DPD bit divergence at that value". Different needs.
 
@@ -108,7 +108,7 @@ Each phrase alone is obscure, but together they occupy a **completely empty nich
 - Genuinely know all of IEEE 754 (BID/DPD decimals, x87, fp128, fp8)
 - Be willing to write 17 software-emulated format engines
 - Be willing to reject MSVC
-- Be willing to ship a 600 KB CLI instead of a GUI
+- Be willing to ship a roughly 680 KB CLI instead of a GUI
 - Be willing to skip leaderboards and marketing
 - Be willing to write 4000–8000 word technical docs instead of a one-page README
 
@@ -147,7 +147,7 @@ Our baseline table is a **mathematical fact**, not an engineering optimization. 
 
 V2EX has a "share creations" node, but what category are we? C++? Hardware? Open source? None fit cleanly. Posting there invites "what is this? burn-in? education?" and the explanation cost is huge.
 
-Reddit's r/programming, r/cpp, r/hardware are all wrong destinations. We are the intersection of three, which none of them accept. Hacker News will not pick us up — it wants world-changing products, not a 600 KB CLI.
+Reddit's r/programming, r/cpp, r/hardware are all wrong destinations. We are the intersection of three, which none of them accept. Hacker News will not pick us up — it wants world-changing products, not a roughly 680 KB CLI.
 
 ### 8.2 We must write all the docs ourselves
 
@@ -171,7 +171,7 @@ In theory yes. In practice hard, because filling it requires simultaneously:
 - Real command of all of IEEE 754 (BID/DPD included)
 - Willingness to write 17 software engines
 - Willingness to reject MSVC, GUI, leaderboards
-- Willingness to ship a 600 KB CLI instead of a web app
+- Willingness to ship a roughly 680 KB CLI instead of a web app
 - Willingness to spend half a year writing docs instead of marketing
 - Willingness to maintain solo and not let PRs steer the roadmap
 

@@ -32,7 +32,7 @@ ea-FRDT（Extreme Architecture - Floating-point Rigorous Devil Test）是一个 
 
 ## 模块架构
 
-代码模块化：`include/` 顶层 11 个头，`formats/` 子模块（6 个共享引擎 + `formats_all.h` + 1 个参数绑定头 `builtin_formats.h` + 3 个自带算法头），`src/` 5 个非模板源文件；不存在单片格式头。
+代码模块化：`include/` 顶层 11 个头，`formats/` 子模块（6 个共享引擎 + `formats_all.h` + 共享小件 `engine_emit.h` + 1 个参数绑定头 `builtin_formats.h` + 3 个自带算法头，共 12 个头），`src/` 5 个非模板源文件；不存在单片格式头。
 
 ```
 include/
@@ -41,8 +41,10 @@ include/
   common.h          标准库聚合；NativeF16/F32/F64 别名
   lang.h            双语 tr() 表（zh/en）
   color.h           ANSI 颜色常量
+  cui.h             单一呈现层：分组数字、耗时/计数格式、表格边框、标签
   format_util.h     位串转 hex/bin、数字格式化、parse_number
-  drive.h           步进驱动器模板、reason/step 名表
+  drive.h           步进驱动器模板（可选 extra/dump 回调为模板参数，编译期缺省）、
+                    单格式 `总计` 尾行、reason/step 名表
   runner.h          ALL 模式：worker 池、监视器、汇总表、警告确认
   platform.h        OS 抽象：绑核、高精度定时器、核心数
   uint128.h         由 UInt256 派生的 128 位辅助
@@ -56,10 +58,12 @@ include/
     engine_dpd_codec.h   单 declet（3 数字→10 位）Clarke 表
     engine_dpd.h        combo5 + 定长对称 pack/unpack、真实
                         pack→unpack 自检、dpd32/64/128 的 run_dpd
+    engine_emit.h       起点选择、位型/系数入记录、dump 记录写出的共享小件
     builtin_formats.h   14 个格式的参数绑定（Fmt / DecFmt 常量 + run_* 薄包装）
     dec128.h x87.h fp128.h   自带算法的三种格式
 src/
-  float_inf_walk.cpp  main、argv 解析、单格式分发、
+  float_inf_walk.cpp  main、`Options`/`parse_options`（含 `--pairwise`/`--probe`）、
+                      单格式分发、
                       256 字节 schema v2 dump 头（头+载荷双 CRC-32、显式长度/记录几何/参数快照）
   drive.cpp           非模板驱动定义（reason_name 等）
   lang.cpp format_util.cpp platform.cpp
@@ -149,6 +153,7 @@ DPD（Densely Packed Decimal）把 3 个十进制数字编成 10 位二进制，
 - `--bits hex|bin|off`（`--showbits`）在括号内附位型；`bin` 按 sign/exponent/coefficient 分组。
 - `--json` 输出一个机器可读对象（隐式静默）；`--dump <file>` 仅对单格式模式生效：写 256 字节 schema v2 固定头 + 逐步记录，头自身带 CRC-32、载荷带 CRC-32，并显式记录载荷字节数与记录几何，用 `python dump_inspect.py <file>` 做头/载荷双 CRC 与长度对账。`-m all` 为并发多格式、记录宽度不一，不序列化记录，只写出 flags bit2=empty 的空头部。
 - `--lang zh|en` 双语界面（默认 `zh`）。
+- 单格式运行退出前打一行 `总计 <N> 步 · <退出原因> · 墙钟 <t>` 尾行（`print_run_summary`，模板驱动与 DPD 手写循环共用）：`-q` 只留这行、`--dump`/`--dump-events` 隐式静默但保留、`--json` 不打印；`-m all` 不打印，仍以汇总表收尾。
 
 ## dump 文件格式（schema v2，固定 256 字节，多字节整数一律小端）
 

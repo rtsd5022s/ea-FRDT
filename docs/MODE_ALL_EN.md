@@ -81,7 +81,7 @@ Cross-platform calls go through `fw::plat::bind_thread_to_core` in `platform.cpp
 
 ## Confirmation warnings (this gate exists only in `-m all`)
 
-`confirm_warnings` aggregates non-fatal warnings before workers start; within 10 s press `y` to continue, otherwise the run is `cancelled` and exits `0`:
+`confirm_warnings` aggregates non-fatal warnings before workers start; within 10 s press `y` to continue, otherwise the run is `cancelled` and exits `1` (`-y/--yes` skips the prompt for CI/pipes):
 
 - Level-1 yellow `[!]`: `-l -1` together with `-t 0`; factor `< 1e-10`.
 - Level-2 red `[!!!]`: chain includes DPD32/DPD64/DPD128 (slow software declets); chain includes Dec128 (slow UInt256 arithmetic). These warn rather than reject.

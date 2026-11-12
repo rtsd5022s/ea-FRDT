@@ -6,7 +6,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 
 | Argument | Default | Description |
 |---|---|---|
-| `delay_ms` | single format: omitted → help (exit `2`); `-m all`: `10` | Per-step delay in milliseconds, parsed as a floating value (e.g. `0`, `0.5`, `0.01`). `0` = unlimited speed. Negative values are clamped to `0`. **This is the throttle, not the start value; the start value uses `-a`.** |
+| `delay_ms` | single format: omitted → one stderr error, exit `2` (no help-page reprint); `-m all`: `10` | Per-step delay in milliseconds, parsed as a floating value (e.g. `0`, `0.5`, `0.01`). `0` = unlimited speed. Negative values are clamped to `0`. **This is the throttle, not the start value; the start value uses `-a`.** |
 
 ## Help
 
@@ -66,7 +66,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 | `--dump-raw` / `--dump-no-header` | none | off | no value | Modifier for `--dump` (two equivalent aliases): omit the 256-byte v2 header and write a continuous raw bit stream from offset 0 (no u128 step prefix, no CRC/length/parameter fields); single format only; record width follows `--dump-packed` and byte order follows `--dump-endian`; unsupported in `-m all`, where the output file is discarded. The stream has no magic, so `dump_inspect.py` does not validate it; use a hex viewer or parse externally by record width. |
 | `--compare <file>` | none | off | file path | Read-only single-format baseline anchor: locates the last record with `"format":"<token>"` and compares the deterministic steps (decimal string) and exit reason; mismatches print `[compare] ... MISMATCH ...` on `stderr` only and the exit code is unchanged; the single-format JSON adds a `baseline_compare` object. Does not alter the run and never writes the compared file. |
 | `--dump-events <file>` | none | off | file path | Single-format JSONL event trace: first `start` line, final `exit` line (reason / steps / escaped value / elapsed_ms); opening it implies quiet; rejected in `-m all` (exit 2). Default off; the deterministic step baseline is unaffected. |
-| `--lang <zh|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | UI language. Help, errors, warnings, and summary follow. |
+| `--lang <zh\|en>` | `-lang` / `--language` | `zh` | `zh` / `en` | UI language. Help, errors, warnings, and summary follow. |
 
 ## Concurrency (-m all)
 
@@ -82,7 +82,7 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 |---|---|---|---|---|
 | `--timeout <s>` | `-t` | `0` | non-negative integer seconds | Timeout stop. `0` = run until overflow/underflow/other reason. Negative clamped to `0`. |
 | `--loop <n>` | `-l` | `1` | `-1` = infinite; `1` = single pass (default); `>1` = repeat N times; max `1000000`; `0` treated as `1`; values `< -1` rejected | Loop count. Combined with `-t 0`, `-l -1` raises a level-1 confirmation warning in `-m all` (not a hard rejection). |
-| `--steps <n>` | none | `0` | `0` or `1..1,000,000,000` non-negative integer | Fixed-step cap: stop after exactly N steps with `reason=fixed`, complementary to the wall-clock `-t`; `0` = disabled (default; natural termination unchanged); non-integers or trailing garbage exit 2. |
+| `--steps <n>` | none | `0` | `0` or `1..1,000,000,000` non-negative integer | Fixed-step cap: stop after exactly N steps; JSON reports `reason=fixed`, human text and the `TOTAL` footer print `fixed-steps`; complementary to the wall-clock `-t`; `0` = disabled (default; natural termination unchanged); non-integers or trailing garbage exit 2. Applies to all 17 formats, DPD32/64/128 included. |
 | `--self-test` | none | off | no value | Before any stress run, executes pure-logic checks (CRC-32/IEEE known vectors, DPD `encode3/decode3` 0..999 round-trip, BID codec bit-width and sign/exponent metadata, hex parsing, control-character sanitization), prints `CHECKS=n FAILS=n`, then exits without stressing. |
 | `--pin <core>` | none | off | `0..logical-cores-1` | Single format only: bind this thread to one logical core; rejected in `-m all` (exit 2); an RAII guard restores full affinity on exit; degrades to a no-op where affinity is unavailable. Default: unpinned. |
 | `--boost` | none | off | no value | Single format only: raise this thread's scheduling priority; rejected in `-m all` (exit 2); restored to normal priority on exit; no-op where the platform lacks a priority API. Default: not boosted. |
@@ -96,17 +96,19 @@ This document lists every command-line parameter of `ea-FRDT`, its default value
 
 | Code | Meaning |
 |---|---|
-| `0` | Normal end, or cancelled by confirmation (`cancelled`), or SIGINT (`sigint`) |
-| `2` | Argument error (parse failure, mutual-exclusion conflict, out-of-range, unknown format/flag) |
+| `0` | Normal end (any driver reason) or SIGINT (`sigint`) |
+| `1` | Slow-format confirmation declined or timed out after 10 s (`cancelled`), no result produced |
+| `2` | Argument error (parse failure, mutual-exclusion conflict, out-of-range, unknown format/flag; missing positional `delay_ms` included) |
 
 ## Safety guards and warnings
 
 Hard exits (`2`) on stderr for invalid input only:
 
 - Unknown format/flag, unparseable start or factor, `0`/negative/non-finite factor, special starts conflicting (`-a` vs `-s`, two named/numeric starts), out-of-range `--digits`, `--loop` `< -1` or `> 1000000`.
+- Missing positional `delay_ms`: one stderr line, exit `2`, no help-page reprint; a rejected run never emits a JSON record (stdout stays empty under `--json`).
 - Malformed `0x` raw pattern; hex accepts at most 32 characters (covers 128-bit floats).
 
-Non-fatal warnings gathered and confirmed in `-m all` (level-1 yellow `[!]`, level-2 red `[!!!]`; press `y` within 10 s or auto-cancel as `cancelled`):
+Non-fatal warnings (`-m all` gathers and confirms them: level-1 yellow `[!]`, level-2 red `[!!!]`, press `y` within 10 s or auto-cancel as `cancelled`; single-format runs print the same warnings straight to stderr without an interactive gate):
 
 - `-l -1` together with `-t 0`: level-1 yellow warning (may peg CPU at 100%).
 - `-k < 1e-10`: level-1 yellow warning (walk may need very many steps).
