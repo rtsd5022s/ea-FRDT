@@ -231,7 +231,7 @@ static void print_help() {
         os << "  " << cmd;
         std::string c = tr(cn, en);
         if (!c.empty()) {
-            int gap = 44 - cui::w(cmd);
+            int gap = 46 - cui::w(cmd);
             if (gap < 2) gap = 2;
             os << std::string((std::size_t)gap, ' ') << c;
         }
@@ -308,8 +308,8 @@ static void print_help() {
         tr("静默：不打印实时监视器，直接出汇总表",
            "quiet: no live monitor, print the summary directly"));
     opt("--json",
-        tr("机器可读 JSON，输出不含 ANSI 转义",
-           "machine-readable JSON, no ANSI escapes"));
+        tr("机器可读 JSON（无 ANSI，供评测脚本采集）",
+           "machine-readable JSON (no ANSI, for benchmark scripts)"));
     opt("--dump <file>",
         tr("把每步原始字节二进制序列化到文件",
            "binary-serialize every step's raw bytes to a file"));
@@ -321,8 +321,8 @@ static void print_help() {
            "request tight records; set only when width shrinks\n"
            "(e.g. tf32 3B < 4B; whole-word formats never shrink)"));
     opt("--dump-raw",
-        tr("省略 256 字节头，从偏移 0 起写连续原始位流",
-           "omit the 256-byte header; raw bit stream from offset 0"));
+        tr("省略 256 字节头，从偏移 0 直接写连续原始位流（仅单格式）",
+           "omit the 256-byte header; continuous raw stream from offset 0\n(single format only)"));
     opt("--dump-no-header",
         tr("同 --dump-raw，别名写法", "same as --dump-raw, alias spelling"));
     opt("-lang <zh|en>",
@@ -371,10 +371,10 @@ static void print_help() {
         "Advanced opt-in (default off; single format unless noted):");
     opt("--pin <core>",
         tr("单格式可选：绑本线程到指定逻辑核（默认关）",
-           "bind this thread to one logical core (default off)"));
+           "single-format opt-in: bind this thread to one core\n(default off)"));
     opt("--boost",
         tr("单格式可选：提升线程优先级（默认关；Linux 无提级即 no-op）",
-           "raise this thread's priority (default off; no-op on Linux)"));
+           "single-format opt-in: raise thread priority\n(default off; no-op on Linux)"));
     opt("--dump-events <file>",
         tr("单格式 JSONL 轨迹：start / exit 事件（默认关）",
            "single-format JSONL trace: start/exit events (default off)"));
@@ -634,17 +634,6 @@ int main(int argc, char** argv) {
     bool quiet = false;
     bool refresh_explicit = false;
     int loop_count = 1;
-
-    // `-lang` must win over `-h` whatever the argument order, otherwise the
-    // documented bilingual help can only be reached by typing -lang first.
-    for (int i = 1; i + 1 < argc; ++i) {
-        std::string a = argv[i];
-        if (a == "-lang" || a == "--lang" || a == "--language") {
-            std::string l = argv[i + 1];
-            g_lang = (l == "en" || l == "EN") ? Lang::EN : Lang::ZH;
-            break;
-        }
-    }
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
