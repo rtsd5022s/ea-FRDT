@@ -5,6 +5,7 @@
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "engine_dpd_codec.h"
+#include "engine_emit.h"
 
 namespace fw {
 
@@ -352,23 +353,9 @@ inline void run_dpd(const DpdFmt& fmt, double delay_ms, StartKind kind, StepMode
 
         // binary dump: write packed DPD bit pattern as bytes
         if (g_dump_file) {
-            std::string hex = dpd_pack_bits(cur, fmt);
-            int bw = (int)hex.size() / 2;
             char buf[16] = {0};
-            for (int i = 0; i < bw; ++i) {
-                auto hexval = [](char c) -> int {
-                    if (c >= '0' && c <= '9') return c - '0';
-                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-                    return 0;
-                };
-                buf[i] = (char)((hexval(hex[2*i]) << 4) | hexval(hex[2*i+1]));
-            }
-            if (g_dump_endian == 0) {
-                for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
-            }
-            std::fwrite(buf, 1, bw, g_dump_file);
-            g_dump_bytes_written += bw;
+            int bw = hex_into_record(dpd_pack_bits(cur, fmt), buf, 16);
+            dump_record(buf, bw);
         }
 
         // timeout

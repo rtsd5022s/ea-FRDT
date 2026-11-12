@@ -5,6 +5,7 @@
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "common.h"
+#include "engine_emit.h"
 
 namespace fw {
 
@@ -121,11 +122,13 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
              RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     SVal start;
     const char* start_tag;
-    if (kind == StartKind::Subnormal) { start = SVal{false, emin(f), 1, false}; start_tag = "min-subnormal"; }
-    else if (kind == StartKind::MinNormal) { start = SVal{false, emin(f), 1, false}; start_tag = "min"; }
-    else if (kind == StartKind::MaxFinite) { start = SVal{false, emax(f), (1ULL << (f.M + 1)) - 1, false}; start_tag = "max-finite"; }
-    else if (!std::isnan(start_val)) { start = encode(start_val, f); start_tag = "custom"; }
-    else { start = encode(1.0, f); start_tag = "1.0"; }
+    switch (pick_start(kind, start_val)) {
+        case StartPick::Subnormal: start = SVal{false, emin(f), 1, false}; start_tag = "min-subnormal"; break;
+        case StartPick::MinNormal: start = SVal{false, emin(f), 1, false}; start_tag = "min"; break;
+        case StartPick::MaxFinite: start = SVal{false, emax(f), (1ULL << (f.M + 1)) - 1, false}; start_tag = "max-finite"; break;
+        case StartPick::Custom: start = encode(start_val, f); start_tag = "custom"; break;
+        default: start = encode(1.0, f); start_tag = "1.0"; break;
+    }
     if (!quiet) std::cout << cui::walk_header(f.name, start_tag, step_factor_str(sm, factor), delay_ms);
     const bool want_bits = showbits != ShowBits::OFF && !quiet;
     auto sim_extra = [&, want_bits](const SVal& v) -> std::string {
@@ -166,22 +169,10 @@ inline void run_sim(const Fmt& f, double delay_ms, StartKind kind, StepMode sm, 
         for (int i = f.E - 1; i >= 0; --i) b += ((eb >> i) & 1) ? '1' : '0';
         std::uint64_t m = v.man & ((1ULL << f.M) - 1);
         for (int i = f.M - 1; i >= 0; --i) b += ((m >> i) & 1) ? '1' : '0';
-        char buf[4] = {0};
-        for (int i = 0; i < rec_bytes; ++i) {
-            int bits = 0;
-            for (int j = 0; j < 8; ++j) {
-                int idx = i*8 + j;
-                if (idx < (int)b.size()) bits = (bits << 1) | (b[idx] == '1' ? 1 : 0);
-                else bits <<= 1;
-            }
-            buf[i] = (char)bits;
-        }
-        if (g_dump_endian == 0) {
-            for (int i = 0; i < rec_bytes/2; ++i) std::swap(buf[i], buf[rec_bytes-1-i]);
-        }
+        char buf[16] = {0};
+        bits_into_record(b, buf, rec_bytes);
         g_dump_record_size = rec_bytes;  // authoritative width only when records are actually written
-        std::fwrite(buf, 1, rec_bytes, g_dump_file);
-        g_dump_bytes_written += rec_bytes;
+        dump_record(buf, rec_bytes);
     };
     drive(start,
           [&](SVal v) -> SVal {

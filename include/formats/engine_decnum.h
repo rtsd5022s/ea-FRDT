@@ -6,6 +6,7 @@
 #endif
 #include "engine_bid_codec.h"
 #include "../uint256.h"
+#include "engine_emit.h"
 
 namespace fw {
 
@@ -136,51 +137,35 @@ inline void run_dec(const DecFmt& fmt, double delay_ms, StartKind kind, StepMode
              RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     DecNum start;
     const char* tag;
-    if (kind == StartKind::MinNormal) { start = DecNum{false, 1, -(fmt.emax - 1), false}; tag = "min-normalized"; }
-    else if (kind == StartKind::MaxFinite) {
-        start = DecNum{false, dec_pow10(fmt.sig) - 1, fmt.emax - (fmt.sig - 1), false};
-        tag = "max-finite";
+    switch (pick_start(kind, start_val)) {
+        case StartPick::MinNormal: start = DecNum{false, 1, -(fmt.emax - 1), false}; tag = "min-normalized"; break;
+        case StartPick::MaxFinite:
+            start = DecNum{false, dec_pow10(fmt.sig) - 1, fmt.emax - (fmt.sig - 1), false};
+            tag = "max-finite";
+            break;
+        case StartPick::Custom: start = dec_from_double(start_val, fmt.sig); tag = "custom"; break;
+        default: start = dec_from_double(1.0, fmt.sig); tag = "1.0"; break;  // includes -a subnormal
     }
-    else if (!std::isnan(start_val)) { start = dec_from_double(start_val, fmt.sig); tag = "custom"; }
-    else { start = dec_from_double(1.0, fmt.sig); tag = "1.0"; }
     DecNum fac = dec_from_double(factor, fmt.sig);
-    if (!quiet) {
-        std::cout << cui::walk_header(fmt.name, tag, step_factor_str(sm, factor), delay_ms);
-        BidFmt bf = (fmt.sig <= 7) ? bid_fmt32() : bid_fmt64();
-        std::string cb = std::to_string(start.coeff);
-        std::string bits = bid_encode(BidEnc::BID, start.neg ? 1 : 0, start.exp10, cb, bf);
-        std::cout << cui::bid_header(cb, start.exp10, bid_bits_to_hex(bits));
-        bid_selfcheck(start.neg ? 1 : 0, start.exp10, cb, bf);
-    }
-    BidFmt dbf = (fmt.sig <= 7) ? bid_fmt32() : bid_fmt64();
+    BidFmt bf = (fmt.sig <= 7) ? bid_fmt32() : bid_fmt64();
+    if (!quiet)
+        emit_bid_walk_header(fmt.name, tag, step_factor_str(sm, factor), delay_ms,
+                             start.neg ? 1 : 0, start.exp10, std::to_string(start.coeff), bf);
     const bool want_bits = showbits != ShowBits::OFF && !quiet;
-    auto dec_extra = [showbits, dbf, want_bits](const DecNum& v) -> std::string {
+    auto dec_extra = [showbits, bf, want_bits](const DecNum& v) -> std::string {
         if (!want_bits) return {};
         std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10,
-                                      std::to_string(v.coeff), dbf);
+                                      std::to_string(v.coeff), bf);
         return showbits == ShowBits::HEX ? bid_bits_to_hex(bits)
-               : group_dec_bits(bits, dbf.exp_cont, dbf.coeff_bits);
+               : group_dec_bits(bits, bf.exp_cont, bf.coeff_bits);
     };
     // dump callback: write packed BID bit-pattern bytes (4 for dec32, 8 for dec64)
-    auto dec_dump = [dbf](const DecNum& v) {
+    auto dec_dump = [bf](const DecNum& v) {
         std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10,
-                                      std::to_string(v.coeff), dbf);
-        std::string hex = bid_bits_to_hex(bits);
-        int bw = (int)hex.size() / 2;
+                                      std::to_string(v.coeff), bf);
         char buf[8] = {0};
-        auto hexval = [](char c) -> int {
-            if (c >= '0' && c <= '9') return c - '0';
-            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-            return 0;
-        };
-        for (int i = 0; i < bw; ++i)
-            buf[i] = (char)((hexval(hex[2*i]) << 4) | hexval(hex[2*i+1]));
-        if (g_dump_endian == 0) {
-            for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
-        }
-        std::fwrite(buf, 1, bw, g_dump_file);
-        g_dump_bytes_written += bw;
+        int bw = hex_into_record(bid_bits_to_hex(bits), buf, 8);
+        dump_record(buf, bw);
     };
     drive_core(start,
           [&](DecNum v) -> DecNum {

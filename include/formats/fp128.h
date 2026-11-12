@@ -4,6 +4,7 @@
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "common.h"
+#include "engine_emit.h"
 
 namespace fw {
 
@@ -140,13 +141,16 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
                    RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     Q128 start;
     std::string tag;
-    if (kind == StartKind::MinNormal || kind == StartKind::Subnormal) {
-        start = Q128{false, Q128_EMIN, 1ULL << 63, 0, false};
-        tag = (kind == StartKind::Subnormal) ? tr("min-subnormal(无denormal,取min-normal)", "min-subnormal(no denormal, use min-normal)") : "min-normalized";
-    } else if (kind == StartKind::MaxFinite) {
-        start = Q128{false, Q128_EMAX, ~0ULL, ~0ULL, false}; tag = "max-finite";
-    } else if (!std::isnan(start_val)) { start = q128_encode(start_val); tag = "custom"; }
-    else { start = q128_encode(1.0); tag = "1.0"; }
+    switch (pick_start(kind, start_val)) {
+        case StartPick::MinNormal: start = Q128{false, Q128_EMIN, 1ULL << 63, 0, false}; tag = "min-normalized"; break;
+        case StartPick::Subnormal:
+            start = Q128{false, Q128_EMIN, 1ULL << 63, 0, false};
+            tag = tr("min-subnormal(无denormal,取min-normal)", "min-subnormal(no denormal, use min-normal)");
+            break;
+        case StartPick::MaxFinite: start = Q128{false, Q128_EMAX, ~0ULL, ~0ULL, false}; tag = "max-finite"; break;
+        case StartPick::Custom: start = q128_encode(start_val); tag = "custom"; break;
+        default: start = q128_encode(1.0); tag = "1.0"; break;
+    }
     Q128 fac = q128_encode(factor);
     if (!quiet) std::cout << cui::walk_header(
         tr("FP128(binary128,纯软件112位)", "FP128(binary128,software 112-bit)"),
@@ -159,21 +163,9 @@ inline void run_q128_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt 
     };
     // dump callback: fp128 128-bit = 16 bytes
     auto q128_dump = [](const Q128& v) {
-        std::string b = q128_bits(v);
-        char buf[16] = {0};
-        for (int i = 0; i < 16; ++i) {
-            int bits = 0;
-            for (int j = 0; j < 8; ++j) {
-                int idx = i*8 + j;
-                bits = (bits << 1) | (idx < (int)b.size() && b[idx] == '1' ? 1 : 0);
-            }
-            buf[i] = (char)bits;
-        }
-        if (g_dump_endian == 0) {
-            for (int i = 0; i < 8; ++i) std::swap(buf[i], buf[15-i]);
-        }
-        std::fwrite(buf, 1, 16, g_dump_file);
-        g_dump_bytes_written += 16;
+        char buf[16];
+        bits_into_record(q128_bits(v), buf, 16);
+        dump_record(buf, 16);
     };
     drive_core(start,
           [&](Q128 v) -> Q128 {

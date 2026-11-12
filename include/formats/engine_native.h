@@ -5,6 +5,7 @@
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "common.h"
+#include "engine_emit.h"
 
 namespace fw {
 
@@ -36,18 +37,20 @@ void run_native(const char* tag, double delay_ms, StartKind kind, StepMode sm, D
                 RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     T one;
     const char* start_tag;
-    if (kind == StartKind::Subnormal) { one = std::numeric_limits<T>::denorm_min(); start_tag = "min-subnormal"; }
-    else if (kind == StartKind::MinNormal) {
+    switch (pick_start(kind, start_val)) {
+        case StartPick::Subnormal: one = std::numeric_limits<T>::denorm_min(); start_tag = "min-subnormal"; break;
+        case StartPick::MinNormal:
         // IEEE minimum *normalized* positive value (not denorm_min); aligned with the decimal engine.
         // Use the exact binary16 normal minimum (2^-14) for _Float16, since the toolchain's
         // numeric_limits<_Float16>::min() can be incomplete/degenerate.
         if constexpr (sizeof(T) == 2) one = (T)6.103515625e-5;  // 2^-14, binary16 min normal
         else one = std::numeric_limits<T>::min();
-        start_tag = "min-normal";
+            start_tag = "min-normal";
+            break;
+        case StartPick::MaxFinite: one = std::numeric_limits<T>::max(); start_tag = "max-finite"; break;
+        case StartPick::Custom: one = (T)start_val; start_tag = "custom"; break;
+        default: one = T(1); start_tag = "1.0"; break;
     }
-    else if (kind == StartKind::MaxFinite) { one = std::numeric_limits<T>::max(); start_tag = "max-finite"; }
-    else if (!std::isnan(start_val)) { one = (T)start_val; start_tag = "custom"; }
-    else { one = T(1); start_tag = "1.0"; }
     T fac = (T)factor;
     if (!quiet) std::cout << cui::walk_header(tag, start_tag, step_factor_str(sm, factor), delay_ms);
     const bool want_bits = showbits != ShowBits::OFF && !quiet && sizeof(T) <= 8;

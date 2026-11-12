@@ -149,4 +149,14 @@ inline bool bid_selfcheck(int sign, int exp10, const std::string& coeffDec, cons
     return ok;
 }
 
+// Start banner shared by dec32/dec64/dec128: walk header + BID line + round-trip self-check.
+inline void emit_bid_walk_header(std::string_view name, const char* tag, std::string_view step_desc,
+                                 double delay_ms, int neg, int exp10, std::string_view coeff,
+                                 const BidFmt& bf) {
+    std::cout << cui::walk_header(name, tag, step_desc, delay_ms);
+    std::string bits = bid_encode(BidEnc::BID, neg, exp10, std::string(coeff), bf);
+    std::cout << cui::bid_header(coeff, exp10, bid_bits_to_hex(bits));
+    bid_selfcheck(neg, exp10, std::string(coeff), bf);
+}
+
 } // namespace fw

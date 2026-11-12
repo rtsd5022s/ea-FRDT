@@ -137,21 +137,19 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                 RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     BigDec start;
     const char* tag;
-    if (kind == StartKind::MinNormal) { start = BigDec{false, "1", -(DEC128_EMAX - 1), false}; tag = "min-normalized"; }
-    else if (kind == StartKind::MaxFinite) {
-        start = BigDec{false, std::string(DEC128_SIG, '9'), DEC128_EMAX - (DEC128_SIG - 1), false};
-        tag = "max-finite";
+    switch (pick_start(kind, start_val)) {
+        case StartPick::MinNormal: start = BigDec{false, "1", -(DEC128_EMAX - 1), false}; tag = "min-normalized"; break;
+        case StartPick::MaxFinite:
+            start = BigDec{false, std::string(DEC128_SIG, '9'), DEC128_EMAX - (DEC128_SIG - 1), false};
+            tag = "max-finite";
+            break;
+        case StartPick::Custom: start = big_from_double(start_val, DEC128_SIG); tag = "custom"; break;
+        default: start = big_from_double(1.0, DEC128_SIG); tag = "1.0"; break;  // includes -a subnormal
     }
-    else if (!std::isnan(start_val)) { start = big_from_double(start_val, DEC128_SIG); tag = "custom"; }
-    else { start = big_from_double(1.0, DEC128_SIG); tag = "1.0"; }
     BigDec fac = big_from_double(factor, DEC128_SIG);
-    if (!quiet) {
-        std::cout << cui::walk_header("Decimal128", tag, step_factor_str(sm, factor), delay_ms);
-        BidFmt bf = bid_fmt128();
-        std::string bits = bid_encode(BidEnc::BID, start.neg ? 1 : 0, start.exp10, start.coeff, bf);
-        std::cout << cui::bid_header(start.coeff, start.exp10, bid_bits_to_hex(bits));
-        bid_selfcheck(start.neg ? 1 : 0, start.exp10, start.coeff, bf);
-    }
+    if (!quiet)
+        emit_bid_walk_header("Decimal128", tag, step_factor_str(sm, factor), delay_ms,
+                             start.neg ? 1 : 0, start.exp10, start.coeff, bid_fmt128());
     const bool want_bits = showbits != ShowBits::OFF && !quiet;
     auto big_extra = [showbits, want_bits](const BigDec& v) -> std::string {
         if (!want_bits) return {};
@@ -162,24 +160,10 @@ inline void run_dec128(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
     };
     // dump callback: write packed BID128 bit-pattern (16 bytes)
     auto big_dump = [](const BigDec& v) {
-        BidFmt bf = bid_fmt128();
-        std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10, v.coeff, bf);
-        std::string hex = bid_bits_to_hex(bits);
-        int bw = (int)hex.size() / 2;
+        std::string bits = bid_encode(BidEnc::BID, v.neg ? 1 : 0, v.exp10, v.coeff, bid_fmt128());
         char buf[16] = {0};
-        auto hexval = [](char c) -> int {
-            if (c >= '0' && c <= '9') return c - '0';
-            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-            return 0;
-        };
-        for (int i = 0; i < bw; ++i)
-            buf[i] = (char)((hexval(hex[2*i]) << 4) | hexval(hex[2*i+1]));
-        if (g_dump_endian == 0) {
-            for (int i = 0; i < bw/2; ++i) std::swap(buf[i], buf[bw-1-i]);
-        }
-        std::fwrite(buf, 1, bw, g_dump_file);
-        g_dump_bytes_written += bw;
+        int bw = hex_into_record(bid_bits_to_hex(bits), buf, 16);
+        dump_record(buf, bw);
     };
     drive_core(start,
           [&](BigDec v) -> BigDec {

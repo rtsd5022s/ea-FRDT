@@ -4,6 +4,7 @@
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
 #include "common.h"
+#include "engine_emit.h"
 
 namespace fw {
 
@@ -105,13 +106,16 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
                   RunResult* quiet = nullptr, std::int64_t refresh_ms = 0) {
     X87 start;
     std::string tag;
-    if (kind == StartKind::MinNormal || kind == StartKind::Subnormal) {
-        start = X87{false, X87_EMIN, 1ULL << 63, false};
-        tag = (kind == StartKind::Subnormal) ? tr("min-subnormal(无denormal,取min-normal)", "min-subnormal(no denormal, use min-normal)") : "min-normalized";
-    } else if (kind == StartKind::MaxFinite) {
-        start = X87{false, X87_EMAX, ~0ULL, false}; tag = "max-finite";
-    } else if (!std::isnan(start_val)) { start = x87_encode(start_val); tag = "custom"; }
-    else { start = x87_encode(1.0); tag = "1.0"; }
+    switch (pick_start(kind, start_val)) {
+        case StartPick::MinNormal: start = X87{false, X87_EMIN, 1ULL << 63, false}; tag = "min-normalized"; break;
+        case StartPick::Subnormal:
+            start = X87{false, X87_EMIN, 1ULL << 63, false};
+            tag = tr("min-subnormal(无denormal,取min-normal)", "min-subnormal(no denormal, use min-normal)");
+            break;
+        case StartPick::MaxFinite: start = X87{false, X87_EMAX, ~0ULL, false}; tag = "max-finite"; break;
+        case StartPick::Custom: start = x87_encode(start_val); tag = "custom"; break;
+        default: start = x87_encode(1.0); tag = "1.0"; break;
+    }
     X87 fac = x87_encode(factor);
     if (!quiet) std::cout << cui::walk_header(
         tr("x87(80位,纯软件)", "x87(80-bit,software)"),
@@ -128,24 +132,11 @@ inline void run_x87_soft(double delay_ms, StartKind kind, StepMode sm, DispFmt d
     // BE: lower 6 bytes zero, valid bytes in high half (big-endian order);
     // BE record == reverse(LE record), preserving the global byte-reversal invariant.
     auto x87_dump = [](const X87& v) {
-        std::string b = x87_bits(v);
         char c[10] = {0};
-        for (int i = 0; i < 10; ++i) {
-            int bits = 0;
-            for (int j = 0; j < 8; ++j) {
-                int idx = i*8 + j;
-                bits = (bits << 1) | (idx < (int)b.size() && b[idx] == '1' ? 1 : 0);
-            }
-            c[i] = (char)bits;
-        }
+        bits_into_record(x87_bits(v), c, 10);
         char buf[16] = {0};
-        if (g_dump_endian == 1) {                 // BE: low 6 zero, high 10 = MSB-first valid bytes
-            for (int i = 0; i < 10; ++i) buf[6 + i] = c[i];
-        } else {                                  // LE: low 10 = little-endian valid bytes, high 6 zero
-            for (int i = 0; i < 10; ++i) buf[i] = c[9 - i];
-        }
-        std::fwrite(buf, 1, 16, g_dump_file);
-        g_dump_bytes_written += 16;
+        for (int i = 0; i < 10; ++i) buf[6 + i] = c[i];  // BE layout: low 6 zero, high 10 valid bytes
+        dump_record(buf, 16);                            // LE records are its byte-reverse
     };
     drive_core(start,
           [&](X87 v) -> X87 {
