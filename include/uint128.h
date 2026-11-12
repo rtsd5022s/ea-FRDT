@@ -7,6 +7,7 @@
 #if defined(_WIN32) && !defined(__MINGW32__)
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
+#include <compare>
 #include <cstdint>
 #include <string>
 
@@ -99,32 +100,32 @@ struct UInt128 {
     }
 
     // ---- comparison ----
-    bool is_zero() const { return (w[0]|w[1]) == 0; }
+    [[nodiscard]] constexpr bool is_zero() const { return (w[0]|w[1]) == 0; }
 
-    int cmp(const UInt128& o) const {
+    [[nodiscard]] constexpr int cmp(const UInt128& o) const {
         if (w[1] != o.w[1]) return w[1] < o.w[1] ? -1 : +1;
         if (w[0] != o.w[0]) return w[0] < o.w[0] ? -1 : +1;
         return 0;
     }
-    bool eq(const UInt128& o) const { return cmp(o) == 0; }
-    bool lt(const UInt128& o) const { return cmp(o) < 0; }
-    bool gt(const UInt128& o) const { return cmp(o) > 0; }
-    bool le(const UInt128& o) const { return cmp(o) <= 0; }
-    bool ge(const UInt128& o) const { return cmp(o) >= 0; }
+    [[nodiscard]] constexpr bool eq(const UInt128& o) const { return cmp(o) == 0; }
+    [[nodiscard]] constexpr bool lt(const UInt128& o) const { return cmp(o) < 0; }
+    [[nodiscard]] constexpr bool gt(const UInt128& o) const { return cmp(o) > 0; }
+    [[nodiscard]] constexpr bool le(const UInt128& o) const { return cmp(o) <= 0; }
+    [[nodiscard]] constexpr bool ge(const UInt128& o) const { return cmp(o) >= 0; }
 
-    bool ge(std::uint64_t v) const {
+    [[nodiscard]] constexpr bool ge(std::uint64_t v) const {
         if (w[1]) return true;
         return w[0] >= v;
     }
 
     // ---- bit utilities ----
-    int bit_length() const {
+    [[nodiscard]] int bit_length() const {
         if (w[1]) return 64 + (64 - __builtin_clzll(w[1]));
         if (w[0]) return 64 - __builtin_clzll(w[0]);
         return 0;
     }
 
-    UInt128 shr(int n) const {
+    [[nodiscard]] UInt128 shr(int n) const {
         UInt128 r;
         if (n <= 0) return *this;
         if (n >= 128) return r;
@@ -136,7 +137,7 @@ struct UInt128 {
         return r;
     }
 
-    UInt128 shl(int n) const {
+    [[nodiscard]] UInt128 shl(int n) const {
         UInt128 r;
         if (n <= 0) return *this;
         if (n >= 128) return r;
@@ -149,7 +150,7 @@ struct UInt128 {
     }
 
     // ---- string ----
-    std::string to_string() const {
+    [[nodiscard]] std::string to_string() const {
         if (is_zero()) return "0";
         UInt128 t = *this;
         char buf[45];
@@ -162,7 +163,7 @@ struct UInt128 {
         return std::string(&buf[pos]);
     }
 
-    std::string to_hex_string() const {
+    [[nodiscard]] std::string to_hex_string() const {
         static const char* h = "0123456789abcdef";
         char buf[33];
         buf[32] = '\0';
@@ -179,7 +180,7 @@ struct UInt128 {
         return std::string(&buf[s]);
     }
 
-    static UInt128 from_dec_string(const char* s) {
+    [[nodiscard]] static UInt128 from_dec_string(const char* s) {
         UInt128 r;
         for (; *s; ++s) {
             if (*s < '0' || *s > '9') break;
@@ -189,15 +190,15 @@ struct UInt128 {
         return r;
     }
 
-    std::uint64_t to_lo() const { return w[0]; }
+    [[nodiscard]] constexpr std::uint64_t to_lo() const { return w[0]; }
 };
 
-inline bool operator==(const UInt128& a, const UInt128& b) { return a.eq(b); }
-inline bool operator!=(const UInt128& a, const UInt128& b) { return !a.eq(b); }
-inline bool operator< (const UInt128& a, const UInt128& b) { return a.lt(b); }
-inline bool operator> (const UInt128& a, const UInt128& b) { return a.gt(b); }
-inline bool operator<=(const UInt128& a, const UInt128& b) { return a.le(b); }
-inline bool operator>=(const UInt128& a, const UInt128& b) { return a.ge(b); }
+// C++20 three-way compare: <, >, <=, >= and != are rewritten from this; == stays
+// explicit because <=> alone does not synthesise it for a non-defaulted class.
+inline std::strong_ordering operator<=>(const UInt128& a, const UInt128& b) noexcept {
+    return a.cmp(b) <=> 0;
+}
+inline bool operator==(const UInt128& a, const UInt128& b) noexcept { return a.eq(b); }
 
 inline UInt128 operator+(const UInt128& a, const UInt128& b) {
     UInt128 r;

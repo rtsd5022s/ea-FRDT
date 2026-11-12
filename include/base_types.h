@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <cstring>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -19,9 +19,10 @@ enum class ShowBits { OFF, HEX, BIN };
 
 using u128 = unsigned __int128;
 
-inline std::string to_string_u128(u128 v) {
+[[nodiscard]] inline std::string to_string_u128(u128 v) {
     if (v == 0) return "0";
     std::string out;
+    out.reserve(39);  // 2^128-1 has 39 decimal digits
     while (v > 0) { out += (char)('0' + (int)(v % 10)); v /= 10; }
     std::reverse(out.begin(), out.end());
     return out;
@@ -48,7 +49,6 @@ inline int g_json_step_mode = 0;
 inline int g_json_digits = 6;
 inline double g_json_delay_ms = 0;
 inline int g_json_loop = 1;
-#include <cstdio>
 inline std::string g_compare_path;   // --compare <baseline.json>: deterministic steps/reason anchor (A1)
 inline std::string g_compare_key;     // format token used to locate the anchor record
 inline u128 g_fixed_steps = 0;        // --steps N: stop after exactly N steps (0=disabled, natural termination)

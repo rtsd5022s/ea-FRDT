@@ -7,7 +7,10 @@
 #include "cui.h"
 #include "formats/formats_all.h"
 #include "platform.h"
+#include <array>
+#include <cctype>
 #include <ctime>
+#include <string_view>
 #ifdef _WIN32
 #include <conio.h>
 #endif
@@ -16,36 +19,46 @@ namespace fw {
 
 // All terminal presentation lives in cui.h (width, rules, tables, formatters).
 
-inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
+// Comma list -> trimmed tokens. Empty pieces are dropped, so "a,,b" and " a , b "
+// read the same as "a,b"; --jobs and the -m all chain both parse through this.
+[[nodiscard]] inline std::vector<std::string_view> csv_tokens(std::string_view spec) {
+    std::vector<std::string_view> out;
+    while (!spec.empty()) {
+        auto comma = spec.find(',');
+        std::string_view tok = (comma == std::string_view::npos)
+                             ? spec
+                             : spec.substr(0, comma);
+        spec.remove_prefix(tok.size());
+        if (!spec.empty()) spec.remove_prefix(1);  // the comma
+        auto a = tok.find_first_not_of(" \t");
+        if (a == std::string_view::npos) continue;
+        auto b = tok.find_last_not_of(" \t");
+        out.push_back(tok.substr(a, b - a + 1));
+    }
+    return out;
+}
+
+inline std::vector<int> parse_jobs(std::string_view spec, int hw) {
     std::vector<int> out;
     if (spec.empty()) {
         int n = hw < 1 ? 1 : hw;
         for (int v = 0; v < n; ++v) out.push_back(v);
         return out;
     }
-    std::string rest = spec;
-    while (!rest.empty()) {
-        std::string tok;
-        auto c = rest.find(',');
-        if (c == std::string::npos) { tok = rest; rest.clear(); }
-        else { tok = rest.substr(0, c); rest = rest.substr(c + 1); }
-        size_t a = tok.find_first_not_of(" \t");
-        size_t b = tok.find_last_not_of(" \t");
-        if (a == std::string::npos) continue;
-        tok = tok.substr(a, b - a + 1);
+    for (std::string_view tok : csv_tokens(spec)) {
         auto dash = tok.find('-');
         try {
-            if (dash != std::string::npos) {
-                int lo = std::stoi(tok.substr(0, dash));
-                int hi = std::stoi(tok.substr(dash + 1));
+            if (dash != std::string_view::npos) {
+                int lo = std::stoi(std::string(tok.substr(0, dash)));
+                int hi = std::stoi(std::string(tok.substr(dash + 1)));
                 if (lo > hi) std::swap(lo, hi);
                 for (int v = lo; v <= hi; ++v) out.push_back(v);
             } else {
-                out.push_back(std::stoi(tok));
+                out.push_back(std::stoi(std::string(tok)));
             }
         } catch (...) {
-            cui::err() << tr("错误：--jobs 无法解析 '", "error: --jobs cannot parse '") << sanitize(tok)
-                      << tr("'（支持单值/逗号列表/范围）\n", "' (single/comma/range)\n");
+            cui::err() << tr("错误：--jobs 无法解析 \'", "error: --jobs cannot parse \'") << sanitize(std::string(tok))
+                      << tr("\'（支持单值/逗号列表/范围）\n", "\' (single/comma/range)\n");
             std::exit(2);
         }
     }
@@ -59,54 +72,63 @@ inline std::vector<int> parse_jobs(const std::string& spec, int hw) {
     return out;
 }
 
-// Format ID (replaces std::function vector, avoids lambda capture chain)
+// ---- format registry -------------------------------------------------------
+//
+// One row per format is the only place a format's display name, its CLI spellings
+// and its engine entry point are declared; fmt_name / fmt_canon / run_format all
+// read this table instead of three hand-kept switches that could drift apart.
+// FmtId order is load-bearing: the default -m all chain walks 0..COUNT and skips
+// DPD/Dec128, and worker tables print in this order.
 enum class FmtId : int {
     FP4=0, FP6, FP8E4M3, FP8E5M2, FP16, BF16, TF32, FP32,
     Dec32, DPD32, FP64, Dec64, DPD64, X87, FP128, Dec128, DPD128,
     COUNT
 };
-inline const char* fmt_name(FmtId id) {
-    switch (id) {
-        case FmtId::FP4:      return "FP4";
-        case FmtId::FP6:      return "FP6";
-        case FmtId::FP8E4M3:  return "FP8(E4M3)";
-        case FmtId::FP8E5M2:  return "FP8(E5M2)";
-        case FmtId::FP16:     return "FP16";
-        case FmtId::BF16:     return "BF16";
-        case FmtId::TF32:     return "TF32";
-        case FmtId::FP32:     return "FP32";
-        case FmtId::Dec32:    return "Dec32[BID]";
-        case FmtId::FP64:     return "FP64";
-        case FmtId::Dec64:    return "Dec64[BID]";
-        case FmtId::X87:      return "x87";
-        case FmtId::FP128:    return "FP128";
-        case FmtId::Dec128:   return "Dec128[BID]";
-        case FmtId::DPD32:    return "DPD32";
-        case FmtId::DPD64:    return "DPD64";
-        case FmtId::DPD128:   return "DPD128";
-        default:              return "?";
-    }
+
+using Runner = void (*)(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
+                        double start_val, double factor, int digits,
+                        ShowBits showbits, RunResult* quiet,
+                        std::int64_t refresh_ms);
+
+struct FmtSpec {
+    FmtId            id;
+    const char*      name;          // display name, exactly as printed in tables
+    std::string_view aliases[3];    // accepted CLI spellings; empty slot = unused
+    Runner           run;           // engine entry point
+};
+
+inline constexpr std::array<FmtSpec, 17> kFormats{{
+    {FmtId::FP4,     "FP4",          {"fp4",                "",                    ""},                  run_fp4},
+    {FmtId::FP6,     "FP6",          {"fp6",                "",                    ""},                  run_fp6},
+    {FmtId::FP8E4M3, "FP8(E4M3)",    {"fp8",                "fp8-e4m3",            "e4m3"},              run_fp8_e4m3},
+    {FmtId::FP8E5M2, "FP8(E5M2)",    {"fp8-e5m2",           "e5m2",                ""},                  run_fp8_e5m2},
+    {FmtId::FP16,    "FP16",         {"f16",                "fp16",                ""},                  run_fp16},
+    {FmtId::BF16,    "BF16",         {"bf16",               "",                    ""},                  run_bf16},
+    {FmtId::TF32,    "TF32",         {"tf32",               "",                    ""},                  run_tf32},
+    {FmtId::FP32,    "FP32",         {"f32",                "fp32",                ""},                  run_fp32},
+    {FmtId::Dec32,   "Dec32[BID]",   {"dec32",              "decimal32",           ""},                  run_dec32},
+    {FmtId::DPD32,   "DPD32",        {"dpd32",              "dpd-dec32",           ""},                  run_dpd32},
+    {FmtId::FP64,    "FP64",         {"f64",                "fp64",                ""},                  run_fp64},
+    {FmtId::Dec64,   "Dec64[BID]",   {"dec64",              "decimal64",           ""},                  run_dec64},
+    {FmtId::DPD64,   "DPD64",        {"dpd64",              "dpd-dec64",           ""},                  run_dpd64},
+    {FmtId::X87,     "x87",          {"x87",                "",                    ""},                  run_x87},
+    {FmtId::FP128,   "FP128",        {"fp128",              "",                    ""},                  run_fp128},
+    {FmtId::Dec128,  "Dec128[BID]",  {"dec128",             "decimal128",          ""},                  run_dec128},
+    {FmtId::DPD128,  "DPD128",       {"dpd128",             "dpd-dec128",          ""},                  run_dpd128},
+}};
+
+[[nodiscard]] inline std::string_view fmt_name(FmtId id) noexcept {
+    for (const auto& f : kFormats) if (f.id == id) return f.name;
+    return "?";
 }
-inline FmtId fmt_canon(const std::string& in) {
+
+[[nodiscard]] inline FmtId fmt_canon(std::string_view in) noexcept {
     std::string t;
+    t.reserve(in.size());
     for (char c : in) t += (char)std::tolower((unsigned char)c);
-    if (t=="fp4") return FmtId::FP4;
-    if (t=="fp6") return FmtId::FP6;
-    if (t=="fp8"||t=="fp8-e4m3"||t=="e4m3") return FmtId::FP8E4M3;
-    if (t=="fp8-e5m2"||t=="e5m2") return FmtId::FP8E5M2;
-    if (t=="f16"||t=="fp16") return FmtId::FP16;
-    if (t=="bf16") return FmtId::BF16;
-    if (t=="tf32") return FmtId::TF32;
-    if (t=="f32"||t=="fp32") return FmtId::FP32;
-    if (t=="dec32"||t=="decimal32") return FmtId::Dec32;
-    if (t=="f64"||t=="fp64") return FmtId::FP64;
-    if (t=="dec64"||t=="decimal64") return FmtId::Dec64;
-    if (t=="x87") return FmtId::X87;
-    if (t=="fp128") return FmtId::FP128;
-    if (t=="dec128"||t=="decimal128") return FmtId::Dec128;
-    if (t=="dpd32"||t=="dpd-dec32") return FmtId::DPD32;
-    if (t=="dpd64"||t=="dpd-dec64") return FmtId::DPD64;
-    if (t=="dpd128"||t=="dpd-dec128") return FmtId::DPD128;
+    for (const auto& f : kFormats)
+        for (const auto& a : f.aliases)
+            if (!a.empty() && t == a) return f.id;
     return FmtId::COUNT;
 }
 
@@ -122,25 +144,11 @@ struct RunParams {
 };
 
 inline void run_format(FmtId id, const RunParams& p, RunResult* out) {
-    switch (id) {
-        case FmtId::FP4:      run_fp4(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP6:      run_fp6(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP8E4M3:  run_fp8_e4m3(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP8E5M2:  run_fp8_e5m2(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP16:     run_fp16(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::BF16:     run_bf16(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::TF32:     run_tf32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP32:     run_fp32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::Dec32:    run_dec32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP64:     run_fp64(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::Dec64:    run_dec64(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::X87:      run_x87(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::FP128:    run_fp128(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::Dec128:   run_dec128(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::DPD32:    run_dpd32(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::DPD64:    run_dpd64(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        case FmtId::DPD128:   run_dpd128(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits, ShowBits::OFF, out); break;
-        default: break;
+    for (const auto& f : kFormats) {
+        if (f.id != id) continue;
+        f.run(p.delay_ms, p.kind, p.sm, p.df, p.start_val, p.factor, p.digits,
+              ShowBits::OFF, out, 0);
+        return;
     }
 }
 
@@ -160,21 +168,12 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
             chain.push_back(id);
         }
     } else {
-        std::string rest = only_csv;
         std::string errs;
-        while (!rest.empty()) {
-            std::string tok;
-            auto comma = rest.find(',');
-            if (comma == std::string::npos) { tok = rest; rest.clear(); }
-            else { tok = rest.substr(0, comma); rest = rest.substr(comma + 1); }
-            size_t a = tok.find_first_not_of(" \t");
-            size_t b = tok.find_last_not_of(" \t");
-            if (a == std::string::npos) continue;
-            tok = tok.substr(a, b - a + 1);
+        for (std::string_view tok : csv_tokens(only_csv)) {
             FmtId id = fmt_canon(tok);
             if (id == FmtId::COUNT) {
                 if (!errs.empty()) errs += ", ";
-                errs += tok;
+                errs += std::string(tok);
                 continue;
             }
             chain.push_back(id);
@@ -258,7 +257,7 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
                 workers[w].done.clear();
                 for (std::size_t i = 0; i < ch.size(); ++i) {
                     workers[w].cur = RunResult{};
-                    workers[w].cur.name = fmt_name(ch[i]);
+                    workers[w].cur.name = std::string(fmt_name(ch[i]));
                     run_format(ch[i], p, &workers[w].cur);
                     workers[w].done.push_back(workers[w].cur);
                     workers[w].total_steps += workers[w].cur.steps;

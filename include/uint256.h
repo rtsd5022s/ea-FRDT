@@ -11,6 +11,7 @@
 #if defined(_WIN32) && !defined(__MINGW32__)
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
+#include <compare>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -144,33 +145,33 @@ struct UInt256 {
     }
 
     // ---- comparison ----
-    bool is_zero() const { return (w[0]|w[1]|w[2]|w[3]) == 0; }
+    [[nodiscard]] constexpr bool is_zero() const { return (w[0]|w[1]|w[2]|w[3]) == 0; }
 
-    int cmp(const UInt256& o) const {
+    [[nodiscard]] constexpr int cmp(const UInt256& o) const {
         for (int i = 3; i >= 0; --i)
             if (w[i] != o.w[i]) return w[i] < o.w[i] ? -1 : +1;
         return 0;
     }
-    bool eq(const UInt256& o) const { return cmp(o) == 0; }
-    bool lt(const UInt256& o) const { return cmp(o) < 0; }
-    bool gt(const UInt256& o) const { return cmp(o) > 0; }
-    bool le(const UInt256& o) const { return cmp(o) <= 0; }
-    bool ge(const UInt256& o) const { return cmp(o) >= 0; }
+    [[nodiscard]] constexpr bool eq(const UInt256& o) const { return cmp(o) == 0; }
+    [[nodiscard]] constexpr bool lt(const UInt256& o) const { return cmp(o) < 0; }
+    [[nodiscard]] constexpr bool gt(const UInt256& o) const { return cmp(o) > 0; }
+    [[nodiscard]] constexpr bool le(const UInt256& o) const { return cmp(o) <= 0; }
+    [[nodiscard]] constexpr bool ge(const UInt256& o) const { return cmp(o) >= 0; }
 
-    bool ge(std::uint64_t v) const {
+    [[nodiscard]] constexpr bool ge(std::uint64_t v) const {
         if (w[3]||w[2]||w[1]) return true;
         return w[0] >= v;
     }
 
     // ---- bit utilities ----
-    int bit_length() const {
+    [[nodiscard]] int bit_length() const {
         for (int i = 3; i >= 0; --i)
             if (w[i]) return i*64 + (63 - __builtin_clzll(w[i])) + 1;
         return 0;
     }
 
     // Logical right shift by n bits (n < 256).
-    UInt256 shr(int n) const {
+    [[nodiscard]] UInt256 shr(int n) const {
         UInt256 r;
         if (n <= 0) return *this;
         if (n >= 256) return r;
@@ -183,7 +184,7 @@ struct UInt256 {
     }
 
     // Logical left shift by n bits (n < 256).
-    UInt256 shl(int n) const {
+    [[nodiscard]] UInt256 shl(int n) const {
         UInt256 r;
         if (n <= 0) return *this;
         if (n >= 256) return r;
@@ -196,7 +197,7 @@ struct UInt256 {
     }
 
     // ---- string output ----
-    std::string to_string() const {
+    [[nodiscard]] std::string to_string() const {
         if (is_zero()) return "0";
         UInt256 t = *this;
         char buf[80]; // 256 bits ~ 78 decimal digits max
@@ -209,7 +210,7 @@ struct UInt256 {
         return std::string(&buf[pos]);
     }
 
-    std::string to_hex_string() const {
+    [[nodiscard]] std::string to_hex_string() const {
         static const char* h = "0123456789abcdef";
         char buf[65];
         buf[64] = '\0';
@@ -227,7 +228,7 @@ struct UInt256 {
     }
 
     // ---- parse ----
-    static UInt256 from_dec_string(const char* s) {
+    [[nodiscard]] static UInt256 from_dec_string(const char* s) {
         UInt256 r;
         for (; *s; ++s) {
             if (*s < '0' || *s > '9') break;
@@ -237,16 +238,16 @@ struct UInt256 {
         return r;
     }
 
-    std::uint64_t to_lo() const { return w[0]; }
+    [[nodiscard]] constexpr std::uint64_t to_lo() const { return w[0]; }
 };
 
 // ---- free-function operators for ergonomic use ----
-inline bool operator==(const UInt256& a, const UInt256& b) { return a.eq(b); }
-inline bool operator!=(const UInt256& a, const UInt256& b) { return !a.eq(b); }
-inline bool operator< (const UInt256& a, const UInt256& b) { return a.lt(b); }
-inline bool operator> (const UInt256& a, const UInt256& b) { return a.gt(b); }
-inline bool operator<=(const UInt256& a, const UInt256& b) { return a.le(b); }
-inline bool operator>=(const UInt256& a, const UInt256& b) { return a.ge(b); }
+// C++20 three-way compare: <, >, <=, >= and != are rewritten from this; == stays
+// explicit because <=> alone does not synthesise it for a non-defaulted class.
+inline std::strong_ordering operator<=>(const UInt256& a, const UInt256& b) noexcept {
+    return a.cmp(b) <=> 0;
+}
+inline bool operator==(const UInt256& a, const UInt256& b) noexcept { return a.eq(b); }
 
 inline UInt256 operator+(const UInt256& a, const UInt256& b) {
     UInt256 r;
