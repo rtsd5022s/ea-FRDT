@@ -217,13 +217,12 @@ Outer control messages (not enum reasons): `cancelled` (DPD/dec128 confirmation 
 include/
   base_types.h common.h lang.h color.h format_util.*
   drive.h runner.h platform.h uint128.h uint256.h
-  dpd128.h                early minimal DPD encoder header; no longer referenced by the v2 writer (kept); DPD128 engine in formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
     engine_dpd_codec.h engine_dpd.h
-    fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
-    dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   (17 format headers)
+    builtin_formats.h   14 format bindings (Fmt / DecFmt constants + run_* shims)
+    dec128.h x87.h fp128.h   the three self-contained formats
 src/
   float_inf_walk.cpp (main, argv, dispatch, schema v2 dump header: header+payload dual CRC-32, explicit length/geometry)
   drive.cpp lang.cpp format_util.cpp platform.cpp

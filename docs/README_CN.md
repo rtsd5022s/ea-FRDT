@@ -204,13 +204,12 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 include/
   base_types.h common.h lang.h color.h format_util.*
   drive.h runner.h platform.h uint128.h uint256.h
-  dpd128.h                早期极简 DPD 编码器头；v2 写头已不再引用（保留未删），DPD128 引擎在 formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h engine_native.h engine_bid_codec.h engine_decnum.h
     engine_dpd_codec.h engine_dpd.h
-    fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
-    dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   （17 个格式头）
+    builtin_formats.h   14 个格式的参数绑定（Fmt / DecFmt 常量 + run_* 薄包装）
+    dec128.h x87.h fp128.h   自带算法的三种格式
 src/
   float_inf_walk.cpp      main、argv 解析、单格式分发、schema v2 dump 头（头+载荷双 CRC-32、显式长度/记录几何）
   drive.cpp lang.cpp format_util.cpp platform.cpp

@@ -249,7 +249,7 @@ include/
   platform.h          OS abstraction: thread affinity, timer, core count
   uint128.h           hand-rolled UInt128 (drop-in single-header)
   uint256.h           hand-rolled UInt256 (drop-in single-header)
-  formats/            17 per-format headers + shared engine_*.h
+  formats/            14 bindings in builtin_formats.h + shared engine_*.h + dec128/x87/fp128
 src/
   float_inf_walk.cpp  main(), argv parsing, dispatch, dump header
   drive.cpp lang.cpp format_util.cpp platform.cpp

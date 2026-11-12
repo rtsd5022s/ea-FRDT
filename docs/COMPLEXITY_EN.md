@@ -71,7 +71,7 @@ f64 is also a hardware FMUL (`mulsd`) and belongs mathematically to the same tie
 
 ### 3.1 Route A: Native Binary (f16 / f32 / f64)
 
-**Source**: `include/formats/engine_native.h`; thin headers `fp16.h`, `fp32.h`, `fp64.h`.
+**Source**: `include/formats/engine_native.h`; the shims live in `builtin_formats.h`.
 **Storage**: scalar `_Float16` / `float` / `double`; `nextafterT` reads raw bits through `memcpy`, applies an integer ±1, and writes back through `memcpy` for ULP steps.
 
 | Step mode | f16 | f32 (baseline) | f64 | Extra operations |
@@ -85,7 +85,7 @@ f64 is also a hardware FMUL (`mulsd`) and belongs mathematically to the same tie
 
 ### 3.2 Route B: Bit-Level Bit-Field Simulation (fp4 / fp6 / fp8-e4m3 / fp8-e5m2 / bf16 / tf32)
 
-**Source**: `include/formats/engine_sim.h`, common structure `SVal{sign, exp(int), man(uint64_t), inf}`; thin headers supply parameters `Fmt{E, M, bias}`.
+**Source**: `include/formats/engine_sim.h`, common structure `SVal{sign, exp(int), man(uint64_t), inf}`; `builtin_formats.h` supplies parameters `Fmt{E, M, bias}`.
 **Core multiply `mul(a,b,f)`**: sign XOR; exponent addition; `P = a.man * b.man` (a single 64-bit integer multiply because M ≤ 10); leading-one normalization shift; mantissa truncation plus round-half-even (`rem > half`, or `rem == half` when the retained last bit is 1); exponent overflow to inf; exponent underflow handled by subnormal right shifts.
 **The x1.02 step additionally calls `encode(factor, f)`** on every step: internally `frexp`, `ldexp`, and `llround` map the double factor onto the small format's coefficient; the current implementation recomputes this encoding each step, and it is the dominant constant of the sim route; `to_double` uses `ldexp` only at render/termination time.
 

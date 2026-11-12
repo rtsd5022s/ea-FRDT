@@ -71,7 +71,7 @@ f64 同为硬件 FMUL（`mulsd`），数学上与 f32 同档；选 f32 作 1× �
 
 ### 3.1 路线 A：原生二进制 native（f16 / f32 / f64）
 
-**源码位置**：`include/formats/engine_native.h`；薄头 `fp16.h`、`fp32.h`、`fp64.h`。
+**源码位置**：`include/formats/engine_native.h`；薄包装在 `builtin_formats.h`。
 **存储**：`_Float16` / `float` / `double` 标量；`nextafterT` 通过 `memcpy` 读原始位、整数 ±1、再 `memcpy` 回浮点值，用于 ULP 步。
 
 | 步进模式 | f16 | f32（基准） | f64 | 附加操作 |
@@ -85,7 +85,7 @@ f64 同为硬件 FMUL（`mulsd`），数学上与 f32 同档；选 f32 作 1× �
 
 ### 3.2 路线 B：位级软件仿真 sim（fp4 / fp6 / fp8-e4m3 / fp8-e5m2 / bf16 / tf32）
 
-**源码位置**：`include/formats/engine_sim.h`，公共结构 `SVal{sign, exp(int), man(uint64_t), inf}`；薄头提供参数 `Fmt{E,M,bias}`。
+**源码位置**：`include/formats/engine_sim.h`，公共结构 `SVal{sign, exp(int), man(uint64_t), inf}`；`builtin_formats.h` 提供参数 `Fmt{E,M,bias}`。
 **核心乘法 `mul(a,b,f)`**：符号异或 → 指数相加 → `P = a.man * b.man`（单条 64 位整数乘，因为 M≤10）→ 前导归一移位 → 截尾数 + 半偶数舍入（`rem > half` 或 `rem==half 且末位为 1`）→ 指数上溢判 inf、指数下溢走 subnormal 右移。
 **`x1.02` 每步还额外调用 `encode(factor, f)`**：内部 `frexp`、`ldexp`、`llround` 把 double 倍率映射成小格式系数，该函数在当前实现里每步重算，是 sim 路线最主要的常数来源；`to_double` 仅在渲染/终止时 `ldexp`。
 

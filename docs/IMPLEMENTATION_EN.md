@@ -32,7 +32,7 @@ It supports 17 floating-point formats across five paths: native hardware, hand-r
 
 ## Module architecture
 
-The codebase is modular: 11 top-level headers in `include/`, a `formats/` sub-module (6 shared engines + `formats_all.h` + 17 thin per-format headers), and 5 non-template source files in `src/`. There is no monolithic format header.
+The codebase is modular: 11 top-level headers in `include/`, a `formats/` sub-module (6 shared engines + `formats_all.h` + one binding header `builtin_formats.h` + 3 self-contained format headers), and 5 non-template source files in `src/`. There is no monolithic format header.
 
 ```
 include/
@@ -47,7 +47,6 @@ include/
   platform.h        OS abstraction: affinity, high-res timer, core counts
   uint128.h         Derived from UInt256 for 128-bit helpers
   uint256.h         Hand-rolled 256-bit big integer, schoolbook multiply, div10
-  dpd128.h          Early minimal DPD encoder header; no longer referenced by the v2 writer (kept on disk). The DPD128 engine lives in formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h    SVal bit-level engine (fp4/fp6/fp8/bf16/tf32)
@@ -57,8 +56,8 @@ include/
     engine_dpd_codec.h  Single declet (3 digits -> 10 bits) Clarke table
     engine_dpd.h        combo5 + fixed-length symmetric pack/unpack, real
                         pack->unpack self-check, run_dpd for dpd32/64/128
-    fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
-    dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   (17 thin headers)
+    builtin_formats.h   14 format bindings (Fmt / DecFmt constants + run_* shims)
+    dec128.h x87.h fp128.h   the three self-contained formats
 src/
   float_inf_walk.cpp  main(), argv parsing, single-format dispatch,
                       256-byte schema v2 dump header (header+payload dual CRC-32, explicit length/record geometry/run snapshot)

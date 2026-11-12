@@ -41,7 +41,7 @@ C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
 
 ## Code layout
 
-- Shared headers and engines live in `include/`; the 17 per-format thin headers live in `include/formats/`.
+- Shared headers and engines live in `include/`; the 14 engine-bound format parameters live in `include/formats/builtin_formats.h`.
 - Non-template definitions live in `src/`.
 - User-visible bilingual strings go through the `lang.h` `tr()` table; add both the zh and en entries together.
 - Windows-specific code is wrapped in `#ifdef _WIN32`, Linux code in `#ifdef __linux__`.

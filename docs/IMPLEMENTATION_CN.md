@@ -32,7 +32,7 @@ ea-FRDT（Extreme Architecture - Floating-point Rigorous Devil Test）是一个 
 
 ## 模块架构
 
-代码模块化：`include/` 顶层 11 个头，`formats/` 子模块（6 个共享引擎 + `formats_all.h` + 17 个格式薄头），`src/` 5 个非模板源文件；不存在单片格式头。
+代码模块化：`include/` 顶层 11 个头，`formats/` 子模块（6 个共享引擎 + `formats_all.h` + 1 个参数绑定头 `builtin_formats.h` + 3 个自带算法头），`src/` 5 个非模板源文件；不存在单片格式头。
 
 ```
 include/
@@ -47,7 +47,6 @@ include/
   platform.h        OS 抽象：绑核、高精度定时器、核心数
   uint128.h         由 UInt256 派生的 128 位辅助
   uint256.h         自研 256 位大整数、schoolbook 乘法、div10
-  dpd128.h          早期极简 DPD 编码器头；v2 写头已不再引用（文件保留未删），DPD128 运行引擎在 formats/engine_dpd.h
   formats/
     formats_all.h
     engine_sim.h    SVal 位级引擎（fp4/fp6/fp8/bf16/tf32）
@@ -57,8 +56,8 @@ include/
     engine_dpd_codec.h   单 declet（3 数字→10 位）Clarke 表
     engine_dpd.h        combo5 + 定长对称 pack/unpack、真实
                         pack→unpack 自检、dpd32/64/128 的 run_dpd
-    fp4 fp6 fp8_e4m3 fp8_e5m2 bf16 tf32 fp16 fp32 fp64
-    dec32 dec64 dec128 dpd32 dpd64 dpd128 x87 fp128   （17 个薄头）
+    builtin_formats.h   14 个格式的参数绑定（Fmt / DecFmt 常量 + run_* 薄包装）
+    dec128.h x87.h fp128.h   自带算法的三种格式
 src/
   float_inf_walk.cpp  main、argv 解析、单格式分发、
                       256 字节 schema v2 dump 头（头+载荷双 CRC-32、显式长度/记录几何/参数快照）
