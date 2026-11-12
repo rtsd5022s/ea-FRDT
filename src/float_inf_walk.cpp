@@ -602,117 +602,103 @@ static void close_event_trace() {
     g_events_file = nullptr;
 }
 
-int main(int argc, char** argv) {
-#ifdef _WIN32
-    fw::plat::set_high_res_timer();
-    SetConsoleOutputCP(65001);
-    { HANDLE hO = GetStdHandle(STD_OUTPUT_HANDLE); DWORD m; if (GetConsoleMode(hO, &m)) SetConsoleMode(hO, m | ENABLE_VIRTUAL_TERMINAL_PROCESSING); }
-    struct PeriodGuard { ~PeriodGuard(){ fw::plat::reset_high_res_timer(); } } _pg;
-#endif
-    std::signal(SIGINT, [](int s) {
-        on_sigint(s);
-        // Best-effort release of the high-resolution timer period and any boosted
-        // thread priority/affinity before the interrupted process terminates.
-        fw::plat::teardown_on_exit();
-        std::_Exit(130);
-    });
-    std::atexit(finalize_dump_file);
-    std::atexit(emit_single_format_json);
-    // C2 --dump-events: close the JSONL trace after the run; normal exit only (SIGINT skips atexit).
-    std::atexit(close_event_trace);
-    std::string mode = "f32";
-    double delay_ms = 0;
-    bool has_delay = false;
-    StartKind start_kind = StartKind::Default;
-    StepMode step_mode = StepMode::X102;
-    DispFmt disp_fmt = DispFmt::ENG;
-    double start_val = std::nan("");
-    double factor = 1.02;
-    int digits = 6;
-    ShowBits show_bits = ShowBits::OFF;
-    std::string jobs_spec;
-    std::string only_csv;
-    std::string pairwise_csv;   // W3-C3: minimal dual-engine/format compare pair "A,B"
-    std::string probe_target;   // W3-C1: boundary probe batch table target (currently only "boundaries")
-    std::int64_t refresh_ms = 0;
-    bool quiet = false;
-    bool refresh_explicit = false;
-    int loop_count = 1;
+struct Options {
+    std::string  mode             = "f32";
+    double       delay_ms         = 0;
+    bool         has_delay        = false;
+    StartKind    start_kind       = StartKind::Default;
+    StepMode     step_mode        = StepMode::X102;
+    DispFmt      disp_fmt         = DispFmt::ENG;
+    double       start_val        = std::nan("");
+    double       factor           = 1.02;
+    int          digits           = 6;
+    ShowBits     show_bits        = ShowBits::OFF;
+    std::string  jobs_spec;
+    std::string  only_csv;
+    std::string  pairwise_csv;
+    std::string  probe_target;
+    std::int64_t refresh_ms       = 0;
+    bool         quiet            = false;
+    bool         refresh_explicit = false;
+    int          loop_count       = 1;
+};
 
+// Runs the argv pass; std::nullopt means "keep going", otherwise the exit code.
+static std::optional<int> parse_options(int argc, char** argv, Options& o) {
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "-h" || a == "--help") { print_help(); return 0; }
         if (a == "--self-test") { return run_self_test(); }
         if (a == "-s" || a == "--subnormal") {
-            if (start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
-            start_kind = StartKind::Subnormal; continue;
+            if (o.start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
+            o.start_kind = StartKind::Subnormal; continue;
         }
         if (a == "--start" || a == "-a") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--start 需要一个值\n", "error: --start requires a value\n"); return 2; }
             std::string sv = argv[++i];
             if (sv == "min-normal" || sv == "minnormal" || sv == "normmin" || sv == "min") {
-                if (start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
-                start_kind = StartKind::MinNormal;
+                if (o.start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
+                o.start_kind = StartKind::MinNormal;
             } else if (sv == "max-finite" || sv == "maxfinite" || sv == "infmax" || sv == "max") {
-                if (start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
-                start_kind = StartKind::MaxFinite;
+                if (o.start_kind != StartKind::Default) { cui::err() << tr("错误：特殊起点互斥\n", "error: special start flags are mutually exclusive\n"); return 2; }
+                o.start_kind = StartKind::MaxFinite;
             } else {
-                try { start_val = parse_number(sv); }
+                try { o.start_val = parse_number(sv); }
                 catch (...) { cui::err() << tr("错误：无法解析起点 '", "error: cannot parse start '") << sanitize(sv) << tr("'\n", "'\n"); return 2; }
-                if (std::isnan(start_val) || std::isinf(start_val)) { cui::err() << tr("错误：起点不能为 NaN/Inf\n", "error: start cannot be NaN/Inf\n"); return 2; }
+                if (std::isnan(o.start_val) || std::isinf(o.start_val)) { cui::err() << tr("错误：起点不能为 NaN/Inf\n", "error: start cannot be NaN/Inf\n"); return 2; }
             }
             continue;
         }
         if (a == "--factor" || a == "-k") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--factor 需要一个值\n", "error: --factor requires a value\n"); return 2; }
-            try { factor = parse_number(argv[++i]); }
+            try { o.factor = parse_number(argv[++i]); }
             catch (...) { cui::err() << tr("错误：无法解析倍率\n", "error: cannot parse factor\n"); return 2; }
-            if (factor == 0.0) { cui::err() << tr("错误：--factor 不能为 0\n", "error: --factor cannot be 0\n"); return 2; }
-            if (factor < 0.0) { cui::err() << tr("错误：--factor 不能为负数\n", "error: --factor cannot be negative\n"); return 2; }
-            if (std::isnan(factor) || std::isinf(factor)) { cui::err() << tr("错误：--factor 不能为 NaN/Inf\n", "error: --factor cannot be NaN/Inf\n"); return 2; }
+            if (o.factor == 0.0) { cui::err() << tr("错误：--factor 不能为 0\n", "error: --factor cannot be 0\n"); return 2; }
+            if (o.factor < 0.0) { cui::err() << tr("错误：--factor 不能为负数\n", "error: --factor cannot be negative\n"); return 2; }
+            if (std::isnan(o.factor) || std::isinf(o.factor)) { cui::err() << tr("错误：--factor 不能为 NaN/Inf\n", "error: --factor cannot be NaN/Inf\n"); return 2; }
             continue;
         }
         if (a == "--fmt" || a == "-f") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--fmt 需要一个值（eng/sci/full）\n", "error: --fmt requires a value (eng/sci/full)\n"); return 2; }
             std::string f = argv[++i];
-            if (f == "eng") disp_fmt = DispFmt::ENG;
-            else if (f == "sci") disp_fmt = DispFmt::SCI;
-            else if (f == "full") disp_fmt = DispFmt::FULL;
+            if (f == "eng") o.disp_fmt = DispFmt::ENG;
+            else if (f == "sci") o.disp_fmt = DispFmt::SCI;
+            else if (f == "full") o.disp_fmt = DispFmt::FULL;
             else { cui::err() << tr("错误：未知显示格式 '", "error: unknown display format '") << f << tr("'\n", "'\n"); return 2; }
             continue;
         }
         if (a == "--digits" || a == "-d") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--digits 需要一个整数\n", "error: --digits requires an integer\n"); return 2; }
-            try { digits = std::stoi(argv[++i]); }
+            try { o.digits = std::stoi(argv[++i]); }
             catch (...) { cui::err() << tr("错误：--digits 需为整数\n", "error: --digits must be an integer\n"); return 2; }
-            if (digits != -1 && (digits < 0 || digits > 100)) { cui::err() << tr("错误：--digits 应为 -1 或 0~100\n", "error: --digits must be -1 or 0~100\n"); return 2; }
+            if (o.digits != -1 && (o.digits < 0 || o.digits > 100)) { cui::err() << tr("错误：--digits 应为 -1 或 0~100\n", "error: --digits must be -1 or 0~100\n"); return 2; }
             continue;
         }
         if (a == "--showbits" || a == "--bits") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--showbits 需要一个值（hex/bin/off）\n", "error: --showbits requires a value (hex/bin/off)\n"); return 2; }
             std::string sb = argv[++i];
-            if (sb == "hex") show_bits = ShowBits::HEX;
-            else if (sb == "bin") show_bits = ShowBits::BIN;
-            else if (sb == "off" || sb == "none") show_bits = ShowBits::OFF;
+            if (sb == "hex") o.show_bits = ShowBits::HEX;
+            else if (sb == "bin") o.show_bits = ShowBits::BIN;
+            else if (sb == "off" || sb == "none") o.show_bits = ShowBits::OFF;
             else { cui::err() << tr("错误：未知 --showbits '", "error: unknown --showbits '") << sb << tr("'\n", "'\n"); return 2; }
             continue;
         }
         if (a == "--jobs" || a == "-j") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--jobs 需要一个值\n", "error: --jobs requires a value\n"); return 2; }
-            jobs_spec = argv[++i];
+            o.jobs_spec = argv[++i];
             continue;
         }
         if (a == "--only" || a == "--modes") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--only 需要一个值\n", "error: --only requires a value\n"); return 2; }
-            only_csv = argv[++i];
+            o.only_csv = argv[++i];
             continue;
         }
         if (a == "--refresh" || a == "-r") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--refresh 需要一个毫秒值\n", "error: --refresh requires a millisecond value\n"); return 2; }
-            try { refresh_ms = std::stoll(argv[++i]); }
+            try { o.refresh_ms = std::stoll(argv[++i]); }
             catch (...) { cui::err() << tr("错误：--refresh 应为整数毫秒\n", "error: --refresh must be integer ms\n"); return 2; }
-            if (refresh_ms < 0) refresh_ms = 0;
-            refresh_explicit = true;
+            if (o.refresh_ms < 0) o.refresh_ms = 0;
+            o.refresh_explicit = true;
             continue;
         }
         if (a == "--timeout" || a == "-t") {
@@ -724,20 +710,20 @@ int main(int argc, char** argv) {
         }
         if (a == "--loop" || a == "-l") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--loop 需要一个值\n", "error: --loop requires a value\n"); return 2; }
-            try { loop_count = std::stoi(argv[++i]); }
+            try { o.loop_count = std::stoi(argv[++i]); }
             catch (...) { cui::err() << tr("错误：--loop 应为整数\n", "error: --loop must be an integer\n"); return 2; }
-        if (loop_count == 0) loop_count = 1;  // 0=disabled, equivalent to 1
-        if (loop_count < -1) { cui::err() << tr("错误：--loop 不支持 ", "error: --loop does not support ") << loop_count << tr("\n", "\n"); return 2; }
-        if (loop_count > 1000000) { cui::err() << tr("错误：--loop 过大（上限 1000000）\n", "error: --loop too large (max 1000000)\n"); return 2; }
+        if (o.loop_count == 0) o.loop_count = 1;  // 0=disabled, equivalent to 1
+        if (o.loop_count < -1) { cui::err() << tr("错误：--loop 不支持 ", "error: --loop does not support ") << o.loop_count << tr("\n", "\n"); return 2; }
+        if (o.loop_count > 1000000) { cui::err() << tr("错误：--loop 过大（上限 1000000）\n", "error: --loop too large (max 1000000)\n"); return 2; }
             continue;
         }
         if (a == "--step" || a == "-g") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--step 需要一个值\n", "error: --step requires a value\n"); return 2; }
             std::string s = argv[++i];
-            if (s == "x1.02" || s == "x102") step_mode = StepMode::X102;
-            else if (s == "mululp") step_mode = StepMode::MUL_ULP;
-            else if (s == "addulp") step_mode = StepMode::ADD_ULP;
-            else if (s == "subulp") step_mode = StepMode::SUB_ULP;
+            if (s == "x1.02" || s == "x102") o.step_mode = StepMode::X102;
+            else if (s == "mululp") o.step_mode = StepMode::MUL_ULP;
+            else if (s == "addulp") o.step_mode = StepMode::ADD_ULP;
+            else if (s == "subulp") o.step_mode = StepMode::SUB_ULP;
             else { cui::err() << tr("错误：未知步进 '", "error: unknown step '") << sanitize(s) << tr("'\n", "'\n"); return 2; }
             continue;
         }
@@ -751,13 +737,13 @@ int main(int argc, char** argv) {
         if (a == "--pairwise" || a == "--crosscheck") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--pairwise 需要两个逗号分隔格式 A,B\n",
                                                  "error: --pairwise requires two comma-separated formats A,B\n"); return 2; }
-            pairwise_csv = argv[++i];
+            o.pairwise_csv = argv[++i];
             continue;
         }
         if (a == "--probe") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--probe 需要目标（当前仅 boundaries）\n",
                                                  "error: --probe requires a target (currently only boundaries)\n"); return 2; }
-            probe_target = argv[++i];
+            o.probe_target = argv[++i];
             continue;
         }
         if (a == "--steps") {
@@ -822,11 +808,11 @@ int main(int argc, char** argv) {
             g_events_file = std::fopen(argv[++i], "w");
             if (!g_events_file) { cui::err() << tr("错误：无法打开事件轨迹文件\n",
                                                   "error: cannot open event trace file\n"); return 2; }
-            quiet = true;
+            o.quiet = true;
             continue;
         }
-        if (a == "-q" || a == "--quiet") { quiet = true; continue; }
-        if (a == "--json") { g_json = true; quiet = true; continue; }
+        if (a == "-q" || a == "--quiet") { o.quiet = true; continue; }
+        if (a == "--json") { g_json = true; o.quiet = true; continue; }
         if (a == "--dump") {
             if (i + 1 >= argc) { cui::err() << tr("错误：--dump 需要一个文件路径\n", "error: --dump requires a file path\n"); return 2; }
             g_dump_path = argv[++i];
@@ -834,7 +820,7 @@ int main(int argc, char** argv) {
             if (!g_dump_file) { cui::err() << tr("错误：无法打开 dump 文件\n", "error: cannot open dump file\n"); return 2; }
             // header-space reserve (if any) is applied after parsing, once g_dump_raw is finalized
             g_dump_records_enabled = true;            // single-format path writes records
-            quiet = true;
+            o.quiet = true;
             continue;
         }
         if (a == "--dump-endian") {
@@ -856,197 +842,244 @@ int main(int argc, char** argv) {
         }
         if (a == "-m") {
             if (i + 1 >= argc) { cui::err() << tr("错误：-m 需要一个模式值\n", "error: -m requires a mode value\n"); return 2; }
-            mode = argv[++i];
-            g_fmt_name = mode;
+            o.mode = argv[++i];
+            g_fmt_name = o.mode;
             continue;
         }
-        try { delay_ms = std::stod(a); has_delay = true; }
+        try { o.delay_ms = std::stod(a); o.has_delay = true; }
         catch (...) { cui::err() << tr("错误：无法解析参数 '", "error: cannot parse argument '") << sanitize(a) << tr("'\n", "'\n"); return 2; }
     }
+    return std::nullopt;
+}
+
+// Standalone path: pairwise, returns before the single-format exit hooks.
+static int run_pairwise(const Options& o) {
+    std::vector<std::string> toks;
+    {
+        std::string rest = o.pairwise_csv;
+        while (!rest.empty()) {
+            std::string t;
+            auto c = rest.find(',');
+            if (c == std::string::npos) { t = rest; rest.clear(); }
+            else { t = rest.substr(0, c); rest = rest.substr(c + 1); }
+            size_t a = t.find_first_not_of(" \t");
+            size_t b = t.find_last_not_of(" \t");
+            if (a != std::string::npos) toks.push_back(t.substr(a, b - a + 1));
+        }
+    }
+    if (toks.size() != 2) {
+        cui::err() << tr("错误：--pairwise 需要恰好两个格式 A,B\n",
+                        "error: --pairwise needs exactly two formats A,B\n"); return 2;
+    }
+    FmtId pa = fmt_canon(toks[0]);
+    FmtId pb = fmt_canon(toks[1]);
+    if (pa == FmtId::COUNT || pb == FmtId::COUNT) {
+        cui::err() << tr("错误：--pairwise 含未知格式\n",
+                        "error: --pairwise contains an unknown format\n"); return 2;
+    }
+    auto in_pair = [&](FmtId x, FmtId y) {
+        return (pa == x && pb == y) || (pa == y && pb == x);
+    };
+    bool allowed = in_pair(FmtId::Dec32, FmtId::DPD32) ||
+                    in_pair(FmtId::Dec64, FmtId::DPD64) ||
+                    in_pair(FmtId::FP32, FmtId::TF32);
+    if (!allowed) {
+        cui::err() << tr("错误：--pairwise 最小白名单仅 dec32,dpd32 / dec64,dpd64 / f32,tf32\n",
+                        "error: --pairwise minimal whitelist: dec32,dpd32 / dec64,dpd64 / f32,tf32\n"); return 2;
+    }
+    if (o.mode == "all" || o.loop_count != 1 || !o.only_csv.empty() || !o.jobs_spec.empty() ||
+        g_fixed_steps > 0 || g_dump_file || g_pin_core >= 0 || g_boost_enabled || g_events_file) {
+        cui::err() << tr("错误：--pairwise 与 -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events 互斥\n",
+                        "error: --pairwise conflicts with -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events\n"); return 2;
+    }
+    struct Meta { const char* engine; int bits; int bytes; };
+    auto meta = [](FmtId id) -> Meta {
+        switch (id) {
+            case FmtId::Dec32: return {"BID", 32, 4};
+            case FmtId::DPD32: return {"DPD", 32, 4};
+            case FmtId::Dec64: return {"BID", 64, 8};
+            case FmtId::DPD64: return {"DPD", 64, 8};
+            case FmtId::FP32:  return {"IEEE754", 32, 4};
+            case FmtId::TF32:  return {"TF32-trunc", 19, 4};
+            default: return {"?", 0, 0};
+        }
+    };
+    bool as_json = g_json;
+    g_json = false; // this block owns stdout; suppress the single-format atexit JSON shell
+    RunParams pp{0.0, StartKind::Default, StepMode::X102, DispFmt::ENG, 1.0, 1.02, 6};
+    RunResult ra{}, rb{};
+    run_format(pa, pp, &ra);
+    run_format(pb, pp, &rb);
+    bool match = (ra.steps == rb.steps && ra.reason == rb.reason);
+    if (as_json) {
+        std::printf(
+            "{\"tool\":\"ea-FRDT\",\"mode\":\"pairwise\",\"match\":%s,"
+            "\"pair\":[\"%s\",\"%s\"],"
+            "\"engines\":["
+            "{\"format\":\"%s\",\"engine\":\"%s\",\"bits\":%d,\"bytes\":%d,\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f},"
+            "{\"format\":\"%s\",\"engine\":\"%s\",\"bits\":%d,\"bytes\":%d,\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f}"
+            "]}\n",
+            match ? "true" : "false",
+            toks[0].c_str(), toks[1].c_str(),
+            toks[0].c_str(), meta(pa).engine, meta(pa).bits, meta(pa).bytes,
+            to_string_u128(ra.steps).c_str(), reason_token(ra.reason), ra.elapsed_ms,
+            toks[1].c_str(), meta(pb).engine, meta(pb).bits, meta(pb).bytes,
+            to_string_u128(rb.steps).c_str(), reason_token(rb.reason), rb.elapsed_ms);
+    } else {
+        std::cout << cui::section(tr("pairwise 双引擎对照", "pairwise dual-engine"),
+                                  tr("同起点 1.0，倍率 1.02", "same start 1.0, factor 1.02"));
+        cui::Table t;
+        t.col(tr("格式", "Format"), false);
+        t.col(tr("引擎", "engine"), false);
+        t.col(tr("位数", "bits"), true);
+        t.col(tr("字节", "bytes"), true);
+        t.col(tr("步数", "steps"), true);
+        t.col(tr("退出", "reason"), false);
+        t.col(tr("耗时ms", "elapsed_ms"), true);
+        auto add = [&](FmtId id, const RunResult& r, const std::string& label) {
+            Meta m = meta(id);
+            char msbuf[32];
+            std::snprintf(msbuf, sizeof(msbuf), "%.1f", r.elapsed_ms);
+            t.row({label, m.engine, std::to_string(m.bits), std::to_string(m.bytes),
+                   cui::count(r.steps), reason_token(r.reason), msbuf});
+        };
+        add(pa, ra, toks[0]);
+        add(pb, rb, toks[1]);
+        t.print(std::cout);
+        std::cout << "  " << cui::label(tr("结论", "verdict")) << "  "
+                  << (match ? cui::ok("MATCH") : cui::err("DIFF"))
+                  << (match ? tr("  (步数与退出原因一致)", "  (same steps and reason)")
+                            : tr("  (步数或退出原因不同)", "  (steps or reason differ)"))
+                  << "\n";
+    }
+    return 0;
+}
+
+// Standalone path: probe, returns before the single-format exit hooks.
+static int run_probe(const Options& o) {
+    if (o.probe_target != "boundaries") {
+        cui::err() << tr("错误：--probe 仅支持 boundaries\n", "error: --probe supports only 'boundaries'\n"); return 2;
+    }
+    if (o.mode == "all" || o.loop_count != 1 || !o.only_csv.empty() || !o.jobs_spec.empty() ||
+        g_fixed_steps > 0 || g_dump_file || g_pin_core >= 0 || g_boost_enabled || g_events_file ||
+        !o.pairwise_csv.empty() || g_sample_window_ms > 0) {
+        cui::err() << tr("错误：--probe boundaries 为独立模式，与 all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window 互斥\n",
+                        "error: --probe boundaries is standalone and conflicts with all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window\n"); return 2;
+    }
+    struct PCell { const char* tok; const char* btag; u128 steps; RunResult::Reason reason; double ms; bool empty; };
+    struct PDef { FmtId id; const char* tok; };
+    const PDef fdefs[] = {
+        {FmtId::FP4,"fp4"}, {FmtId::FP6,"fp6"}, {FmtId::FP8E4M3,"fp8-e4m3"}, {FmtId::FP8E5M2,"fp8-e5m2"},
+        {FmtId::FP16,"f16"}, {FmtId::BF16,"bf16"}, {FmtId::TF32,"tf32"}, {FmtId::FP32,"f32"}
+    };
+    struct BDef { StartKind kind; const char* tag; };
+    const BDef bdefs[] = {
+        {StartKind::Default,"default"}, {StartKind::MinNormal,"min-normal"},
+        {StartKind::MaxFinite,"max-finite"}, {StartKind::Subnormal,"subnormal"}
+    };
+    bool as_json = g_json;
+    g_json = false; // standalone path owns stdout; suppress the single-format atexit JSON shell
+    constexpr unsigned long long PROBE_STEPS = 32;
+    g_fixed_steps = PROBE_STEPS;
+    std::vector<PCell> cells;
+    cells.reserve(sizeof(fdefs)/sizeof(fdefs[0]) * sizeof(bdefs)/sizeof(bdefs[0]));
+    for (const auto& fd : fdefs) {
+        for (const auto& bd : bdefs) {
+            RunParams pp{0.0, bd.kind, StepMode::X102, DispFmt::ENG, 1.0, 1.02, 6};
+            RunResult r{};
+            run_format(fd.id, pp, &r);
+            cells.push_back({fd.tok, bd.tag, r.steps, r.reason, r.elapsed_ms, r.cur_value.empty()});
+        }
+    }
+    g_fixed_steps = 0;
+    if (as_json) {
+        std::printf("{\"tool\":\"ea-FRDT\",\"mode\":\"probe\",\"target\":\"boundaries\",\"fixed_steps\":%llu,\"cells\":[",
+                    PROBE_STEPS);
+        for (std::size_t i = 0; i < cells.size(); ++i) {
+            if (i) std::printf(",");
+            const auto& c = cells[i];
+            std::printf("{\"format\":\"%s\",\"boundary\":\"%s\",\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f,\"value_ok\":%s}",
+                        c.tok, c.btag, to_string_u128(c.steps).c_str(), reason_token(c.reason), c.ms,
+                        c.empty ? "false" : "true");
+        }
+        std::printf("]}\n");
+    } else {
+        std::cout << cui::section(tr("probe · boundaries", "probe · boundaries"),
+                                  tr("每格固定 32 步；独立模式，不进入自然终止基线",
+                                     "fixed 32 steps/cell; standalone, not the natural-termination baseline"));
+        cui::Table t;
+        t.col(tr("格式", "Format"), false);
+        t.col(tr("起点", "boundary"), false);
+        t.col(tr("步数", "steps"), true);
+        t.col(tr("退出", "reason"), false);
+        t.col(tr("耗时ms", "elapsed_ms"), true);
+        t.col(tr("值有效", "value_ok"), false);
+        double total_ms = 0.0;
+        for (const auto& c : cells) {
+            total_ms += c.ms;
+            char msbuf[32];
+            std::snprintf(msbuf, sizeof(msbuf), "%.2f", c.ms);
+            t.row({c.tok, c.btag, cui::count(c.steps), reason_token(c.reason), msbuf,
+                   c.empty ? "false" : "true"});
+        }
+        t.print(std::cout);
+        std::cout << "  " << cui::label(tr("格数 ", "cells ")) << cells.size()
+                  << cui::dim("  ·  ") << tr("合计 ", "total ")
+                  << cui::num(cui::elapsed(total_ms)) << "\n";
+    }
+    return 0;
+}
+
+int main(int argc, char** argv) {
+#ifdef _WIN32
+    fw::plat::set_high_res_timer();
+    SetConsoleOutputCP(65001);
+    { HANDLE hO = GetStdHandle(STD_OUTPUT_HANDLE); DWORD m; if (GetConsoleMode(hO, &m)) SetConsoleMode(hO, m | ENABLE_VIRTUAL_TERMINAL_PROCESSING); }
+    struct PeriodGuard { ~PeriodGuard(){ fw::plat::reset_high_res_timer(); } } _pg;
+#endif
+    std::signal(SIGINT, [](int s) {
+        on_sigint(s);
+        // Best-effort release of the high-resolution timer period and any boosted
+        // thread priority/affinity before the interrupted process terminates.
+        fw::plat::teardown_on_exit();
+        std::_Exit(130);
+    });
+    std::atexit(finalize_dump_file);
+    std::atexit(emit_single_format_json);
+    // C2 --dump-events: close the JSONL trace after the run; normal exit only (SIGINT skips atexit).
+    std::atexit(close_event_trace);
+    Options o;
+    if (auto rc = parse_options(argc, argv, o)) return *rc;
+    std::string& mode = o.mode;
+    double& delay_ms = o.delay_ms;
+    bool& has_delay = o.has_delay;
+    StartKind& start_kind = o.start_kind;
+    StepMode& step_mode = o.step_mode;
+    DispFmt& disp_fmt = o.disp_fmt;
+    double& start_val = o.start_val;
+    double& factor = o.factor;
+    int& digits = o.digits;
+    ShowBits& show_bits = o.show_bits;
+    std::string& jobs_spec = o.jobs_spec;
+    std::string& only_csv = o.only_csv;
+    std::string& pairwise_csv = o.pairwise_csv;
+    std::string& probe_target = o.probe_target;
+    std::int64_t& refresh_ms = o.refresh_ms;
+    bool& quiet = o.quiet;
+    bool& refresh_explicit = o.refresh_explicit;
+    int& loop_count = o.loop_count;
 
     // W3-C3: minimal same-start dual-engine/format pairwise compare (opt-in, default off).
     // Two whitelisted formats run from the same default start/factor into silent RunResults;
     // reports steps/reason/width agreement. It does not touch the drive hot loop, the dump
     // pipeline, or the natural-termination baseline; independent early path, returns before
     // the single-format atexit JSON shell.
-    if (!pairwise_csv.empty()) {
-        std::vector<std::string> toks;
-        {
-            std::string rest = pairwise_csv;
-            while (!rest.empty()) {
-                std::string t;
-                auto c = rest.find(',');
-                if (c == std::string::npos) { t = rest; rest.clear(); }
-                else { t = rest.substr(0, c); rest = rest.substr(c + 1); }
-                size_t a = t.find_first_not_of(" \t");
-                size_t b = t.find_last_not_of(" \t");
-                if (a != std::string::npos) toks.push_back(t.substr(a, b - a + 1));
-            }
-        }
-        if (toks.size() != 2) {
-            cui::err() << tr("错误：--pairwise 需要恰好两个格式 A,B\n",
-                            "error: --pairwise needs exactly two formats A,B\n"); return 2;
-        }
-        FmtId pa = fmt_canon(toks[0]);
-        FmtId pb = fmt_canon(toks[1]);
-        if (pa == FmtId::COUNT || pb == FmtId::COUNT) {
-            cui::err() << tr("错误：--pairwise 含未知格式\n",
-                            "error: --pairwise contains an unknown format\n"); return 2;
-        }
-        auto in_pair = [&](FmtId x, FmtId y) {
-            return (pa == x && pb == y) || (pa == y && pb == x);
-        };
-        bool allowed = in_pair(FmtId::Dec32, FmtId::DPD32) ||
-                        in_pair(FmtId::Dec64, FmtId::DPD64) ||
-                        in_pair(FmtId::FP32, FmtId::TF32);
-        if (!allowed) {
-            cui::err() << tr("错误：--pairwise 最小白名单仅 dec32,dpd32 / dec64,dpd64 / f32,tf32\n",
-                            "error: --pairwise minimal whitelist: dec32,dpd32 / dec64,dpd64 / f32,tf32\n"); return 2;
-        }
-        if (mode == "all" || loop_count != 1 || !only_csv.empty() || !jobs_spec.empty() ||
-            g_fixed_steps > 0 || g_dump_file || g_pin_core >= 0 || g_boost_enabled || g_events_file) {
-            cui::err() << tr("错误：--pairwise 与 -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events 互斥\n",
-                            "error: --pairwise conflicts with -m all/--loop/--only/-j/--steps/--dump/--pin/--boost/--dump-events\n"); return 2;
-        }
-        struct Meta { const char* engine; int bits; int bytes; };
-        auto meta = [](FmtId id) -> Meta {
-            switch (id) {
-                case FmtId::Dec32: return {"BID", 32, 4};
-                case FmtId::DPD32: return {"DPD", 32, 4};
-                case FmtId::Dec64: return {"BID", 64, 8};
-                case FmtId::DPD64: return {"DPD", 64, 8};
-                case FmtId::FP32:  return {"IEEE754", 32, 4};
-                case FmtId::TF32:  return {"TF32-trunc", 19, 4};
-                default: return {"?", 0, 0};
-            }
-        };
-        bool as_json = g_json;
-        g_json = false; // this block owns stdout; suppress the single-format atexit JSON shell
-        RunParams pp{0.0, StartKind::Default, StepMode::X102, DispFmt::ENG, 1.0, 1.02, 6};
-        RunResult ra{}, rb{};
-        run_format(pa, pp, &ra);
-        run_format(pb, pp, &rb);
-        bool match = (ra.steps == rb.steps && ra.reason == rb.reason);
-        if (as_json) {
-            std::printf(
-                "{\"tool\":\"ea-FRDT\",\"mode\":\"pairwise\",\"match\":%s,"
-                "\"pair\":[\"%s\",\"%s\"],"
-                "\"engines\":["
-                "{\"format\":\"%s\",\"engine\":\"%s\",\"bits\":%d,\"bytes\":%d,\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f},"
-                "{\"format\":\"%s\",\"engine\":\"%s\",\"bits\":%d,\"bytes\":%d,\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f}"
-                "]}\n",
-                match ? "true" : "false",
-                toks[0].c_str(), toks[1].c_str(),
-                toks[0].c_str(), meta(pa).engine, meta(pa).bits, meta(pa).bytes,
-                to_string_u128(ra.steps).c_str(), reason_token(ra.reason), ra.elapsed_ms,
-                toks[1].c_str(), meta(pb).engine, meta(pb).bits, meta(pb).bytes,
-                to_string_u128(rb.steps).c_str(), reason_token(rb.reason), rb.elapsed_ms);
-        } else {
-            std::cout << cui::section(tr("pairwise 双引擎对照", "pairwise dual-engine"),
-                                      tr("同起点 1.0，倍率 1.02", "same start 1.0, factor 1.02"));
-            cui::Table t;
-            t.col(tr("格式", "Format"), false);
-            t.col(tr("引擎", "engine"), false);
-            t.col(tr("位数", "bits"), true);
-            t.col(tr("字节", "bytes"), true);
-            t.col(tr("步数", "steps"), true);
-            t.col(tr("退出", "reason"), false);
-            t.col(tr("耗时ms", "elapsed_ms"), true);
-            auto add = [&](FmtId id, const RunResult& r, const std::string& label) {
-                Meta m = meta(id);
-                char msbuf[32];
-                std::snprintf(msbuf, sizeof(msbuf), "%.1f", r.elapsed_ms);
-                t.row({label, m.engine, std::to_string(m.bits), std::to_string(m.bytes),
-                       cui::count(r.steps), reason_token(r.reason), msbuf});
-            };
-            add(pa, ra, toks[0]);
-            add(pb, rb, toks[1]);
-            t.print(std::cout);
-            std::cout << "  " << cui::label(tr("结论", "verdict")) << "  "
-                      << (match ? cui::ok("MATCH") : cui::err("DIFF"))
-                      << (match ? tr("  (步数与退出原因一致)", "  (same steps and reason)")
-                                : tr("  (步数或退出原因不同)", "  (steps or reason differ)"))
-                      << "\n";
-        }
-        return 0;
-    }
+    if (!pairwise_csv.empty()) return run_pairwise(o);
 
     // W3-C1: --probe boundaries batch table (opt-in, default off). Fast fixed-step sweep of
     // whitelisted quick formats x boundary starts; independent early path, never runs the
     // natural-termination walk and therefore cannot move the 17-step baseline.
-    if (!probe_target.empty()) {
-        if (probe_target != "boundaries") {
-            cui::err() << tr("错误：--probe 仅支持 boundaries\n", "error: --probe supports only 'boundaries'\n"); return 2;
-        }
-        if (mode == "all" || loop_count != 1 || !only_csv.empty() || !jobs_spec.empty() ||
-            g_fixed_steps > 0 || g_dump_file || g_pin_core >= 0 || g_boost_enabled || g_events_file ||
-            !pairwise_csv.empty() || g_sample_window_ms > 0) {
-            cui::err() << tr("错误：--probe boundaries 为独立模式，与 all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window 互斥\n",
-                            "error: --probe boundaries is standalone and conflicts with all/loop/only/jobs/steps/dump/pin/boost/events/pairwise/sample-window\n"); return 2;
-        }
-        struct PCell { const char* tok; const char* btag; u128 steps; RunResult::Reason reason; double ms; bool empty; };
-        struct PDef { FmtId id; const char* tok; };
-        const PDef fdefs[] = {
-            {FmtId::FP4,"fp4"}, {FmtId::FP6,"fp6"}, {FmtId::FP8E4M3,"fp8-e4m3"}, {FmtId::FP8E5M2,"fp8-e5m2"},
-            {FmtId::FP16,"f16"}, {FmtId::BF16,"bf16"}, {FmtId::TF32,"tf32"}, {FmtId::FP32,"f32"}
-        };
-        struct BDef { StartKind kind; const char* tag; };
-        const BDef bdefs[] = {
-            {StartKind::Default,"default"}, {StartKind::MinNormal,"min-normal"},
-            {StartKind::MaxFinite,"max-finite"}, {StartKind::Subnormal,"subnormal"}
-        };
-        bool as_json = g_json;
-        g_json = false; // standalone path owns stdout; suppress the single-format atexit JSON shell
-        constexpr unsigned long long PROBE_STEPS = 32;
-        g_fixed_steps = PROBE_STEPS;
-        std::vector<PCell> cells;
-        cells.reserve(sizeof(fdefs)/sizeof(fdefs[0]) * sizeof(bdefs)/sizeof(bdefs[0]));
-        for (const auto& fd : fdefs) {
-            for (const auto& bd : bdefs) {
-                RunParams pp{0.0, bd.kind, StepMode::X102, DispFmt::ENG, 1.0, 1.02, 6};
-                RunResult r{};
-                run_format(fd.id, pp, &r);
-                cells.push_back({fd.tok, bd.tag, r.steps, r.reason, r.elapsed_ms, r.cur_value.empty()});
-            }
-        }
-        g_fixed_steps = 0;
-        if (as_json) {
-            std::printf("{\"tool\":\"ea-FRDT\",\"mode\":\"probe\",\"target\":\"boundaries\",\"fixed_steps\":%llu,\"cells\":[",
-                        PROBE_STEPS);
-            for (std::size_t i = 0; i < cells.size(); ++i) {
-                if (i) std::printf(",");
-                const auto& c = cells[i];
-                std::printf("{\"format\":\"%s\",\"boundary\":\"%s\",\"steps\":%s,\"reason\":\"%s\",\"elapsed_ms\":%.3f,\"value_ok\":%s}",
-                            c.tok, c.btag, to_string_u128(c.steps).c_str(), reason_token(c.reason), c.ms,
-                            c.empty ? "false" : "true");
-            }
-            std::printf("]}\n");
-        } else {
-            std::cout << cui::section(tr("probe · boundaries", "probe · boundaries"),
-                                      tr("每格固定 32 步；独立模式，不进入自然终止基线",
-                                         "fixed 32 steps/cell; standalone, not the natural-termination baseline"));
-            cui::Table t;
-            t.col(tr("格式", "Format"), false);
-            t.col(tr("起点", "boundary"), false);
-            t.col(tr("步数", "steps"), true);
-            t.col(tr("退出", "reason"), false);
-            t.col(tr("耗时ms", "elapsed_ms"), true);
-            t.col(tr("值有效", "value_ok"), false);
-            double total_ms = 0.0;
-            for (const auto& c : cells) {
-                total_ms += c.ms;
-                char msbuf[32];
-                std::snprintf(msbuf, sizeof(msbuf), "%.2f", c.ms);
-                t.row({c.tok, c.btag, cui::count(c.steps), reason_token(c.reason), msbuf,
-                       c.empty ? "false" : "true"});
-            }
-            t.print(std::cout);
-            std::cout << "  " << cui::label(tr("格数 ", "cells ")) << cells.size()
-                      << cui::dim("  ·  ") << tr("合计 ", "total ")
-                      << cui::num(cui::elapsed(total_ms)) << "\n";
-        }
-        return 0;
-    }
+    if (!probe_target.empty()) return run_probe(o);
 
     if (!has_delay) {
         if (mode == "all") delay_ms = 10;
