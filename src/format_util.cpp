@@ -1,5 +1,6 @@
 // format_util.cpp — Bit string and numeric formatting implementations
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 #include <string_view>
 #include "format_util.h"
