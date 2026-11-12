@@ -16,6 +16,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "color.h"
 #include "base_types.h"
@@ -29,38 +30,38 @@ inline bool& color_state() { static bool on = true; return on; }
 inline bool color_on() { return color_state(); }
 inline void set_color(bool on) { color_state() = on; }
 
-inline std::string paint(const char* code, const std::string& s) {
-    if (!color_on() || code == nullptr) return s;
+inline std::string paint(const char* code, std::string_view s) {
+    if (!color_on() || code == nullptr) return std::string(s);
     std::string out;
     out.reserve(s.size() + 8);
     out += code;
-    out += s;
+    out.append(s);
     out += clr::RST;
     return out;
 }
 
 // Semantic styles, not raw escape codes: call sites name the role of the text.
-inline std::string title(const std::string& s)  { return paint(clr::CYN, s); }
-inline std::string label(const std::string& s)  { return paint(clr::GRY, s); }
-inline std::string num(const std::string& s)    { return paint(clr::YEL, s); }
-inline std::string ok(const std::string& s)     { return paint(clr::GRN, s); }
-inline std::string warn(const std::string& s)   { return paint(clr::YEL, s); }
-inline std::string err(const std::string& s)    { return paint(clr::RED, s); }
-inline std::string accent(const std::string& s) { return paint(clr::BLU, s); }
-inline std::string dim(const std::string& s)    { return paint(clr::DIM, s); }
+[[nodiscard]] inline std::string title(std::string_view s)  { return paint(clr::CYN, s); }
+[[nodiscard]] inline std::string label(std::string_view s)  { return paint(clr::GRY, s); }
+[[nodiscard]] inline std::string num(std::string_view s)    { return paint(clr::YEL, s); }
+[[nodiscard]] inline std::string ok(std::string_view s)     { return paint(clr::GRN, s); }
+[[nodiscard]] inline std::string warn(std::string_view s)   { return paint(clr::YEL, s); }
+[[nodiscard]] inline std::string err(std::string_view s)    { return paint(clr::RED, s); }
+[[nodiscard]] inline std::string accent(std::string_view s) { return paint(clr::BLU, s); }
+[[nodiscard]] inline std::string dim(std::string_view s)    { return paint(clr::DIM, s); }
 
 // ------------------------------------------------------------------ glyphs
-inline const char* G_RULE  = "─";
-inline const char* G_TITLE = "▌";
+inline constexpr const char* G_RULE  = "─";
+inline constexpr const char* G_TITLE = "▌";
  // box drawing
-inline const char* G_TL = "┌"; inline const char* G_TM = "┬"; inline const char* G_TR = "┐";
-inline const char* G_ML = "├"; inline const char* G_MM = "┼"; inline const char* G_MR = "┤";
-inline const char* G_BL = "└"; inline const char* G_BM = "┴"; inline const char* G_BR = "┘";
-inline const char* G_V  = "│";
+inline constexpr const char* G_TL = "┌"; inline constexpr const char* G_TM = "┬"; inline constexpr const char* G_TR = "┐";
+inline constexpr const char* G_ML = "├"; inline constexpr const char* G_MM = "┼"; inline constexpr const char* G_MR = "┤";
+inline constexpr const char* G_BL = "└"; inline constexpr const char* G_BM = "┴"; inline constexpr const char* G_BR = "┘";
+inline constexpr const char* G_V  = "│";
 
 // ------------------------------------------------------------- display width
 // CJK / full-width characters occupy two terminal columns; everything else one.
-inline int w(const std::string& s) {
+[[nodiscard]] inline int w(std::string_view s) {
     int width = 0;
     for (std::size_t i = 0; i < s.size();) {
         unsigned char c = (unsigned char)s[i];
@@ -73,19 +74,22 @@ inline int w(const std::string& s) {
     return width;
 }
 
-inline std::string pad_r(const std::string& s, int width) {
+[[nodiscard]] inline std::string pad_r(std::string_view s, int width) {
+    std::string out(s);
     int cur = w(s);
-    return cur >= width ? s : s + std::string((std::size_t)(width - cur), ' ');
+    if (cur < width) out.append((std::size_t)(width - cur), ' ');
+    return out;
 }
-inline std::string pad_l(const std::string& s, int width) {
+[[nodiscard]] inline std::string pad_l(std::string_view s, int width) {
     int cur = w(s);
-    return cur >= width ? s : std::string((std::size_t)(width - cur), ' ') + s;
+    if (cur >= width) return std::string(s);
+    return std::string((std::size_t)(width - cur), ' ') + std::string(s);
 }
 
 // Clip to a display width, marking truncation with "~" so a long value can never
 // push a column out of alignment.
-inline std::string clip(const std::string& s, int width) {
-    if (w(s) <= width) return s;
+[[nodiscard]] inline std::string clip(std::string_view s, int width) {
+    if (w(s) <= width) return std::string(s);
     std::string out;
     int acc = 0;
     for (std::size_t i = 0; i < s.size();) {
@@ -98,7 +102,7 @@ inline std::string clip(const std::string& s, int width) {
         if (i + len > s.size()) len = 1;
         int cw = len > 1 ? 2 : 1;
         if (acc + cw > width - 1) break;
-        out.append(s, i, len);
+        out.append(s.substr(i, len));
         acc += cw;
         i += len;
     }
@@ -106,7 +110,7 @@ inline std::string clip(const std::string& s, int width) {
     return out;
 }
 
-inline int term_width() {
+[[nodiscard]] inline int term_width() {
     if (const char* c = std::getenv("COLUMNS")) {
         int v = std::atoi(c);
         if (v >= 48 && v <= 4096) return v - 1;
@@ -114,7 +118,7 @@ inline int term_width() {
     return 88;   // conservative default: keeps the rule inside an 90-column console
 }
 
-inline std::string rule(int width) {
+[[nodiscard]] inline std::string rule(int width) {
     if (width < 8) width = 8;
     std::string s;
     s.reserve((std::size_t)width * 3);
@@ -124,9 +128,9 @@ inline std::string rule(int width) {
 
 // ---------------------------------------------------------------- section head
 // "▌ TITLE" + optional indented subtitle + a dim horizontal rule.
-inline std::string section(const std::string& head, const std::string& sub = {}) {
+[[nodiscard]] inline std::string section(std::string_view head, std::string_view sub = {}) {
     std::string out;
-    out += paint(clr::CYN, std::string(G_TITLE) + " " + head);
+    out += paint(clr::CYN, std::string(G_TITLE) + " " + std::string(head));
     out += "\n";
     if (!sub.empty()) out += std::string("  ") + paint(clr::GRY, sub) + "\n";
     out += paint(clr::DIM, rule(term_width()));
@@ -136,26 +140,27 @@ inline std::string section(const std::string& head, const std::string& sub = {})
 
 // Aligned "  label   value" row; label column width is fixed per block so a
 // group of rows reads as a table without drawing one.
-inline std::string kv(const std::string& k, const std::string& v, int label_w) {
-    return std::string("  ") + paint(clr::GRY, pad_r(k, label_w)) + "  " + v + "\n";
+[[nodiscard]] inline std::string kv(std::string_view k, std::string_view v, int label_w) {
+    return std::string("  ") + paint(clr::GRY, pad_r(k, label_w)) + "  " + std::string(v) + "\n";
 }
 
 // "  NAME   description" row: the name column is measured and padded on plain
 // text, then coloured, and every continuation line is indented to the same
 // column, so a long description wraps as a block instead of drifting left.
-inline std::string row(const std::string& left, const std::string& right, int left_w,
-                       const char* left_code = clr::YEL) {
+[[nodiscard]] inline std::string row(std::string_view left, std::string_view right, int left_w,
+                                     const char* left_code = clr::YEL) {
     std::string out = std::string("  ") + paint(left_code, pad_r(left, left_w)) + "  ";
     const std::string indent((std::size_t)(left_w + 4), ' ');
     bool first = true;
     std::size_t pos = 0;
     for (;;) {
         std::size_t nl = right.find('\n', pos);
-        std::string seg = right.substr(pos, nl == std::string::npos ? right.size() - pos : nl - pos);
+        std::string_view seg = right.substr(pos, nl == std::string_view::npos
+                                                   ? right.size() - pos : nl - pos);
         if (!first) out += indent;
-        out += seg;
+        out.append(seg);
         out += '\n';
-        if (nl == std::string::npos) break;
+        if (nl == std::string_view::npos) break;
         first = false;
         pos = nl + 1;
     }
@@ -164,7 +169,7 @@ inline std::string row(const std::string& left, const std::string& right, int le
 
 // ------------------------------------------------------------- formatters
 // 12345678 -> "12,345,678"; grouping only, never locale-dependent.
-inline std::string group(const std::string& digits) {
+[[nodiscard]] inline std::string group(std::string_view digits) {
     std::string out;
     int n = (int)digits.size();
     for (int i = 0; i < n; ++i) {
@@ -173,11 +178,11 @@ inline std::string group(const std::string& digits) {
     }
     return out;
 }
-inline std::string count(u128 v) { return group(to_string_u128(v)); }
-inline std::string count(std::uint64_t v) { return group(std::to_string(v)); }
+[[nodiscard]] inline std::string count(u128 v) { return group(to_string_u128(v)); }
+[[nodiscard]] inline std::string count(std::uint64_t v) { return group(std::to_string(v)); }
 
 // Compact throughput: 987 / 8.62K / 51.2M / 1.03G.
-inline std::string rate(double v) {
+[[nodiscard]] inline std::string rate(double v) {
     char buf[32];
     if (v < 1000.0) {
         std::snprintf(buf, sizeof(buf), "%.0f", v);
@@ -193,7 +198,7 @@ inline std::string rate(double v) {
 
 // Wall-clock duration, always the same shape for a given magnitude:
 //   812ms   26.384s   3m12.4s   2h03m   1d02h
-inline std::string elapsed(double ms) {
+[[nodiscard]] inline std::string elapsed(double ms) {
     char buf[48];
     if (ms < 10.0) {
         std::snprintf(buf, sizeof(buf), "%.2fms", ms);
@@ -223,13 +228,13 @@ inline std::string elapsed(double ms) {
 // Exit-reason styling: normal termination reads green, abnormal reads yellow,
 // NaN reads red. Text itself is untouched. The token may be either the short
 // machine token ("nan") or the full display string ("nan->nan").
-inline std::string reason(const std::string& text, const std::string& token) {
-    auto starts = [&](const char* p) { return token.rfind(p, 0) == 0; };
+[[nodiscard]] inline std::string reason(std::string_view text, std::string_view token) {
+    auto starts = [&](const char* p) { return token.starts_with(p); };
     if (starts("nan")) return err(text);
     if (starts("timeout") || starts("safety")) return warn(text);
     if (starts("overflow") || starts("underflow")) return ok(text);
     if (starts("fixed")) return accent(text);
-    return text;
+    return std::string(text);
 }
 
 // ------------------------------------------------------- terminal control
@@ -237,7 +242,7 @@ inline std::string reason(const std::string& text, const std::string& token) {
 inline const char* CLEAR      = "\033[K";      // erase from cursor to end of line
 inline const char* CLEAR_LINE = "\r\033[K";    // back to column 0, erase the line
 inline const char* CLEAR_ALL  = "\r\033[2K";   // back to column 0, erase the whole line
-inline std::string up(int lines) { return "\033[" + std::to_string(lines) + "A\r"; }
+[[nodiscard]] inline std::string up(int lines) { return "\033[" + std::to_string(lines) + "A\r"; }
 
 // Colour a whole line while keeping the terminating newline outside the escape,
 // so the next line never starts with a stray reset.
@@ -276,23 +281,23 @@ inline DiagStream note() { return DiagStream(clr::YEL, std::cerr); }   // 提示
 
 // ------------------------------------------------- single-format run banner
 // Text is byte-identical to the pre-cui rendering; only styling moved here.
-inline std::string walk_header(const std::string& label, const std::string& start_tag,
-                               const std::string& step_desc, double delay_ms) {
+[[nodiscard]] inline std::string walk_header(std::string_view label, std::string_view start_tag,
+                                             std::string_view step_desc, double delay_ms) {
     char d[32];
     std::snprintf(d, sizeof(d), "%g", delay_ms);
-    return accent(label) + " walk: start=" + start_tag + ", " + step_desc
+    return accent(label) + " walk: start=" + std::string(start_tag) + ", " + std::string(step_desc)
          + ", delay=" + std::string(d) + "ms (0=unlimited)\n";
 }
 
-inline std::string bid_header(const std::string& coeff, int exp10, const std::string& hex) {
-    return std::string("  ") + dim("[BID]") + " coeff=" + coeff
+[[nodiscard]] inline std::string bid_header(std::string_view coeff, int exp10, std::string_view hex) {
+    return std::string("  ") + dim("[BID]") + " coeff=" + std::string(coeff)
          + " exp10=" + std::to_string(exp10) + " hex=" + accent(hex) + "\n";
 }
 
-inline std::string bid_selfcheck_line(bool pass, const std::string& errs) {
+[[nodiscard]] inline std::string bid_selfcheck_line(bool pass, std::string_view errs) {
     std::string head = std::string("  ") + dim("[BID-SELFCHECK]") + " ";
     if (pass) return head + ok("OK") + "\n";
-    return head + err("MISMATCH" + errs) + "\n";
+    return head + err(std::string("MISMATCH") + std::string(errs)) + "\n";
 }
 
 // -------------------------------------------------------------------- table
@@ -300,8 +305,8 @@ inline std::string bid_selfcheck_line(bool pass, const std::string& errs) {
 // on plain text, then the header row is coloured so alignment can never drift.
 class Table {
 public:
-    void col(const std::string& head, bool right = false) {
-        cols_.push_back({head, right});
+    void col(std::string_view head, bool right = false) {
+        cols_.push_back({std::string(head), right});
     }
     void row(std::vector<std::string> cells) {
         rows_.push_back(std::move(cells));
