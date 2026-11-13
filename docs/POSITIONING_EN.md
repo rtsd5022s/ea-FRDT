@@ -143,7 +143,11 @@ Our baseline table is a **mathematical fact**, not an engineering optimization. 
 
 ## 8. Costs of the position
 
-### 8.1 No existing channel to spread through
+### 8.1 Why there is no channel push: cost and accounts
+
+The direct reason we do not push through channels is not "nobody would accept the content" but **operating cost and account overhead**: every channel needs registration, real-name verification, account warm-up, continuous posting, comment replies, and a restart after throttling or a ban. That is time and money the project does not spend. The category mismatch is only the second layer — even matching content would still have no budget or account behind it.
+
+The following is only an observation that precision would be poor even with that investment; it is not an absolute "cannot spread" verdict:
 
 V2EX has a "share creations" node, but what category are we? C++? Hardware? Open source? None fit cleanly. Posting there invites "what is this? burn-in? education?" and the explanation cost is huge.
 
