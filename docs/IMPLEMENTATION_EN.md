@@ -115,7 +115,7 @@ In `-m all`:
 5. Each worker pins to a core (Windows `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL`; Linux `pthread_setaffinity_np` + best-effort `SCHED_BATCH`/`nice(-5)`; failure degrades to unpinned) and receives value-copies of chain and parameters.
 6. Monitor refreshes every `-r` ms (`1000` default in `-m all`); one line per worker: `[wN] Format: value steps/s elapsed loop=N`.
 7. `LIVE:` aggregates current-segment throughput across workers.
-8. On completion, print a summary table: per-worker per-format step counts, exit reason, elapsed, total elapsed.
+8. On completion, one table per worker: per-format steps, exit reason, single-pass elapsed (the wall clock sits in the section subtitle instead of repeating on every row); `identity->stop` rows carry `†` with one "start is a fixed point" footnote after the tables; the final line gives total steps, the worker × format counts, wall clock and aggregate throughput.
 9. Time display is layered Y/M/D/H/M/S/ms; all layers render as duration grows.
 10. Loop display: `-l 1` omits `loop=`; `-l N` shows `loop=current/total`; `-l -1` shows `loop=current`.
 

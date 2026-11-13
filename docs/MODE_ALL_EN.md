@@ -104,7 +104,9 @@ The global `g_timeout_sec` and shared start time gate every worker; on expiry th
 
 ## Summary table
 
-After join, per-worker sections list each format's single-pass steps, cumulative steps, exit reason, per-pass and cumulative time; the last row totals steps, wall clock, and aggregate throughput. Exit reasons drawn from the seven enums (`overflow->inf`, `underflow->0`, `identity->stop`, `safety->limit`, `timeout`, `nan->nan`, `fixed`; `fixed` only appears with the single-format opt-in `--steps <n>`), plus outer `cancelled` / `sigint`.
+After join, per-worker sections list each format's single-pass steps, cumulative steps, exit reason and single-pass time; the wall clock is a per-worker constant, so it sits in the section subtitle (`total <t>`) instead of repeating on every row. Sections are separated by a blank line so they read as blocks. The last row totals steps, the worker × format counts, wall clock, and aggregate throughput.
+
+Rows ending in `identity->stop` carry a `†` and share one footnote after the last table: the start is a fixed point (`1.0 × 1.02` rounds back to itself in that format, so the run stops after 16 unchanged steps — not a fault), typically FP4/FP6/FP8. Exit reasons drawn from the seven enums (`overflow->inf`, `underflow->0`, `identity->stop`, `safety->limit`, `timeout`, `nan->nan`, `fixed`; `fixed` only appears with the single-format opt-in `--steps <n>`), plus outer `cancelled` / `sigint`.
 
 ## Default chain order (13)
 

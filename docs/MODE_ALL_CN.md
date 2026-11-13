@@ -104,7 +104,9 @@ while (!done) {
 
 ## 汇总表
 
-join 后每 worker 一节，列出每格式单遍步数、累计步数、退出原因、单遍与累计耗时；末行为总步数、总墙钟时间与总吞吐。退出原因取自七枚举（`overflow->inf`、`underflow->0`、`identity->stop`、`safety->limit`、`timeout`、`nan->nan`、`fixed`（仅单格式 opt-in `--steps <n>` 触发）），外加外层 `cancelled` / `sigint`。
+join 后每 worker 一节，列出每格式单遍步数、累计步数、退出原因与单遍耗时；总墙钟是该 worker 的常量，放在小节标题下（`总耗时 <t>`），不再逐行重复。小节之间空一行，便于分段阅读。末行为总步数、worker × 格式计数、总墙钟与总吞吐。
+
+`identity->stop` 行尾带 `†`，并在全部表后统一注一行：起点即不动点（`1.0 × 1.02` 在该格式上舍入回自身，连续 16 步无变化后判停，非故障）——典型是 FP4/FP6/FP8。退出原因取自七枚举（`overflow->inf`、`underflow->0`、`identity->stop`、`safety->limit`、`timeout`、`nan->nan`、`fixed`（仅单格式 opt-in `--steps <n>` 触发）），外加外层 `cancelled` / `sigint`。
 
 ## 默认链顺序（13）
 

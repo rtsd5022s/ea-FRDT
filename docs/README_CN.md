@@ -233,7 +233,7 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
 总计 5,678 步  ·  overflow->inf  ·  墙钟 42ms
 ```
 
-DPD 单模式额外打印 `[DPD-SELFCHECK] OK`；若 pack→unpack 往返不一致，stderr 报 `MISMATCH`。并发模式每 worker 实时一行吞吐，结束后出每 worker 每格式步数与全局汇总表。
+DPD 单模式额外打印 `[DPD-SELFCHECK] OK`；若 pack→unpack 往返不一致，stderr 报 `MISMATCH`。并发模式每 worker 实时一行吞吐，结束后每 worker 一节表（格式 / 单次步数 / 累计步数 / 退出 / 耗时ms，总墙钟在小节标题），末行给总步数、`worker × 格式` 计数、墙钟与总吞吐。
 
 单格式无论是否 `-q`，都在退出前打出这一行 `总计` 尾行（`--json` 不打印，机器输出独占 stdout；`--dump`/`--dump-events` 隐式静默但保留尾行）；`-m all` 不打印该尾行，仍以汇总表收尾。
 

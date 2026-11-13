@@ -115,7 +115,7 @@ src/
 5. 每个 worker 绑核（Windows `SetThreadAffinityMask` + `THREAD_PRIORITY_TIME_CRITICAL`；Linux `pthread_setaffinity_np` + best-effort `SCHED_BATCH`/`nice(-5)`；失败降级为不绑），值拷贝格式链与参数。
 6. 监视器每 `-r` ms 刷新（`-m all` 默认 `1000`）；每 worker 一行：`[wN] 格式: 当前值 steps/s 已用时长 loop=N`。
 7. `LIVE:` 汇总当前段跨 worker 吞吐。
-8. 结束后打印汇总表：每 worker 每格式步数、退出原因、耗时、总耗时。
+8. 结束后每 worker 一节表：每格式步数、退出原因、单遍耗时（总墙钟在小节标题，不逐行重复）；`identity->stop` 行带 `†` 并在表后统一注释「起点即不动点」；末行给总步数、`worker × 格式` 计数、墙钟与总吞吐。
 9. 时间显示逐层 Y/M/D/H/M/S/ms，时长增长时各层都渲染。
 10. loop 显示：`-l 1` 省略 `loop=`；`-l N` 显示 `loop=当前/总数`；`-l -1` 显示 `loop=当前`。
 

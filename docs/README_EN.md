@@ -246,7 +246,7 @@ Decimal32 walk: start=1.0, step=multiplied, x1.02, delay=0ms (0=unlimited)
 TOTAL 5,678 steps  ·  overflow->inf  ·  wall 42ms
 ```
 
-DPD single mode additionally prints `[DPD-SELFCHECK] OK` (a `MISMATCH` on stderr means the pack→unpack round-trip failed). Concurrent mode shows per-worker live throughput and, after completion, a summary table of per-worker/per-format step counts and aggregate throughput.
+DPD single mode additionally prints `[DPD-SELFCHECK] OK` (a `MISMATCH` on stderr means the pack→unpack round-trip failed). Concurrent mode shows per-worker live throughput and, after completion, one table per worker (Format / loop_steps / all_steps / exit / elapsed_ms, with the wall clock in the section subtitle) plus a final `TOTAL` line with steps, the worker × format counts, wall clock and aggregate throughput.
 
 Every single-format run closes with that `TOTAL` footer, quiet or not (omitted under `--json`, which owns stdout; `--dump`/`--dump-events` imply quiet yet keep the footer). `-m all` never prints it and still ends with its summary table.
 
