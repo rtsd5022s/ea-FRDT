@@ -167,7 +167,7 @@ So this will be a single-maintainer project. That is a feature: the roadmap does
 
 ### 8.4 Traffic follows a J-curve, not L-curve
 
-L-type repos peak within 72 hours then decay. J-type repos sit near zero for 3–6 months then crawl upward. The first 3–5 months are a **structural dark period**, and the cause is not the content: search engines first have to discover the repo (crawl, sitemap submission), then build an index, then let the ranking settle — that pipeline alone takes months. A new repo has no backlinks and no stars, so its authority takes even longer to build. "It can be found" and "people do find it" are months apart; the dark period is a certainty, not bad luck. We chose J deliberately: scarce topics, long README, explosive repo name, no community promotion. The cost is watching GitHub Insights show single-digit Unique cloners for months and wondering if anyone is reading.
+L-type repos peak within 72 hours then decay. J-type repos sit near zero for 3–6 months then crawl upward. We chose J deliberately: scarce topics, long README, explosive repo name, no community promotion. The cost is watching GitHub Insights show single-digit Unique cloners for months and wondering if anyone is reading.
 
 ## 9. Will the niche ever be filled?
 
