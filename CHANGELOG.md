@@ -35,6 +35,8 @@
 - An invalid `-m` value can no longer produce a machine record: rejection paths disable the atexit single-format JSON shell (and discard an early `--dump` stub), so `--json -m foo 0` prints one `stderr` error, no stdout, exit 2.
 - Single-format runs close with one `TOTAL <n> steps · <reason> · wall <t>` footer: `-q` prints that line instead of nothing, the `--dump`/`--dump-events` implicit-quiet runs get the same closing line, and `--json` output stays a pure single object.
 - DPD32/64/128 now honour `--steps N` and `--max-seconds` exactly like the shared driver (the hand-written DPD loop previously walked to overflow and ignored the cap), and emit the same footer; natural-termination step counts are unchanged.
+- `-m all` summary is easier to read: the per-worker wall clock moved into the section subtitle instead of repeating on every row, sections are separated by a blank line, `identity->stop` rows carry a `†` with one "start is a fixed point" footnote (FP4/FP6/FP8), and the final line now reports `steps · workers × formats · wall · rate`.
+- `-m all --json` gains a `formats[]` aggregate next to `workers[]`: per-format `steps`, `reason`, `elapsed_min_ms`/`elapsed_max_ms`, `steps_consistent` across workers and `start_is_fixed_point`, sourced from the same results the table prints.
 
 ## v1.0.6 (2026-11-03)
 

@@ -362,28 +362,53 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
         u128 total_steps = 0;
         for (int w = 0; w < n; ++w) total_steps += workers[w].total_steps;
         double overall_rate = wall_ms > 0.0 ? (double)total_steps / (wall_ms / 1000.0) : 0.0;
-        std::printf("\"total_steps\":%s,\"overall_rate\":%.1f,\"workers\":[",
+        auto reason_json = [](RunResult::Reason rr) -> const char* {
+            switch (rr) {
+                case RunResult::OVERFLOW:     return "overflow";
+                case RunResult::UNDERFLOW:    return "underflow";
+                case RunResult::IDENTITY:     return "identity";
+                case RunResult::SAFETY:       return "safety";
+                case RunResult::TIMEOUT:      return "timeout";
+                case RunResult::NOT_A_NUMBER: return "nan";
+                case RunResult::FIXED_STEPS:  return "fixed";
+            }
+            return "unknown";
+        };
+        // Per-format aggregate across workers (same values the tables print, so the
+        // JSON and the human view cannot drift).
+        std::printf("\"total_steps\":%s,\"overall_rate\":%.1f,\"formats\":[",
                     to_string_u128(total_steps).c_str(), overall_rate);
+        for (std::size_t i = 0; i < workers[0].done.size(); ++i) {
+            if (i > 0) std::printf(",");
+            const auto& r0 = workers[0].done[i];
+            double emin = r0.elapsed_ms, emax = r0.elapsed_ms;
+            bool consistent = true;
+            for (int w = 1; w < n; ++w) {
+                if (i >= workers[w].done.size()) { consistent = false; continue; }
+                const auto& r = workers[w].done[i];
+                if (!(r.steps == r0.steps) || r.reason != r0.reason) consistent = false;
+                if (r.elapsed_ms < emin) emin = r.elapsed_ms;
+                if (r.elapsed_ms > emax) emax = r.elapsed_ms;
+            }
+            std::printf("{\"name\":\"%s\",\"steps\":%s,\"reason\":\"%s\","
+                        "\"elapsed_min_ms\":%.1f,\"elapsed_max_ms\":%.1f,"
+                        "\"steps_consistent\":%s,\"start_is_fixed_point\":%s}",
+                        r0.name.c_str(), to_string_u128(r0.steps).c_str(), reason_json(r0.reason),
+                        emin, emax,
+                        consistent ? "true" : "false",
+                        (r0.reason == RunResult::IDENTITY) ? "true" : "false");
+        }
+        std::printf("],\"workers\":[");
         for (int w = 0; w < n; ++w) {
             if (w > 0) std::printf(",");
             std::printf("{\"core\":%d,\"formats\":[", core_ids[w]);
             for (std::size_t i = 0; i < workers[w].done.size(); ++i) {
                 if (i > 0) std::printf(",");
                 const auto& r = workers[w].done[i];
-                const char* rn = "unknown";
-                switch (r.reason) {
-                    case RunResult::OVERFLOW:  rn = "overflow"; break;
-                    case RunResult::UNDERFLOW: rn = "underflow"; break;
-                    case RunResult::IDENTITY:  rn = "identity"; break;
-                    case RunResult::SAFETY:    rn = "safety"; break;
-                    case RunResult::TIMEOUT:   rn = "timeout"; break;
-                    case RunResult::NOT_A_NUMBER: rn = "nan"; break;
-                    case RunResult::FIXED_STEPS: rn = "fixed"; break;
-                }
                 std::printf("{\"name\":\"%s\",\"steps\":%s,\"elapsed_ms\":%.1f,\"reason\":\"%s\",\"sum_steps\":%s}",
                             r.name.c_str(),
                             to_string_u128(r.steps).c_str(),
-                            r.elapsed_ms, rn,
+                            r.elapsed_ms, reason_json(r.reason),
                             to_string_u128(workers[w].sum_steps[i]).c_str());
             }
             std::printf("]}");
@@ -394,36 +419,44 @@ inline double run_all(double delay_ms, StartKind kind, StepMode sm, DispFmt df,
 
     std::cout << "\n";
 
-    // Summary: one boxed table per worker. Column semantics are unchanged
-    // (format / loop steps / cumulative steps / exit / elapsed / cumulative wall),
-    // only the rendering is automated: widths, alignment and thousands grouping.
+    // Summary: one boxed table per worker. The wall clock is a per-worker constant,
+    // so it lives in the section subtitle instead of repeating on every row.
+    bool any_identity = false;
     for (int w = 0; w < n; ++w) {
-        std::cout << cui::section(tr("worker ", "worker ") + std::to_string(core_ids[w]));
+        std::cout << cui::section(tr("worker ", "worker ") + std::to_string(core_ids[w]),
+                                  tr("总耗时 ", "total ") + cui::elapsed(wall_ms));
         cui::Table t;
         t.col(tr("格式", "Format"), false);
         t.col(tr("单次步数", "loop_steps"), true);
         t.col(tr("累计步数", "all_steps"), true);
         t.col(tr("退出", "exit"), false);
         t.col(tr("耗时ms", "elapsed_ms"), true);
-        t.col(tr("总耗时", "total"), true);
         for (std::size_t i = 0; i < workers[w].done.size(); ++i) {
             const auto& r = workers[w].done[i];
             char elbuf[32];
             std::snprintf(elbuf, sizeof(elbuf), "%.1f", r.elapsed_ms);
+            std::string exit_txt = reason_name(r.reason);
+            if (r.reason == RunResult::IDENTITY) { exit_txt += "†"; any_identity = true; }
             t.row({r.name,
                    cui::count(r.steps),
                    cui::count(workers[w].sum_steps[i]),
-                   reason_name(r.reason),
-                   elbuf,
-                   cui::elapsed(wall_ms)});
+                   exit_txt,
+                   elbuf});
         }
         t.print(std::cout);
+        if (w + 1 < n) std::cout << "\n";
     }
+    if (any_identity)
+        std::cout << cui::dim(tr("† 起点即不动点：1.0 × 1.02 在该格式上舍入回自身，连续 16 步无变化后判停（非故障）",
+                                 "† start is a fixed point: 1.0 × 1.02 rounds back to itself in that format, so the run stops after 16 unchanged steps (not a fault)"))
+                  << "\n";
     u128 total_steps = 0;
     for (int w = 0; w < n; ++w) total_steps += workers[w].total_steps;
     double overall_rate = wall_ms > 0.0 ? (double)total_steps / (wall_ms / 1000.0) : 0.0;
     std::cout << "\n" << cui::num(tr("总计 ", "TOTAL "))
               << cui::num(cui::count(total_steps)) << tr(" 步", " steps")
+              << cui::dim("  ·  ") << std::to_string(n) << tr(" worker × ", " workers × ")
+              << std::to_string(chain.size()) << tr(" 个格式", " formats")
               << cui::dim("  ·  ") << tr("墙钟 ", "wall ")
               << cui::num(cui::elapsed(wall_ms))
               << cui::dim("  ·  ") << cui::num(cui::rate(overall_rate)) << tr(" 步/秒", " steps/s") << "\n";
