@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ea-FRDT icon">
   <defs>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-      <path d="M32 0H0V32" fill="none" stroke="#12351F" stroke-width="1" opacity="0.55"/>
+      <path d="M32 0H0V32" fill="none" stroke="#21262D" stroke-width="1" opacity="0.55"/>
     </pattern>
     <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="10" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <linearGradient id="trace" x1="64" y1="408" x2="444" y2="54" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2EA043"/>
-      <stop offset="1" stop-color="#7CFFB2"/>
+      <stop offset="0" stop-color="#6E7681"/>
+      <stop offset="1" stop-color="#C9D1D9"/>
     </linearGradient>
   </defs>
 
   <rect width="512" height="512" fill="#05070A"/>
   <rect width="512" height="512" fill="url(#grid)"/>
-  <rect x="1" y="1" width="510" height="510" fill="none" stroke="#1F6F3F" stroke-width="2"/>
+  <rect x="1" y="1" width="510" height="510" fill="none" stroke="#30363D" stroke-width="2"/>
 
   <!-- HUD corner brackets -->
-  <g stroke="#39D353" stroke-width="4" opacity="0.85">
+  <g stroke="#8B949E" stroke-width="4" opacity="0.85">
     <path d="M24 76V24H76"/>
     <path d="M436 24H488V76"/>
     <path d="M488 436V488H436"/>
@@ -26,7 +26,7 @@
   </g>
 
   <!-- terminal cursor: the walk begins here -->
-  <rect x="36" y="392" width="16" height="16" fill="#39D353"/>
+  <rect x="36" y="392" width="16" height="16" fill="#C9D1D9"/>
 
   <!-- step trace: 1.0 -> 1.02x -> overflow -->
   <path d="M64 408H120V352H176V296H232V240H288V184H344V128H384"
@@ -36,7 +36,7 @@
   <!-- pixel-phosphor infinity at the top of the walk -->
   <path d="M384 86C372 58 344 54 332 70C324 80 324 92 332 102C344 118 372 114 384 86
            C396 58 424 54 436 70C444 80 444 92 436 102C424 118 396 114 384 86"
-        fill="none" stroke="#7CFFB2" stroke-width="12"
+        fill="none" stroke="#E6EDF3" stroke-width="12"
         stroke-linecap="round" filter="url(#glow)"/>
 
   <!-- CRT scanlines -->
