@@ -5,7 +5,7 @@
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](CMakeLists.txt)
 
 <p align="center">
-  <img src="assets/logo.svg" alt="ea-FRDT — floating-point rigorous devil test" width="640">
+  <img src="assets/logo-wordmark.svg" alt="ea-FRDT — floating-point rigorous devil test" width="620">
 </p>
 
 > **Platform note:** Prebuilt binary is Windows x86_64 only. CI builds on Linux (GCC + Clang) and Windows (MSYS2 clang64). **Other platforms (macOS, BSD, ARM Linux, RISC-V) have never been tested — if you hit a compile error or runtime bug there, open a PR.**
