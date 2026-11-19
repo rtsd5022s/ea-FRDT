@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 200" width="760" height="200" role="img" aria-label="ea-FRDT — floating-point rigorous devil test">
+  <defs>
+    <linearGradient id="walk" x1="56" y1="164" x2="196" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#388BFD"/>
+      <stop offset="1" stop-color="#BC8CFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="758" height="198" rx="26" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
+
+  <!-- the walk: 1.0 -> 1.02x -> ... -> overflow -->
+  <path d="M56 164 H80 V142 H104 V120 H128 V98 H152"
+        fill="none" stroke="url(#walk)" stroke-width="8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- infinity at the top of the walk -->
+  <path d="M152 62 C144 40 124 36 114 48 C108 56 108 68 114 76 C124 88 144 84 152 62
+           C160 40 180 36 190 48 C196 56 196 68 190 76 C180 88 160 84 152 62"
+        fill="none" stroke="url(#walk)" stroke-width="8" stroke-linecap="round"/>
+
+  <line x1="232" y1="58" x2="232" y2="150" stroke="#30363D" stroke-width="2"/>
+
+  <text x="258" y="112"
+        font-family="ui-monospace, 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', monospace"
+        font-size="62" font-weight="700" letter-spacing="0.5"><tspan fill="#8B949E">ea-</tspan><tspan fill="#E6EDF3">FRDT</tspan></text>
+  <text x="260" y="148"
+        font-family="ui-monospace, 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', monospace"
+        font-size="16" letter-spacing="2.4" fill="#8B949E">FLOATING-POINT RIGOROUS DEVIL TEST</text>
+</svg>
