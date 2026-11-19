@@ -31,7 +31,9 @@ enum eafrdt_fmt {
 enum eafrdt_reason {
     EAFRDT_OVERFLOW = 0,
     EAFRDT_UNDERFLOW = 1,
-    EAFRDT_TIMEOUT = 2
+    EAFRDT_TIMEOUT = 2,
+    EAFRDT_IDENTITY = 3,      // 16 consecutive steps left the value unchanged
+    EAFRDT_NOT_A_NUMBER = 4   // NaN reached (native float formats only)
 };
 
 // Walk one format from `start` multiplying by `multiplier` until exit.

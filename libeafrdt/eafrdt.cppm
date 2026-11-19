@@ -1,6 +1,6 @@
-// eafrdt.cppm — C++23 module interface for libeafrdt v1.0.1
+// eafrdt.cppm — C++23 module interface for libeafrdt v1.1
 // Usage: import eafrdt;
-// Synced with main branch: bid128 34-digit coeff fix, UInt256 pure software.
+// Synced with main branch: shared walk_core identity/underflow stop, native f16.
 module;
 #include <cstdint>
 export module eafrdt;
@@ -33,6 +33,7 @@ struct DpdNum { bool neg=false, inf=false; int exp10=0; std::uint8_t digits[34];
 
 export long long walk_binary(const Fmt& f, double start, double mult,
                              double timeout_sec, int* reason);
+export long long walk_f16(double start, double mult, double timeout_sec, int* reason);
 export long long walk_f32(float start, float mult, double timeout_sec, int* reason);
 export long long walk_f64(double start, double mult, double timeout_sec, int* reason);
 export long long walk_x87(double start, double mult, double timeout_sec, int* reason);

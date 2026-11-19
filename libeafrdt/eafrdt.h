@@ -119,14 +119,19 @@ struct DpdNum {
 };
 
 // ===========================================================================
-// Step-mode walk: from start, apply multiplier until overflow/underflow.
+// Step-mode walk: from start, apply multiplier until terminal.
 // Returns step count; *reason_out gets exit reason.
-// reason: 0=overflow, 1=underflow, 2=timeout
+// reason: 0=overflow, 1=underflow, 2=timeout, 3=identity (16 unchanged steps),
+//         4=NaN (native float formats only)
 // ===========================================================================
 
 // Walk a parameterized binary format.
 long long walk_binary(const Fmt& f, double start, double multiplier,
                       double timeout_sec, int* reason_out);
+
+// Walk native binary16 (matches the CLI's `_Float16` path when available,
+// otherwise falls back to the parameterized emulator).
+long long walk_f16(double start, double multiplier, double timeout_sec, int* reason_out);
 
 // Walk native float32 (hardware float).
 long long walk_f32(float start, float multiplier, double timeout_sec, int* reason_out);

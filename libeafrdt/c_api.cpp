@@ -13,7 +13,7 @@ long long eafrdt_walk(enum eafrdt_fmt fmt, double start, double mult,
     case EAFRDT_FP6:    n = walk_binary(fmt_fp6(),    start, mult, timeout_sec, &r); break;
     case EAFRDT_FP8_E4M3:n= walk_binary(fmt_fp8e4m3(),start, mult, timeout_sec, &r); break;
     case EAFRDT_FP8_E5M2:n=walk_binary(fmt_fp8e5m2(),start, mult, timeout_sec, &r); break;
-    case EAFRDT_FP16:   n = walk_binary(fmt_fp16(),  start, mult, timeout_sec, &r); break;
+    case EAFRDT_FP16:   n = walk_f16(start, mult, timeout_sec, &r); break;
     case EAFRDT_BF16:   n = walk_binary(fmt_bf16(),  start, mult, timeout_sec, &r); break;
     case EAFRDT_TF32:   n = walk_binary(fmt_tf32(),   start, mult, timeout_sec, &r); break;
     case EAFRDT_F32:    n = walk_f32((float)start, (float)mult, timeout_sec, &r); break;
@@ -32,5 +32,11 @@ long long eafrdt_walk(enum eafrdt_fmt fmt, double start, double mult,
 }
 
 const char* eafrdt_version(void) {
-    return "ea-FRDT core v1.0 (libeafrdt, clang64, C++23)";
+#if defined(__clang__)
+    return "ea-FRDT core v1.1 (libeafrdt, clang, C++23)";
+#elif defined(__GNUC__)
+    return "ea-FRDT core v1.1 (libeafrdt, gcc, C++23)";
+#else
+    return "ea-FRDT core v1.1 (libeafrdt, C++23)";
+#endif
 }

@@ -1,8 +1,8 @@
 // eafrdt.cpp — implementation of core walk algorithms.
 // No IO, no threads, no globals. Pure compute.
 #include "eafrdt.h"
+#include "walk_core.h"
 #include <cmath>
-#include <chrono>
 #include <cstring>
 
 namespace fw::core {
@@ -57,53 +57,77 @@ static SVal sval_mul(SVal a, SVal b, const Fmt& f) {
     return r;
 }
 
+// Terminal/equality predicates for the parameterized binary state. Zero mantissa
+// means the value flushed to zero; inf is overflow. Both stop the walk.
+static int sval_terminal(const SVal& v) {
+    if (v.inf) return detail::kOverflow;
+    if (v.man == 0) return detail::kUnderflow;
+    return -1;
+}
+
+static bool sval_equal(const SVal& a, const SVal& b) {
+    return a.sign == b.sign && a.exp == b.exp && a.man == b.man && a.inf == b.inf;
+}
+
 long long walk_binary(const Fmt& f, double start, double mult, double timeout_sec, int* reason) {
-    SVal cur = sval_encode(start, f);
-    SVal fac = sval_encode(mult, f);
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (!cur.inf) {
-        ++steps;
-        cur = sval_mul(cur, fac, f);
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = 0;
-    return steps;
+    const SVal cur = sval_encode(start, f);
+    const SVal fac = sval_encode(mult, f);
+    return detail::walk_until(
+        cur,
+        [&f, &fac](const SVal& v) { return sval_mul(v, fac, f); },
+        [](const SVal& v) { return sval_terminal(v); },
+        [](const SVal& a, const SVal& b) { return sval_equal(a, b); },
+        timeout_sec, reason);
 }
 
 long long walk_f32(float start, float mult, double timeout_sec, int* reason) {
-    float cur = start;
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (std::isfinite(cur)) {
-        ++steps;
-        cur = cur * mult;
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = std::isinf(cur) ? 0 : 1;
-    return steps;
+    return detail::walk_until(
+        start,
+        [mult](float v) { return v * mult; },
+        [](float v) {
+            if (std::isnan(v)) return detail::kNotANumber;
+            if (std::isinf(v)) return detail::kOverflow;
+            if (v == 0.0f) return detail::kUnderflow;
+            return -1;
+        },
+        [](float a, float b) { return a == b; },
+        timeout_sec, reason);
 }
 
 long long walk_f64(double start, double mult, double timeout_sec, int* reason) {
-    double cur = start;
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (std::isfinite(cur)) {
-        ++steps;
-        cur = cur * mult;
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = std::isinf(cur) ? 0 : 1;
-    return steps;
+    return detail::walk_until(
+        start,
+        [mult](double v) { return v * mult; },
+        [](double v) {
+            if (std::isnan(v)) return detail::kNotANumber;
+            if (std::isinf(v)) return detail::kOverflow;
+            if (v == 0.0) return detail::kUnderflow;
+            return -1;
+        },
+        [](double a, double b) { return a == b; },
+        timeout_sec, reason);
+}
+
+// FP16 matches the CLI's native path (include/formats/common.h: _Float16), so step
+// counts agree with `ea-FRDT -m f16`; the SVal emulator is only a fallback.
+long long walk_f16(double start, double mult, double timeout_sec, int* reason) {
+#if defined(__FLT16_MAX__)
+    const _Float16 cur = static_cast<_Float16>(start);
+    const _Float16 fac = static_cast<_Float16>(mult);
+    return detail::walk_until(
+        cur,
+        [fac](_Float16 v) { return static_cast<_Float16>(v * fac); },
+        [](_Float16 v) {
+            if (std::isnan(static_cast<double>(v))) return detail::kNotANumber;
+            if (std::isinf(static_cast<double>(v))) return detail::kOverflow;
+            if (v == static_cast<_Float16>(0)) return detail::kUnderflow;
+            return -1;
+        },
+        [](_Float16 a, _Float16 b) { return a == b; },
+        timeout_sec, reason);
+#else
+    return walk_binary(fmt_fp16(), start, mult, timeout_sec, reason);
+#endif
 }
 static X87 x87_encode(double v) {
     X87 r;
@@ -145,21 +169,25 @@ static X87 x87_mul(X87 a, X87 b) {
     return r;
 }
 
+static int x87_terminal(const X87& v) {
+    if (v.inf) return detail::kOverflow;
+    if (v.man == 0) return detail::kUnderflow;
+    return -1;
+}
+
+static bool x87_equal(const X87& a, const X87& b) {
+    return a.sign == b.sign && a.exp == b.exp && a.man == b.man && a.inf == b.inf;
+}
+
 long long walk_x87(double start, double mult, double timeout_sec, int* reason) {
-    X87 cur = x87_encode(start);
-    X87 fac = x87_encode(mult);
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (!cur.inf) {
-        ++steps;
-        cur = x87_mul(cur, fac);
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = 0;
-    return steps;
+    const X87 cur = x87_encode(start);
+    const X87 fac = x87_encode(mult);
+    return detail::walk_until(
+        cur,
+        [&fac](const X87& v) { return x87_mul(v, fac); },
+        [](const X87& v) { return x87_terminal(v); },
+        [](const X87& a, const X87& b) { return x87_equal(a, b); },
+        timeout_sec, reason);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,21 +286,25 @@ static Q128 q128_mul(Q128 a, Q128 b) {
     return r;
 }
 
+static int q128_terminal(const Q128& v) {
+    if (v.inf) return detail::kOverflow;
+    if (v.hi == 0 && v.lo == 0) return detail::kUnderflow;
+    return -1;
+}
+
+static bool q128_equal(const Q128& a, const Q128& b) {
+    return a.sign == b.sign && a.exp == b.exp && a.hi == b.hi && a.lo == b.lo && a.inf == b.inf;
+}
+
 long long walk_q128(double start, double mult, double timeout_sec, int* reason) {
-    Q128 cur = q128_encode(start);
-    Q128 fac = q128_encode(mult);
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (!cur.inf) {
-        ++steps;
-        cur = q128_mul(cur, fac);
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = 0;
-    return steps;
+    const Q128 cur = q128_encode(start);
+    const Q128 fac = q128_encode(mult);
+    return detail::walk_until(
+        cur,
+        [&fac](const Q128& v) { return q128_mul(v, fac); },
+        [](const Q128& v) { return q128_terminal(v); },
+        [](const Q128& a, const Q128& b) { return q128_equal(a, b); },
+        timeout_sec, reason);
 }
 
 // ---------------------------------------------------------------------------
@@ -329,21 +361,25 @@ static DecNum dec_from_double(double v, int sig) {
     return r;
 }
 
+static int dec_terminal(const DecNum& v) {
+    if (v.inf) return detail::kOverflow;
+    if (v.coeff == 0) return detail::kUnderflow;
+    return -1;
+}
+
+static bool dec_equal(const DecNum& a, const DecNum& b) {
+    return a.neg == b.neg && a.coeff == b.coeff && a.exp10 == b.exp10 && a.inf == b.inf;
+}
+
 long long walk_bid(const DecFmt& f, double start, double mult, double timeout_sec, int* reason) {
-    DecNum cur = dec_from_double(start, f.sig);
-    DecNum fac = dec_from_double(mult, f.sig);
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (!cur.inf) {
-        ++steps;
-        cur = dec_mul(cur, fac, f);
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = 0;
-    return steps;
+    const DecNum cur = dec_from_double(start, f.sig);
+    const DecNum fac = dec_from_double(mult, f.sig);
+    return detail::walk_until(
+        cur,
+        [&f, &fac](const DecNum& v) { return dec_mul(v, fac, f); },
+        [](const DecNum& v) { return dec_terminal(v); },
+        [](const DecNum& a, const DecNum& b) { return dec_equal(a, b); },
+        timeout_sec, reason);
 }
 
 // ---------------------------------------------------------------------------
@@ -391,21 +427,25 @@ static BigDec bid128_mul(const BigDec& a, const BigDec& b) {
     return r;
 }
 
+static int bigdec_terminal(const BigDec& v) {
+    if (v.inf) return detail::kOverflow;
+    if (v.coeff.is_zero()) return detail::kUnderflow;
+    return -1;
+}
+
+static bool bigdec_equal(const BigDec& a, const BigDec& b) {
+    return a.neg == b.neg && a.exp10 == b.exp10 && a.inf == b.inf && a.coeff == b.coeff;
+}
+
 long long walk_bid128(double start, double mult, double timeout_sec, int* reason) {
-    BigDec cur = bid128_from_double(start);
-    BigDec fac = bid128_from_double(mult);
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (!cur.inf) {
-        ++steps;
-        cur = bid128_mul(cur, fac);
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
-    }
-    if (reason) *reason = 0;
-    return steps;
+    const BigDec cur = bid128_from_double(start);
+    const BigDec fac = bid128_from_double(mult);
+    return detail::walk_until(
+        cur,
+        [&fac](const BigDec& v) { return bid128_mul(v, fac); },
+        [](const BigDec& v) { return bigdec_terminal(v); },
+        [](const BigDec& a, const BigDec& b) { return bigdec_equal(a, b); },
+        timeout_sec, reason);
 }
 
 // ---------------------------------------------------------------------------
@@ -503,21 +543,27 @@ static DpdNum dpd_mul(const DpdNum& a, double factor, const DpdFmt& f) {
     return r;
 }
 
-long long walk_dpd(const DpdFmt& f, double start, double mult, double timeout_sec, int* reason) {
-    DpdNum cur = dpd_from_double(start, f);
-    auto t0 = std::chrono::steady_clock::now();
-    long long steps = 0;
-    while (!cur.inf) {
-        ++steps;
-        cur = dpd_mul(cur, mult, f);
-        if (cur.ndigits == 1 && cur.digits[0] == 0) { if (reason) *reason = 1; return steps; }
-        if (timeout_sec > 0) {
-            double es = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-            if (es >= timeout_sec) { if (reason) *reason = 2; return steps; }
-        }
+static int dpd_terminal(const DpdNum& v) {
+    if (v.inf) return detail::kOverflow;
+    if (v.ndigits == 1 && v.digits[0] == 0) return detail::kUnderflow;
+    return -1;
+}
+
+static bool dpd_equal(const DpdNum& a, const DpdNum& b) {
+    if (a.neg != b.neg || a.inf != b.inf || a.exp10 != b.exp10 || a.ndigits != b.ndigits) {
+        return false;
     }
-    if (reason) *reason = 0;
-    return steps;
+    return std::memcmp(a.digits, b.digits, static_cast<std::size_t>(a.ndigits)) == 0;
+}
+
+long long walk_dpd(const DpdFmt& f, double start, double mult, double timeout_sec, int* reason) {
+    const DpdNum cur = dpd_from_double(start, f);
+    return detail::walk_until(
+        cur,
+        [&f, mult](const DpdNum& v) { return dpd_mul(v, mult, f); },
+        [](const DpdNum& v) { return dpd_terminal(v); },
+        [](const DpdNum& a, const DpdNum& b) { return dpd_equal(a, b); },
+        timeout_sec, reason);
 }
 
 } // namespace fw::core
