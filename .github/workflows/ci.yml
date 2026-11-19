@@ -24,7 +24,7 @@ jobs:
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install -y g++ cmake ccache
       - name: ccache cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.ccache
           key: ccache-gcc-${{ github.sha }}
@@ -50,7 +50,7 @@ jobs:
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install -y clang cmake ccache
       - name: ccache cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.ccache
           key: ccache-clang-${{ github.sha }}
