@@ -73,7 +73,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake builds `Release` by default, enables `-Wall -Wextra`, and names the executable `float_inf_walk`. It builds only the CLI; `libeafrdt/` is a separate optional C-ABI static library outside root CMake and CI (manual build and status: `libeafrdt/README.md`).
+CMake builds `Release` by default, enables `-Wall -Wextra`, and names the executable `ea-FRDT`. It builds only the CLI; `libeafrdt/` is a separate optional C-ABI static library outside root CMake and CI (manual build and status: `libeafrdt/README.md`).
 
 ### Raw compiler
 
@@ -81,12 +81,12 @@ CMake builds `Release` by default, enables `-Wall -Wextra`, and names the execut
 # Linux
 g++ -std=c++23 -O2 -Wall -Wextra -pthread \
     -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
-    src/drive.cpp src/platform.cpp -o float_inf_walk
+    src/drive.cpp src/platform.cpp -o ea-FRDT
 
 # Windows (MSYS2 clang64, recommended release flags)
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections -static \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT
 ```
 
 clang64 uses its own libc++/compiler-rt/lld; do not add GCC-only `-static-libgcc -static-libstdc++`. The optimized release link has been regression-tested and yields a roughly 0.8 MB static binary. For microarchitectural targets add `-march=x86-64-v2`, `-march=x86-64-v3`, or `-march=native`.
@@ -95,26 +95,26 @@ clang64 uses its own libc++/compiler-rt/lld; do not add GCC-only `-static-libgcc
 
 ```bash
 # positional arg = delay_ms (0 = no throttle); f32, start 1.0, x1.02
-./float_inf_walk 0
+./ea-FRDT 0
 
 # binary16, max-finite start, x0.5, walk down to 0
-./float_inf_walk 0 -m fp16 -a max-finite -k 0.5
+./ea-FRDT 0 -m fp16 -a max-finite -k 0.5
 
 # smallest subnormal start (independent flag, mutually exclusive with -a)
-./float_inf_walk 0 -m fp32 -s
+./ea-FRDT 0 -m fp32 -s
 
 # dec64 BID, 10 s timeout, quiet
-./float_inf_walk 0 -m dec64 -t 10 -q
+./ea-FRDT 0 -m dec64 -t 10 -q
 
 # hex / grouped binary bit representation in parentheses
-./float_inf_walk 0 -m fp32 --bits hex
-./float_inf_walk 0 -m fp4 --bits bin
+./ea-FRDT 0 -m fp32 --bits hex
+./ea-FRDT 0 -m fp4 --bits bin
 
 # dump every step (single format); 256-byte schema v2 header (header+payload dual CRC-32, explicit length/geometry) + payload
-./float_inf_walk 0 -m f64 --dump walk.bin
+./ea-FRDT 0 -m f64 --dump walk.bin
 
 # default chain concurrently; -j uses 0-based core ids, here cores 0..3
-./float_inf_walk 0 -m all -j 0-3
+./ea-FRDT 0 -m all -j 0-3
 ```
 
 ## Supported formats

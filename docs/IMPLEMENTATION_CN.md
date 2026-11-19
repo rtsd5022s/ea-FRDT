@@ -193,20 +193,20 @@ DPD（Densely Packed Decimal）把 3 个十进制数字编成 10 位二进制，
 ## 构建
 
 ```bash
-# CMake（默认 Release、-Wall -Wextra、产物 float_inf_walk；CMake 3.20+）
+# CMake（默认 Release、-Wall -Wextra、产物 ea-FRDT；CMake 3.20+）
 cmake -B build
 cmake --build build -j
 
 # Linux 直接编译
-g++ -std=c++23 -O2 -Wall -Wextra -pthread -Iinclude src/*.cpp -o float_inf_walk
+g++ -std=c++23 -O2 -Wall -Wextra -pthread -Iinclude src/*.cpp -o ea-FRDT
 
 # Windows MSYS2 clang64 release（推荐；thin LTO、段回收、静态）
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections -static \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT
 ```
 
-要求 C++23（GCC 13+ 或 Clang 16+）；头文件开头统一 `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`，同时排斥 MSVC cl.exe 与 LLVM 官方 `x86_64-pc-windows-msvc` clang。无第三方依赖（无 libquadmath/Boost/Eigen）。CI（GitHub Actions）三个 job：Ubuntu GCC、Ubuntu Clang、Windows MSYS2 clang64（Ninja + `clang++`，不碰 MSVC generator），跑 fp32/dec 冒烟；未启用 `-Werror`，warning 不会导致任务失败。上述 CMake 与直接编译命令只构建 CLI `float_inf_walk`；`libeafrdt/` 在该构建与 CI 之外，按 `libeafrdt/README.md` 手动构建。
+要求 C++23（GCC 13+ 或 Clang 16+）；头文件开头统一 `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`，同时排斥 MSVC cl.exe 与 LLVM 官方 `x86_64-pc-windows-msvc` clang。无第三方依赖（无 libquadmath/Boost/Eigen）。CI（GitHub Actions）三个 job：Ubuntu GCC、Ubuntu Clang、Windows MSYS2 clang64（Ninja + `clang++`，不碰 MSVC generator），跑 fp32/dec 冒烟；未启用 `-Werror`，warning 不会导致任务失败。上述 CMake 与直接编译命令只构建 CLI `ea-FRDT`；`libeafrdt/` 在该构建与 CI 之外，按 `libeafrdt/README.md` 手动构建。
 
 ## 已知局限
 

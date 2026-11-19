@@ -81,7 +81,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake produces an executable named `float_inf_walk`; it builds only the CLI. `libeafrdt/` is a separate optional C-ABI static library, not built by CMake or CI.
+CMake produces an executable named `ea-FRDT`; it builds only the CLI. `libeafrdt/` is a separate optional C-ABI static library, not built by CMake or CI.
 
 ### Raw compiler
 
@@ -91,7 +91,7 @@ g++ -std=c++23 -O2 -Wall -Wextra -pthread \
     -Iinclude \
     src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
     src/drive.cpp src/platform.cpp \
-    -o float_inf_walk
+    -o ea-FRDT
 ```
 
 On Windows add `-lwinmm`. For a fully static Windows binary:
@@ -101,7 +101,7 @@ On Windows add `-lwinmm`. For a fully static Windows binary:
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections \
     -static \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT
 ```
 
 Note: clang64 uses its own libc++/compiler-rt/lld. Do not add `-static-libgcc -static-libstdc++` (those are GCC flags and will pull ucrt64 libraries).
@@ -122,29 +122,29 @@ No `-Werror`; compiler warnings do not fail the job. **macOS, BSD, ARM Linux, an
 
 ```bash
 # positional arg = delay_ms per step (0 = no throttle); f32, start 1.0, x1.02, walk to +inf
-./float_inf_walk 0
+./ea-FRDT 0
 
 # binary16, start at max-finite, multiply by 0.5, walk down to 0
-./float_inf_walk 0 -m fp16 -a max-finite -k 0.5
+./ea-FRDT 0 -m fp16 -a max-finite -k 0.5
 
 # start from the smallest subnormal (independent flag, mutually exclusive with -a)
-./float_inf_walk 0 -m fp32 -s
+./ea-FRDT 0 -m fp32 -s
 
 # decimal64 BID, 10 second timeout, quiet (no per-step output)
-./float_inf_walk 0 -m dec64 -t 10 -q
+./ea-FRDT 0 -m dec64 -t 10 -q
 
 # append hex / grouped binary bit representation in parentheses
-./float_inf_walk 0 -m fp32 --bits hex
-./float_inf_walk 0 -m fp4 --bits bin
+./ea-FRDT 0 -m fp32 --bits hex
+./ea-FRDT 0 -m fp4 --bits bin
 
 # serialize every step's raw bytes (single format); 256-byte schema v2 header + payload
-./float_inf_walk 0 -m f64 --dump walk.bin
+./ea-FRDT 0 -m f64 --dump walk.bin
 
 # default 13-format chain concurrently; -j uses 0-based core ids
-./float_inf_walk 0 -m all -j 0-3
+./ea-FRDT 0 -m all -j 0-3
 
 # only fp32 and fp64 in all-mode, refresh monitor every 500 ms
-./float_inf_walk 0 -m all --only fp32,fp64 -r 500
+./ea-FRDT 0 -m all --only fp32,fp64 -r 500
 ```
 
 ## Supported formats

@@ -60,7 +60,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake 默认 `Release`、开启 `-Wall -Wextra`，可执行文件名为 `float_inf_walk`。根 CMake 只构建 CLI；`libeafrdt/` 是独立可选 C ABI 静态库，不纳入根 CMake 与 CI，手动构建命令与已知状态见 `libeafrdt/README.md`。
+CMake 默认 `Release`、开启 `-Wall -Wextra`，可执行文件名为 `ea-FRDT`。根 CMake 只构建 CLI；`libeafrdt/` 是独立可选 C ABI 静态库，不纳入根 CMake 与 CI，手动构建命令与已知状态见 `libeafrdt/README.md`。
 
 ### 直接编译
 
@@ -68,12 +68,12 @@ CMake 默认 `Release`、开启 `-Wall -Wextra`，可执行文件名为 `float_i
 # Linux（需要 POSIX 线程库）
 g++ -std=c++23 -O2 -Wall -Wextra -pthread \
     -Iinclude src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
-    src/drive.cpp src/platform.cpp -o float_inf_walk
+    src/drive.cpp src/platform.cpp -o ea-FRDT
 
 # Windows（MSYS2 clang64，推荐 release 参数）
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections -static \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT
 ```
 
 clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libgcc -static-libstdc++`。`-Oz -flto=thin -ffunction-sections -fdata-sections -Wl,--gc-sections -static` 这条 release 链接已做回归验证，静态产物约 0.8 MB。需要微架构定向时加 `-march=x86-64-v2`、`-march=x86-64-v3` 或 `-march=native`。
@@ -82,26 +82,26 @@ clang64 用自带 libc++/compiler-rt/lld，不要加 GCC 专属的 `-static-libg
 
 ```bash
 # 位置参数 = 每步延迟毫秒(0=不限速)；f32、起点 1.0、×1.02
-./float_inf_walk 0
+./ea-FRDT 0
 
 # binary16，max-finite 起点，×0.5，递减到 0
-./float_inf_walk 0 -m fp16 -a max-finite -k 0.5
+./ea-FRDT 0 -m fp16 -a max-finite -k 0.5
 
 # 最小非规格化起点（独立开关，与 -a 互斥）
-./float_inf_walk 0 -m fp32 -s
+./ea-FRDT 0 -m fp32 -s
 
 # dec64 BID，10 秒超时，静默
-./float_inf_walk 0 -m dec64 -t 10 -q
+./ea-FRDT 0 -m dec64 -t 10 -q
 
 # 括号内追加 hex / 分组二进制位表示
-./float_inf_walk 0 -m fp32 --bits hex
-./float_inf_walk 0 -m fp4 --bits bin
+./ea-FRDT 0 -m fp32 --bits hex
+./ea-FRDT 0 -m fp4 --bits bin
 
 # 单格式每步原始字节落盘：256 字节 schema v2 头（头+载荷双 CRC-32、显式长度/记录几何）+ 载荷
-./float_inf_walk 0 -m f64 --dump walk.bin
+./ea-FRDT 0 -m f64 --dump walk.bin
 
 # 默认链并发运行；-j 使用 0 起编的逻辑核号，本例绑 0~3 号核
-./float_inf_walk 0 -m all -j 0-3
+./ea-FRDT 0 -m all -j 0-3
 ```
 
 ## 支持的格式

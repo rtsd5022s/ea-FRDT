@@ -5,9 +5,9 @@
 不带 `-m all` 即单线程模式：一个格式在主线程跑，无 worker 池、无监视器、无绑核，主循环走一步判断一步。
 
 ```
-float_inf_walk 0 -m fp32
-float_inf_walk 0 -m dec64 -k 1.5
-float_inf_walk 0 -m x87 -t 10
+ea-FRDT 0 -m fp32
+ea-FRDT 0 -m dec64 -k 1.5
+ea-FRDT 0 -m x87 -t 10
 ```
 
 第一个位置参数是 `delay_ms`（每步限速毫秒，`0` = 不限速）；起点永远用 `-a`，不是位置参数。单格式缺位置参数只在 stderr 打一行提示（`错误：缺少位置参数 delay_ms …`）并退出码 `2`，不再重打帮助页。

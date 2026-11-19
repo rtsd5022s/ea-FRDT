@@ -1,7 +1,7 @@
 # KNOWN_ISSUES — 已知问题、限制与待办清单（防遗忘）
 
 - 用途：集中记录本项目**已出现的缺陷、未入库改动、文档不一致、设计限制、使用风险、已证伪疑点、流程陷阱与待授权决策**，避免反复排查或遗忘。
-- 核对基线：本地 `main` = `origin/main` = `8413d2d`（代码级四块翻新 + 五项可用性修复 + DPD 引擎对齐，已 push；CI run `43258487555` 三个 job 全绿；`run_tests.ps1` 75/0、17 格式文本与 51 份 dump 逐字节回归全过）。本条不再写"尚未 push"之类的临时状态。
+- 核对基线：本轮清理前的 `main` = `origin/main` = `21f2e34`（2026-11-19；上一轮 POSITIONING 措辞撤回后的 HEAD）；本轮清理的提交以 `git log -1` 为准。质量门：`run_tests.ps1` 77/0、17 格式文本与 51 份 dump 逐字节回归全过；`-Wall -Wextra` 双编译器零 warning。本条不再写"尚未 push"之类的临时状态。
 - 状态图例：`[历史已修]` 已入库、保留作根因档案；`[待决策]` 需用户拍板；`[文档一致性]` 已对齐项 / 待授权项分列；`[设计限制]` 非缺陷、勿误改；`[使用风险]` 运行须知；`[已证伪]` 禁止据此改动；`[流程陷阱]` 方法学/提交纪律；`[覆盖缺口]` 未单独实跑或可选增强。
 - 关联文档（本清单只做索引与摘要，不复制全文）：`docs/RISKS_CN.md`、`docs/IMPLEMENTATION_CN.md`、`docs/COMPLEXITY_CN.md`、`docs/TESTING_DISHONESTY_CN.md`、`CHANGELOG.md`、`README.md`。
 
@@ -35,11 +35,11 @@
 | B6 低-中 | 非交互（管道/CI）下 critical 警告阻塞 10s，取消时 exit 0、无产物、无 `--yes` | 新增 `-y/--yes`；取消改为 exit 1；警告统一 stderr，保持 stdout 机器可读 | `-y` ec=0、stdout 为可解析纯 JSON（本轮补修：确认警告由 cout 改 cerr，消除 `-m all --json -y` 的 stdout 污染）；取消路径 ec=1 |
 | B7 低-中 | f64 denorm/underflow 默认 eng 渲染成 `infe-324`；退出期 `slow_update` 覆盖 `cur_value="0"` | 非有限 `m` 退化 SCI；quiet 退出不再 `slow_update` | f64 `-k 0.5` reason=underflow、`final_value="0"`、steps=1075，无 `infe-324`，终止值未被覆盖 |
 
-### 1.3 未跟踪证据文件
+### 1.3 证据文件归档状态
 
 | 路径 | 状态 | 待办 |
 |---|---|---|
-| `tests/PARAM_MATRIX_BUG_REPORT.md` | 未跟踪（`??`），B1–B7 历史定位证据，含已证伪 P4–P6 原始记录 | 本次**不入库、不删除**，本地留存备查；提交只用精确 `git add --`，不涉及该文件；是否归档改名留待后续单独授权 |
+| `tests/PARAM_MATRIX_BUG_REPORT.md` | **已入库**（`git ls-files` 可见），B1–B7 历史定位证据，含已证伪 P4–P6 原始记录 | 无；如需改名或移出请单独授权 |
 
 ### 1.4 `[待决策]` 历史遗留决策项
 
@@ -65,7 +65,7 @@
 | 默认单格式刷屏 | 4481 行后无收尾 | 同上尾行收尾 | 三处调用点：正常/静默/超时 |
 | 帮助 `-m all` | 写"17 个格式并发""`--only` 默认全部 17" | 13 个并发、`--only` 默认 13 且点名 DPD×3 与 dec128 须显式加入 | 与 `runner.h` 默认链一致 |
 | DPD 引擎 | 手写 `run_dpd` 不吃 `--steps`/`--max-seconds`（`--steps 2` 实跑 11,279 步） | 与共享驱动同序检查上限、同样打尾行；自然终止步数不变 | 17 格式 dump 51/51 逐字节回归；DPD 新 dump 为旧全量记录严格前缀 |
-| 结构翻新 | `std::function` 类型擦除、六引擎重复起点/落盘代码、`libeafrdt` 自带 `UInt256` 副本 | `Options`+`parse_options`、`drive.h` 模板回调、`engine_emit.h` 共享小件、lib 改为 `#include "../include/uint256.h"` | clang 695,296 B（仍 < 1 MiB 红线）；`-Wall -Wextra` 双零 warning |
+| 结构翻新 | `std::function` 类型擦除、六引擎重复起点/落盘代码、`libeafrdt` 自带 `UInt256` 副本 | `Options`+`parse_options`、`drive.h` 模板回调、`engine_emit.h` 共享小件、lib 改为 `#include "../include/uint256.h"` | 发布口径 clang 697,344 B / gcc 1,493,504 B（均 < 1 MiB 红线）；`-Wall -Wextra` 双零 warning |
 
 ---
 
@@ -73,7 +73,7 @@
 
 | 位置 | 事项 | 处理状态 |
 |---|---|---|
-| `CHANGELOG.md` | 断言套件原写 "76 checks"，实测 `CONTRACT_CHECKS=75` | 已改为 75 |
+| `CHANGELOG.md` | 断言套件原写 "76 checks"，本轮实测 `CONTRACT_CHECKS=77` | 已改为 77（新增 B5/B6 两条 `--mode` 别名断言） |
 | `CHANGELOG.md:24`（v1.0.6 Fixed 历史行） | "x87 dump 记录宽 10 字节"是 `2fb2f5a` 加宽**前**的事实 | 历史段原样保留，现行口径由 `Unreleased > Changed`（16B = 10 有效 + 6 零填充）承载 |
 | `docs/*`（全库 30 篇 + 根 `README.md` / `KNOWN_ISSUES.md`） | 本轮翻新：单格式 `总计` 尾行、拒绝路径不产 JSON、缺 `delay_ms` 报错、帮助 13 口径、DPD 遵守 `--steps`/`--max-seconds`、`cancelled` 退出码 `1`、模块表补 `cui.h` 与 `engine_emit.h`、`drive.h` 模板回调、libeafrdt 共用 `uint256.h` | 已对齐（中英成对） |
 | 本文档自身 | 旧版大量引用 `<文件>:<行号>` 形式的定位（如 README 的默认链构建行、`runner.h` 的绑定处），代码一动即漂移 | 本期起只记文件与机制，不再记行号；旧行号引用已就地替换 |

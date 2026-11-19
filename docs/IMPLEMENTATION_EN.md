@@ -193,20 +193,20 @@ Records follow the header at offset `256 .. EOF`. The layout below is what `dump
 ## Build
 
 ```bash
-# CMake (Release default, -Wall -Wextra, output float_inf_walk; CMake 3.20+)
+# CMake (Release default, -Wall -Wextra, output ea-FRDT; CMake 3.20+)
 cmake -B build
 cmake --build build -j
 
 # Linux direct
-g++ -std=c++23 -O2 -Wall -Wextra -pthread -Iinclude src/*.cpp -o float_inf_walk
+g++ -std=c++23 -O2 -Wall -Wextra -pthread -Iinclude src/*.cpp -o ea-FRDT
 
 # Windows MSYS2 clang64 release (recommended; thin LTO, section GC, static)
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections -static \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT
 ```
 
-Requires C++23 (GCC 13+ or Clang 16+); every header starts with `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`, which rejects both MSVC cl.exe and LLVM's `x86_64-pc-windows-msvc` clang. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) runs three jobs: Ubuntu GCC, Ubuntu Clang, and Windows MSYS2 clang64 (Ninja + `clang++`, no MSVC generator), each with short fp32/dec smoke tests; without `-Werror` (warnings do not fail the job). The CMake and direct-compile commands above build only the CLI `float_inf_walk`; `libeafrdt/` sits outside this build and CI and is built manually per `libeafrdt/README.md`.
+Requires C++23 (GCC 13+ or Clang 16+); every header starts with `#if defined(_WIN32) && !defined(__MINGW32__) #error ...`, which rejects both MSVC cl.exe and LLVM's `x86_64-pc-windows-msvc` clang. No third-party dependencies (no libquadmath/Boost/Eigen). CI (GitHub Actions) runs three jobs: Ubuntu GCC, Ubuntu Clang, and Windows MSYS2 clang64 (Ninja + `clang++`, no MSVC generator), each with short fp32/dec smoke tests; without `-Werror` (warnings do not fail the job). The CMake and direct-compile commands above build only the CLI `ea-FRDT`; `libeafrdt/` sits outside this build and CI and is built manually per `libeafrdt/README.md`.
 
 ## Known limitations
 

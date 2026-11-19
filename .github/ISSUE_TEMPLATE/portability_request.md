@@ -25,7 +25,7 @@ The project uses `platform.cpp` with `#ifdef _WIN32` / `#else`. What POSIX calls
 
 **Did it actually work?**
 - [ ] `cmake -B build && cmake --build build` passes
-- [ ] Smoke test: `./float_inf_walk 0 -m fp32 -t 5 -q`
+- [ ] Smoke test: `./ea-FRDT 0 -m fp32 -t 5 -q`
 - [ ] `pwsh tests/run_tests.ps1` (or equivalent shell) green
 - [ ] 17-format step counts match `docs/BASELINE_*.md`
 

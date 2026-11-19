@@ -120,15 +120,15 @@ Error messages pass through `sanitize()`, stripping ANSI escapes and C0 control 
 ## Quick examples
 
 ```
-float_inf_walk 0                                # f32 from 1.0 x1.02
-float_inf_walk 0 -a 100 -k 1.1                  # start at 100, x1.1
-float_inf_walk 0 -a 0x3F800000 -m f32          # raw bit start
-float_inf_walk 0 -a max-finite -k 0.5           # max value descending to 0
-float_inf_walk 0 -m fp32 -s                    # minimum subnormal start
-float_inf_walk 0 -m fp4 -g addulp              # enumerate upward
-float_inf_walk 0 -m all --only fp32,dec128 -j 0,2 -q
-float_inf_walk 0 -m all -l 3 -t 10              # loop 3x, max 10s each
-float_inf_walk 0 -m f32 --bits hex             # hex bits in parentheses
-float_inf_walk 0 -m f32 --json                  # JSON for scripts
-float_inf_walk 0 -m f64 --dump walk.bin          # single-format dump: v2 header (header+payload dual CRC-32, explicit length/geometry)
+ea-FRDT 0                                # f32 from 1.0 x1.02
+ea-FRDT 0 -a 100 -k 1.1                  # start at 100, x1.1
+ea-FRDT 0 -a 0x3F800000 -m f32          # raw bit start
+ea-FRDT 0 -a max-finite -k 0.5           # max value descending to 0
+ea-FRDT 0 -m fp32 -s                    # minimum subnormal start
+ea-FRDT 0 -m fp4 -g addulp              # enumerate upward
+ea-FRDT 0 -m all --only fp32,dec128 -j 0,2 -q
+ea-FRDT 0 -m all -l 3 -t 10              # loop 3x, max 10s each
+ea-FRDT 0 -m f32 --bits hex             # hex bits in parentheses
+ea-FRDT 0 -m f32 --json                  # JSON for scripts
+ea-FRDT 0 -m f64 --dump walk.bin          # single-format dump: v2 header (header+payload dual CRC-32, explicit length/geometry)
 ```

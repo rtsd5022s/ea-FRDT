@@ -11,7 +11,7 @@ One paragraph. Why does the current CLI not already cover it?
 **Proposed interface**
 What flag / format / output would you like? Example:
 ```
-./float_inf_walk 0 -m fp32 --my-new-flag <value>
+./ea-FRDT 0 -m fp32 --my-new-flag <value>
 ```
 
 **Which existing flags does it interact with?**

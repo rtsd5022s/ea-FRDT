@@ -1,7 +1,7 @@
 # Baseline Results (reference measurements)
 
 Environment: i7-6700 (4C8T), Windows x86_64, MSYS2 clang64 Clang, release `-Oz -flto=thin -static`.
-Command: `float_inf_walk 0 -m <format> -q` (from 1.0 × 1.02 to overflow).
+Command: `ea-FRDT 0 -m <format> -q` (from 1.0 × 1.02 to overflow).
 
 > Steps and times below are **historical reference measurements of that build on that machine**. Steps are mostly determined by bit width and Emax and are fairly build-stable; wall times vary strongly with CPU, optimization level, and compiler and are not promised across machines/versions. When comparing BID vs DPD, focus on whether equal-width step counts agree, not on absolute milliseconds.
 

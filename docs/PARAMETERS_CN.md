@@ -120,15 +120,15 @@
 ## 示例速查
 
 ```
-float_inf_walk 0                                # f32 从 1.0 ×1.02
-float_inf_walk 0 -a 100 -k 1.1                  # 从 100 起步 ×1.1
-float_inf_walk 0 -a 0x3F800000 -m f32            # Raw 位串起点
-float_inf_walk 0 -a max-finite -k 0.5           # 最大值递减到 0
-float_inf_walk 0 -m fp32 -s                     # 最小非规格化起点
-float_inf_walk 0 -m fp4 -g addulp                # 逐值枚举到 inf
-float_inf_walk 0 -m all --only fp32,dec128 -j 0,2 -q
-float_inf_walk 0 -m all -l 3 -t 10              # 循环 3 次，每次最多 10s
-float_inf_walk 0 -m fp32 --bits hex             # 括号内 hex 位型
-float_inf_walk 0 -m f32 --json                   # JSON 输出供脚本采集
-float_inf_walk 0 -m f64 --dump walk.bin          # 单格式 dump：v2 头（头+载荷双 CRC-32、显式长度/记录几何）
+ea-FRDT 0                                # f32 从 1.0 ×1.02
+ea-FRDT 0 -a 100 -k 1.1                  # 从 100 起步 ×1.1
+ea-FRDT 0 -a 0x3F800000 -m f32            # Raw 位串起点
+ea-FRDT 0 -a max-finite -k 0.5           # 最大值递减到 0
+ea-FRDT 0 -m fp32 -s                     # 最小非规格化起点
+ea-FRDT 0 -m fp4 -g addulp                # 逐值枚举到 inf
+ea-FRDT 0 -m all --only fp32,dec128 -j 0,2 -q
+ea-FRDT 0 -m all -l 3 -t 10              # 循环 3 次，每次最多 10s
+ea-FRDT 0 -m fp32 --bits hex             # 括号内 hex 位型
+ea-FRDT 0 -m f32 --json                   # JSON 输出供脚本采集
+ea-FRDT 0 -m f64 --dump walk.bin          # 单格式 dump：v2 头（头+载荷双 CRC-32、显式长度/记录几何）
 ```

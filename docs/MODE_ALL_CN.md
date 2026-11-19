@@ -7,9 +7,9 @@
 默认链共 **13 种格式**：默认排除 DPD32/DPD64/DPD128 与 Dec128(BID)，需 `--only` 显式加入。
 
 ```
-float_inf_walk 0 -m all
-float_inf_walk 0 -m all -j 0-3
-float_inf_walk 0 -m all -t 10 -q
+ea-FRDT 0 -m all
+ea-FRDT 0 -m all -j 0-3
+ea-FRDT 0 -m all -t 10 -q
 ```
 
 与单格式模式的区别：不是一次跑一个格式，而是每个 worker 反复遍历整条链；worker 数与核心集合由 `-j` 控制，每个 worker 绑到指定核心。

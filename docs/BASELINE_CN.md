@@ -1,7 +1,7 @@
 # 基准测试结果（参考测量）
 
 测试环境：i7-6700 (4C8T), Windows x86_64, MSYS2 clang64 Clang, release `-Oz -flto=thin -static`。
-命令：`float_inf_walk 0 -m <format> -q`（从 1.0 乘 1.02 到溢出）。
+命令：`ea-FRDT 0 -m <format> -q`（从 1.0 乘 1.02 到溢出）。
 
 > 下表步数与耗时是**该构建在该机器上的历史参考测量**：步数主要由格式位宽与 Emax 决定、对构建较稳定；耗时随 CPU、优化级别与编译器显著变化，不作跨机器/跨版本承诺。对比 BID 与 DPD 时重点看“同宽度步数是否一致”，而非绝对毫秒。
 

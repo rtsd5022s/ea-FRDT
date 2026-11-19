@@ -5,9 +5,9 @@
 Without `-m all`, one format runs on the main thread: no worker pool, no monitor thread, no scheduling overhead. The loop walks step by step and prints each step until an exit reason fires.
 
 ```
-float_inf_walk 0 -m fp32
-float_inf_walk 0 -m dec64 -k 1.5
-float_inf_walk 0 -m x87 -t 10
+ea-FRDT 0 -m fp32
+ea-FRDT 0 -m dec64 -k 1.5
+ea-FRDT 0 -m x87 -t 10
 ```
 
 The first positional argument is `delay_ms` (per-step throttle, `0` = no throttle); the start value is always `-a`, never positional. A missing positional in single format now prints one stderr line (`error: missing positional delay_ms …`) and exits `2`, without reprinting the help page.

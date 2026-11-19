@@ -7,9 +7,9 @@
 The default chain has **13 formats**: DPD32/DPD64/DPD128 and Dec128(BID) are excluded by default and added only via `--only`.
 
 ```
-float_inf_walk 0 -m all
-float_inf_walk 0 -m all -j 0-3
-float_inf_walk 0 -m all -t 10 -q
+ea-FRDT 0 -m all
+ea-FRDT 0 -m all -j 0-3
+ea-FRDT 0 -m all -t 10 -q
 ```
 
 Difference from single mode: not one format per invocation, but each worker repeatedly walks the chain. Worker count and core set are controlled by `-j`; each worker binds to its assigned core.

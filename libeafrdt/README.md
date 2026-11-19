@@ -4,7 +4,7 @@ ea-FRDT core algorithm as a standalone static library, with C ABI.
 
 ## Relationship to the main CLI
 
-- This directory is a **separate, optional** artifact. The CLI executable `float_inf_walk` (`src/`, `include/`) does **not** `#include` or link this library.
+- This directory is a **separate, optional** artifact. The CLI executable `ea-FRDT` (`src/`, `include/`) does **not** `#include` or link this library.
 - One-way dependency: `eafrdt.h` includes `../include/uint256.h` so both sides share a single 256-bit big-integer type (`fw::UInt256`, aliased as `fw::core::UInt256`). That header is pure `uint64_t` arithmetic with no IO, no globals and no `__int128`, so the archive still builds standalone on Linux; nothing else from `include/` or `src/` is pulled in.
 - The root `CMakeLists.txt` builds only the CLI; it does **not** compile or archive `libeafrdt`. The GitHub Actions workflow `.github/workflows/ci.yml` likewise builds and smoke-tests only the CLI.
 - Only seven source/documentation files are tracked in git: `eafrdt.h`, `eafrdt.cpp`, `eafrdt.cppm`, `c_api.h`, `c_api.cpp`, `test_capi.cpp`, and this `README.md`. Build outputs (`*.o`, `*.a`, `test_capi.exe`) are ignored by the root `.gitignore` (`*.o`, `*.a`, `*.exe`) and are never committed.
@@ -82,4 +82,4 @@ Status versus the CLI (measured with `start=1.0`, `factor=1.02`, default X102 mu
 
 Platform:
 
-- No Windows-specific code in this library; the CLI `float_inf_walk` is Windows-only because of `SetThreadAffinityMask`/`winmm`, while `libeafrdt.a` compiles on Linux.
+- No Windows-specific code in this library; the CLI `ea-FRDT` is Windows-only because of `SetThreadAffinityMask`/`winmm`, while `libeafrdt.a` compiles on Linux.

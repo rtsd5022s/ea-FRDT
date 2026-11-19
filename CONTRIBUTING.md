@@ -15,7 +15,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake defaults to `Release`, enables `-Wall -Wextra`, and names the executable `float_inf_walk`.
+CMake defaults to `Release`, enables `-Wall -Wextra`, and names the executable `ea-FRDT`.
 
 ### Raw compiler (no CMake)
 
@@ -25,13 +25,13 @@ g++ -std=c++23 -O2 -Wall -Wextra -pthread \
     -Iinclude \
     src/float_inf_walk.cpp src/lang.cpp src/format_util.cpp \
     src/drive.cpp src/platform.cpp \
-    -o float_inf_walk
+    -o ea-FRDT
 
 # Windows (MSYS2 clang64 — recommended release, LLVM native, thin LTO)
 C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
     -ffunction-sections -fdata-sections -Wl,--gc-sections \
     -static \
-    -Iinclude src/*.cpp -lwinmm -o float_inf_walk
+    -Iinclude src/*.cpp -lwinmm -o ea-FRDT
 
 # Note: clang64 uses libc++/compiler-rt/lld. Do NOT add -static-libgcc
 # -static-libstdc++ (those are GCC flags that pull ucrt64 libraries).
@@ -53,10 +53,10 @@ C:\msys64\clang64\bin\clang++.exe -std=c++23 -Oz -flto=thin \
 2. Build with zero warnings (`-Wall -Wextra`). The only accepted compiler warning is `#pragma comment(lib, "winmm.lib")` being ignored on Clang (pre-existing, Windows-only, harmless).
 3. Smoke test a native and a hand-rolled format, e.g.:
    ```bash
-   ./float_inf_walk 0 -m fp32 -t 5
-   ./float_inf_walk 0 -m fp4  -g addulp
+   ./ea-FRDT 0 -m fp32 -t 5
+   ./ea-FRDT 0 -m fp4  -g addulp
    ```
-   Optionally validate a dump round trip: `./float_inf_walk 0 -m f64 --dump walk.bin` and inspect it with `python dump_inspect.py walk.bin`.
+   Optionally validate a dump round trip: `./ea-FRDT 0 -m f64 --dump walk.bin` and inspect it with `python dump_inspect.py walk.bin`.
 4. Update the paired CN/EN docs under `docs/` when a flag, default, exit reason, or format behavior changes.
 5. Open a PR describing what changed and why.
 
