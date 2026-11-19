@@ -840,8 +840,8 @@ static std::optional<int> parse_options(int argc, char** argv, Options& o) {
             else g_lang = Lang::ZH;
             continue;
         }
-        if (a == "-m") {
-            if (i + 1 >= argc) { cui::err() << tr("错误：-m 需要一个模式值\n", "error: -m requires a mode value\n"); return 2; }
+        if (a == "-m" || a == "--mode") {
+            if (i + 1 >= argc) { cui::err() << tr("错误：-m/--mode 需要一个模式值\n", "error: -m/--mode requires a mode value\n"); return 2; }
             o.mode = argv[++i];
             g_fmt_name = o.mode;
             continue;

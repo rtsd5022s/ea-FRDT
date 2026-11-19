@@ -43,6 +43,12 @@ $ccOut = if (Test-Path (Join-Path $TmpDir 'cc.json')) { (Get-Item (Join-Path $Tm
 Check ($ec -eq 2)            "B3 single-format -j 0 exits 2 (got $ec)"
 Check ($ccOut -eq 0)         "B4 single-format -j 0 keeps stdout empty (bytes=$ccOut)"
 
+# B5. --mode is the documented long alias of -m (help and PARAMETERS both list it).
+$ec = Invoke-Cli @('--mode','f32','-q','--steps','3','0') (Join-Path $TmpDir 'cb5.out') (Join-Path $TmpDir 'cb5.err')
+$cb5 = if (Test-Path (Join-Path $TmpDir 'cb5.out')) { Get-Content (Join-Path $TmpDir 'cb5.out') -Raw } else { '' }
+Check ($ec -eq 0)                "B5 --mode accepted as alias of -m (got $ec)"
+Check ($cb5 -match 'fixed-steps') "B6 --mode run reports fixed-steps"
+
 # C. Healthy f32 overflow: ec=0, one parseable JSON object, no warning markers on stdout.
 $ec = Invoke-Cli @('0','-m','f32','--json') (Join-Path $TmpDir 'cd.json') (Join-Path $TmpDir 'cd.err')
 $cdRaw = Get-Content (Join-Path $TmpDir 'cd.json') -Raw
