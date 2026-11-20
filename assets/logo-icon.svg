@@ -1,24 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ea-FRDT icon">
-  <defs>
-    <linearGradient id="mark" x1="120" y1="362" x2="374" y2="148" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3F3F46"/>
-      <stop offset="1" stop-color="#A1A1AA"/>
-    </linearGradient>
-    <radialGradient id="wash" cx="30%" cy="18%" r="85%">
-      <stop offset="0" stop-color="#F4F4F5"/>
-      <stop offset="1" stop-color="#FFFFFF"/>
-    </radialGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ea-FRDT mark: a stepped walk rising from an IEEE-754 bit field to infinity">
+  <rect x="1" y="1" width="510" height="510" rx="96" fill="#1F1F23" stroke="#3A3A40" stroke-width="2"/>
 
-  <rect x="1" y="1" width="510" height="510" rx="102" fill="url(#wash)" stroke="#E4E4E7" stroke-width="2"/>
-
-  <!-- rising trace feeding into the limit -->
-  <g transform="translate(256,256) scale(1.14) translate(-256,-256)">
-    <path d="M120 362C150 362 178 330 192 296C204 268 212 238 226 218"
-          fill="none" stroke="url(#mark)" stroke-width="12" stroke-linecap="round"/>
-
-    <path d="M300 192C280 152 240 148 226 166C214 182 214 202 226 218C240 236 280 232 300 192
-             C320 152 360 148 374 166C386 182 386 202 374 218C360 236 320 232 300 192"
-          fill="none" stroke="url(#mark)" stroke-width="12" stroke-linecap="round"/>
+  <!-- IEEE-754 single precision: 1 sign bit, 8 exponent bits, 23 mantissa bits -->
+  <rect x="56" y="404" width="12" height="32" rx="5" fill="#FAFAFA"/>
+  <rect x="74" y="404" width="96" height="32" rx="5" fill="#BEBEC2"/>
+  <rect x="176" y="404" width="276" height="32" rx="5" fill="#71717A"/>
+  <g stroke="#1F1F23" stroke-width="1">
+    <path d="M86 405V435M98 405V435M110 405V435M122 405V435M134 405V435M146 405V435M158 405V435"/>
+    <path d="M188 405V435M200 405V435M212 405V435M224 405V435M236 405V435M248 405V435M260 405V435M272 405V435M284 405V435M296 405V435M308 405V435M320 405V435M332 405V435M344 405V435M356 405V435M368 405V435M380 405V435M392 405V435M404 405V435M416 405V435M428 405V435M440 405V435"/>
   </g>
+
+  <!-- seventeen steps from the bit field to the overflow limit -->
+  <path d="M72 404H92.47V388.71H112.94V373.41H133.41V358.12H153.88V342.82H174.35V327.53H194.82V312.24H215.29V296.94H235.76V281.65H256.24V266.35H276.71V251.06H297.18V235.76H317.65V220.47H338.12V205.18H358.59V189.88H379.06V174.59H399.53V159.29H420V144"
+        fill="none" stroke="#FAFAFA" stroke-width="16" stroke-linejoin="miter" stroke-linecap="butt"/>
+
+  <path d="M424 108C414 86 393 84 383 94C376 101 376 115 383 122C393 132 414 130 424 108C434 86 455 84 465 94C472 101 472 115 465 122C455 132 434 130 424 108"
+        fill="none" stroke="#FAFAFA" stroke-width="12" stroke-linecap="round"/>
 </svg>
