@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ea-FRDT icon">
   <defs>
     <linearGradient id="mark" x1="120" y1="362" x2="374" y2="148" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2563EB"/>
-      <stop offset="1" stop-color="#06B6D4"/>
+      <stop offset="0" stop-color="#3F3F46"/>
+      <stop offset="1" stop-color="#A1A1AA"/>
     </linearGradient>
     <radialGradient id="wash" cx="30%" cy="18%" r="85%">
-      <stop offset="0" stop-color="#EFF6FF"/>
+      <stop offset="0" stop-color="#F4F4F5"/>
       <stop offset="1" stop-color="#FFFFFF"/>
     </radialGradient>
   </defs>
 
-  <rect x="1" y="1" width="510" height="510" rx="102" fill="url(#wash)" stroke="#E2E8F0" stroke-width="2"/>
+  <rect x="1" y="1" width="510" height="510" rx="102" fill="url(#wash)" stroke="#E4E4E7" stroke-width="2"/>
 
   <!-- rising trace feeding into the limit -->
   <g transform="translate(256,256) scale(1.14) translate(-256,-256)">
