@@ -4,6 +4,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](CMakeLists.txt)
 
+<p align="center">
+  <img src="assets/logo-wordmark.svg" alt="ea-FRDT — floating-point rigorous devil test" width="520">
+</p>
+
 > **Platform note:** Prebuilt binary is Windows x86_64 only. CI builds on Linux (GCC + Clang) and Windows (MSYS2 clang64). **Other platforms (macOS, BSD, ARM Linux, RISC-V) have never been tested — if you hit a compile error or runtime bug there, open a PR.**
 >
 > **Compiler:** C++23. GCC 13+ or Clang 16+. **MSVC is not supported and is intentionally excluded** — the codebase uses `__int128`, GCC/Clang attributes, and thin LTO. g++ 16.2.0 has a known ICE; fall back to Clang.
