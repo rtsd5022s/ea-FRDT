@@ -1,0 +1,140 @@
+name: PR scope review
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
+
+# Least privilege. This workflow never checks out or executes PR code.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Label scope-sensitive PRs for human review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+            if (pr.user && pr.user.type === 'Bot') return;
+
+            // Never auto-label maintainers, members, collaborators, or prior contributors.
+            const association = pr.author_association || 'NONE';
+            if (['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR'].includes(association)) return;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const raw = `${pr.title || ''}\n${pr.body || ''}`;
+            // Ignore template HTML comments, fenced code blocks, and inline code.
+            // The PR template itself contains "no MSVC / no GUI" checklist lines.
+            const text = raw
+              .replace(/<!--[\s\S]*?-->/g, ' ')
+              .replace(/```[\s\S]*?```/g, ' ')
+              .replace(/`[^`]*`/g, ' ');
+
+            // Same verb-first policy as issue triage: bare "MSVC"/"GUI"/"GPU"
+            // are not treated as scope violations.
+            const rules = [
+              { re: /\b(add|support|implement|provide|enable|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(gui|graphical\s+interface)\b/i, reason: 'mentions adding a GUI/front-end' },
+              { re: /\b(gui|graphical\s+interface)\b[^\n]{0,20}\b(version|app|application|frontend)\b/i, reason: 'mentions adding a GUI/front-end' },
+              { re: /\b(add|support|implement|provide|enable|port\s+to|compile\s+with|build\s+with|use|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(msvc|visual\s+studio)\b/i, reason: 'mentions MSVC/Visual Studio support' },
+              { re: /\b(add|support|implement|provide|enable|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(gpu|cuda|opencl|metal|vulkan)\b/i, reason: 'mentions adding a GPU backend' },
+              { re: /\b(add|provide|implement|support|need|require|want|request|would\s+like)\b[^\n]{0,30}\b(stable|guaranteed|semver|semantic\s+versioning)\b[^\n]{0,20}\b(abi|api)\b/i, reason: 'mentions a stable ABI/API contract' },
+              { re: /\b(add|need|require|want|request|would\s+like)\b[^\n]{0,30}\b(semver|semantic\s+versioning)\b/i, reason: 'mentions a stable ABI/API contract' },
+              { re: /\b(add|provide|support|implement|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(python|node|javascript|rust|java|go|c#|csharp)\b[^\n]{0,20}\b(binding|bindings|wrapper|api)\b/i, reason: 'mentions language bindings/wrappers' },
+              { re: /\b(add|support|implement|provide|port\s+to|build\s+for|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(webassembly|wasm)\b/i, reason: 'mentions a WebAssembly port' },
+              { re: /\b(add|provide|produce|report|implement|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(gflops|benchmark)\b[^\n]{0,20}\b(score|ranking|leaderboard|comparison)\b/i, reason: 'mentions a benchmark score/ranking' },
+              { re: /\b(add|enable|send|implement|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(telemetry|analytics|crash\s+reporting)\b/i, reason: 'mentions telemetry/analytics' },
+            ];
+
+            const reasons = [];
+            for (const rule of rules) {
+              if (rule.re.test(text)) reasons.push(rule.reason);
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner, repo, pull_number: pr.number, per_page: 100,
+            });
+            const paths = files.map(f => f.filename);
+
+            if (paths.some(p => /(^|\/)(gui|gpu|msvc)(\/|$)/i.test(p))) {
+              reasons.push('adds GUI/GPU/MSVC files');
+            }
+            if (paths.some(p => /(^|\/)(third_party|vendor|external|deps)(\/|$)/i.test(p))) {
+              reasons.push('adds third-party/vendored code');
+            }
+            if (paths.some(p => /\.(vcxproj|sln)$/i.test(p) || /CMakeSettings\.json$/i.test(p))) {
+              reasons.push('adds MSVC project files');
+            }
+            if (paths.some(p => /^docs\/BASELINE_.*\.md$/i.test(p))) {
+              reasons.push('changes baseline reference data');
+            }
+            if (files.some(f => /CMakeLists\.txt$/i.test(f.filename) && /FetchContent|add_subdirectory\s*\(\s*(third_party|vendor|external|deps)/i.test(f.patch || ''))) {
+              reasons.push('may add a third-party dependency');
+            }
+
+            if (reasons.length === 0) return;
+            const uniqueReasons = [...new Set(reasons)];
+
+            // Ensure the label exists. A 422 on create means it already exists.
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: 'scope-review' });
+            } catch (e) {
+              if (e.status === 404) {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo,
+                    name: 'scope-review',
+                    color: 'fbca04',
+                    description: 'PR needs maintainer scope review',
+                  });
+                } catch (createError) {
+                  if (createError.status !== 422) console.log(`label create failed: ${createError.message}`);
+                }
+              } else {
+                console.log(`label lookup failed: ${e.message}`);
+              }
+            }
+
+            const labels = (pr.labels || []).map(l => typeof l === 'string' ? l : l.name);
+
+            // Comment once. Do not close the PR: keyword/path matches are signals,
+            // not verdicts. A maintainer decides whether it is out of scope.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pr.number, per_page: 100,
+            });
+            const marker = '<!-- pr-scope-review -->';
+            if (!comments.some(c => (c.body || '').includes(marker))) {
+              const linkEn = `https://github.com/${owner}/${repo}/blob/main/docs/POSITIONING_EN.md`;
+              const linkCn = `https://github.com/${owner}/${repo}/blob/main/docs/POSITIONING_CN.md`;
+              const body = [
+                marker,
+                'This PR has been labeled `scope-review` for maintainer review. It was **not** auto-closed.',
+                '',
+                'Signals:',
+                ...uniqueReasons.map(r => `- ${r}`),
+                '',
+                'Keyword and path matches are not verdicts. A maintainer will decide whether the change is in scope.',
+                `See [POSITIONING_EN](${linkEn}) / [POSITIONING_CN](${linkCn}).`,
+              ].join('\n');
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number, body,
+              });
+            }
+
+            if (!labels.includes('scope-review')) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: pr.number, labels: ['scope-review'],
+                });
+              } catch (e) {
+                console.log(`label add failed: ${e.message}`);
+              }
+            }

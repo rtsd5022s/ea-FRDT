@@ -1,0 +1,132 @@
+name: Issue scope triage
+
+on:
+  issues:
+    types: [opened]
+
+# Least privilege: only issue comments/labels/state need write access.
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.issue.pull_request == null
+    steps:
+      - name: Close out-of-scope feature requests
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            if (!issue || issue.state !== 'open') return;
+            if (issue.user && issue.user.type === 'Bot') return;
+
+            // Never auto-close maintainers, members, collaborators, or prior contributors.
+            const association = issue.author_association || 'NONE';
+            if (['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR'].includes(association)) return;
+
+            const labels = (issue.labels || []).map(l => typeof l === 'string' ? l : l.name);
+            // Only feature requests are auto-closed. Bug/build/portability/question
+            // reports must stay open for human triage.
+            if (!labels.includes('enhancement')) return;
+
+            const raw = `${issue.title || ''}\n${issue.body || ''}`;
+            // Ignore template HTML comments, fenced code blocks, and inline code.
+            // This prevents pasted logs and template boilerplate from matching.
+            const text = raw
+              .replace(/<!--[\s\S]*?-->/g, ' ')
+              .replace(/```[\s\S]*?```/g, ' ')
+              .replace(/`[^`]*`/g, ' ');
+
+            // Verb-first phrases only. Bare terms such as "MSVC", "GUI", "GPU",
+            // "benchmark" are deliberately NOT matched, because the issue templates
+            // themselves contain those words in "not supported / no GUI" sentences.
+            const rules = [
+              { re: /\b(add|support|implement|provide|enable|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(gui|graphical\s+interface)\b/i, reason: 'requests a GUI/front-end' },
+              { re: /\b(gui|graphical\s+interface)\b[^\n]{0,20}\b(version|app|application|frontend)\b/i, reason: 'requests a GUI/front-end' },
+              { re: /\b(add|support|implement|provide|enable|port\s+to|compile\s+with|build\s+with|use|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(msvc|visual\s+studio)\b/i, reason: 'requests MSVC/Visual Studio support' },
+              { re: /\b(add|support|implement|provide|enable|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(gpu|cuda|opencl|metal|vulkan)\b/i, reason: 'requests a GPU backend' },
+              { re: /\b(add|provide|implement|support|need|require|want|request|would\s+like)\b[^\n]{0,30}\b(stable|guaranteed|semver|semantic\s+versioning)\b[^\n]{0,20}\b(abi|api)\b/i, reason: 'requests a stable ABI/API contract' },
+              { re: /\b(add|need|require|want|request|would\s+like)\b[^\n]{0,30}\b(semver|semantic\s+versioning)\b/i, reason: 'requests a stable ABI/API contract' },
+              { re: /\b(add|provide|support|implement|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(python|node|javascript|rust|java|go|c#|csharp)\b[^\n]{0,20}\b(binding|bindings|wrapper|api)\b/i, reason: 'requests language bindings/wrappers' },
+              { re: /\b(add|support|implement|provide|port\s+to|build\s+for|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(webassembly|wasm)\b/i, reason: 'requests a WebAssembly port' },
+              { re: /\b(add|provide|produce|report|implement|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(gflops|benchmark)\b[^\n]{0,20}\b(score|ranking|leaderboard|comparison)\b/i, reason: 'requests a benchmark score/ranking' },
+              { re: /\b(add|enable|send|implement|need|require|want|request|would\s+like)\b[^\n]{0,40}\b(telemetry|analytics|crash\s+reporting)\b/i, reason: 'requests telemetry/analytics' },
+            ];
+
+            let hit = null;
+            for (const rule of rules) {
+              const m = text.match(rule.re);
+              if (!m) continue;
+
+              // Cheap negation guard: "do not add a GUI" / "never add MSVC support"
+              // must not be treated as a request.
+              const before = text.slice(Math.max(0, m.index - 16), m.index).toLowerCase();
+              if (/\b(no|not|never|without|don't|do\s+not)\b/.test(before)) continue;
+
+              hit = rule;
+              break;
+            }
+            if (!hit) return;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Ensure the label exists. A 422 on create means it already exists.
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: 'out-of-scope' });
+            } catch (e) {
+              if (e.status === 404) {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo,
+                    name: 'out-of-scope',
+                    color: 'b60205',
+                    description: 'Request is outside the project scope',
+                  });
+                } catch (createError) {
+                  if (createError.status !== 422) console.log(`label create failed: ${createError.message}`);
+                }
+              } else {
+                console.log(`label lookup failed: ${e.message}`);
+              }
+            }
+
+            // Comment once. A reopened issue is not auto-closed again by this
+            // workflow (the trigger is "opened" only), so this is mainly idempotence
+            // for manual reruns.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: issue.number, per_page: 100,
+            });
+            const marker = '<!-- issue-scope-triage -->';
+            if (!comments.some(c => (c.body || '').includes(marker))) {
+              const linkEn = `https://github.com/${owner}/${repo}/blob/main/docs/POSITIONING_EN.md`;
+              const linkCn = `https://github.com/${owner}/${repo}/blob/main/docs/POSITIONING_CN.md`;
+              const body = [
+                marker,
+                `This issue was closed automatically because it matches an out-of-scope request: **${hit.reason}**.`,
+                '',
+                'ea-FRDT is deliberately narrow: deterministic float walker / ALU-FPU stress, no GUI, no MSVC, no GPU, no ranking, no stable ABI.',
+                `See [POSITIONING_EN](${linkEn}) / [POSITIONING_CN](${linkCn}).`,
+                '',
+                'If this is a reproducible bug on a supported platform (Linux GCC/Clang, Windows MSYS2 clang64), open a bug report with OS/CPU/compiler/version, the exact command, expected/actual behavior, and the last hex bit pattern.',
+              ].join('\n');
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issue.number, body,
+              });
+            }
+
+            try {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: issue.number, labels: ['out-of-scope'],
+              });
+            } catch (e) {
+              console.log(`label add failed: ${e.message}`);
+            }
+
+            await github.rest.issues.update({
+              owner, repo, issue_number: issue.number,
+              state: 'closed', state_reason: 'not_planned',
+            });
