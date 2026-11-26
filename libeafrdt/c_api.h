@@ -1,7 +1,25 @@
 #if defined(_WIN32) && !defined(__MINGW32__)
 #error "ea-FRDT requires MinGW target (x86_64-w64-mingw32 / x86_64-w64-windows-gnu). Do not use MSVC or LLVM's default windows-msvc clang; use MSYS2 clang64."
 #endif
-// c_api.h — C ABI for libeafrdt. Link against libeafrdt.a.
+// c_api.h — C ABI for libeafrdt. Link against libeafrdt.dll (or the static archive).
+//
+// Windows DLL consumers must define EAFRDT_USE_DLL before including this header;
+// the DLL itself is built with EAFRDT_BUILD_DLL. Static-archive consumers need
+// neither macro.
+#if defined(_WIN32)
+#  if defined(EAFRDT_BUILD_DLL)
+#    define EAFRDT_API __declspec(dllexport)
+#  elif defined(EAFRDT_USE_DLL)
+#    define EAFRDT_API __declspec(dllimport)
+#  else
+#    define EAFRDT_API
+#  endif
+#elif defined(__GNUC__) || defined(__clang__)
+#  define EAFRDT_API __attribute__((visibility("default")))
+#else
+#  define EAFRDT_API
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,14 +57,14 @@ enum eafrdt_reason {
 // Walk one format from `start` multiplying by `multiplier` until exit.
 // Returns step count. Sets *reason to exit reason (may be NULL).
 // timeout_sec=0 means unlimited.
-long long eafrdt_walk(enum eafrdt_fmt fmt,
+EAFRDT_API long long eafrdt_walk(enum eafrdt_fmt fmt,
                       double start,
                       double multiplier,
                       double timeout_sec,
                       int* reason);
 
 // Library version string.
-const char* eafrdt_version(void);
+EAFRDT_API const char* eafrdt_version(void);
 
 #ifdef __cplusplus
 }

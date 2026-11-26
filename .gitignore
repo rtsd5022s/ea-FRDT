@@ -6,6 +6,11 @@
 *.dll
 *.bin
 
+# CMake / 本地构建目录 / 发布打包目录
+build/
+build-*/
+dist/
+
 # 临时文件
 v.txt
 e.txt

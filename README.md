@@ -85,7 +85,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-CMake produces an executable named `ea-FRDT`; it builds only the CLI. `libeafrdt/` is a separate optional C-ABI static library, not built by CMake or CI.
+CMake produces the standalone `ea-FRDT` executable. With `-DEAFRDT_BUILD_SHARED=ON` (the default) it also produces `libeafrdt.dll`, the DLL-linked `eafrdt-cli` host, and the `test_capi` C-ABI acceptance program. `libeafrdt/` is still a separate optional artifact; the full CLI does not link it.
 
 ### Raw compiler
 
@@ -261,7 +261,7 @@ include/
 src/
   float_inf_walk.cpp  main(), argv parsing, dispatch, dump header
   drive.cpp lang.cpp format_util.cpp platform.cpp
-libeafrdt/            standalone optional C-ABI static library (manual build)
+libeafrdt/            optional C-ABI shared library (libeafrdt.dll) + DLL-linked host
 dump_inspect.py       schema v2 validator
 ```
 
@@ -280,7 +280,7 @@ Key design choices:
 include/   shared engines + 12 format headers (14 bindings, 3 self-contained formats)
 src/       main + non-template function definitions
 docs/      paired CN/EN documentation
-libeafrdt/ standalone optional C-ABI static library
+libeafrdt/ optional C-ABI shared library (DLL) + C ABI/static-archive sources
 .github/workflows/ci.yml   Build + smoke test (Linux GCC, Linux Clang, Windows Clang)
 CMakeLists.txt
 LICENSE    MIT

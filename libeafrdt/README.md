@@ -1,13 +1,14 @@
 # libeafrdt
 
-ea-FRDT core algorithm as a standalone static library, with C ABI.
+ea-FRDT core algorithm as a standalone shared library (`libeafrdt.dll`) with C ABI. The traditional static archive remains buildable manually.
 
 ## Relationship to the main CLI
 
 - This directory is a **separate, optional** artifact. The CLI executable `ea-FRDT` (`src/`, `include/`) does **not** `#include` or link this library.
 - One-way dependency: `eafrdt.h` includes `../include/uint256.h` so both sides share a single 256-bit big-integer type (`fw::UInt256`, aliased as `fw::core::UInt256`). That header is pure `uint64_t` arithmetic with no IO, no globals and no `__int128`, so the archive still builds standalone on Linux; nothing else from `include/` or `src/` is pulled in.
-- The root `CMakeLists.txt` builds only the CLI; it does **not** compile or archive `libeafrdt`. The GitHub Actions workflow `.github/workflows/ci.yml` likewise builds and smoke-tests only the CLI.
-- Only eight source/documentation files are tracked in git: `eafrdt.h`, `eafrdt.cpp`, `walk_core.h` (internal loop header), `eafrdt.cppm`, `c_api.h`, `c_api.cpp`, `test_capi.cpp`, and this `README.md`. Build outputs (`*.o`, `*.a`, `test_capi.exe`) are ignored by the root `.gitignore` (`*.o`, `*.a`, `*.exe`) and are never committed.
+- The root `CMakeLists.txt` builds the CLI and, with `EAFRDT_BUILD_SHARED=ON` (default), also builds `libeafrdt.dll`, `eafrdt-cli`, and `test_capi`. The full `ea-FRDT` CLI still does not link this library.
+- The GitHub Actions workflow `.github/workflows/ci.yml` builds and smoke-tests only the full CLI; the shared library is built locally and by the default CMake target set.
+- Only nine source/documentation files are tracked in git: `eafrdt.h`, `eafrdt.cpp`, `walk_core.h` (internal loop header), `eafrdt.cppm`, `c_api.h`, `c_api.cpp`, `cli_main.cpp`, `test_capi.cpp`, and this `README.md`. Build outputs (`*.o`, `*.a`, `test_capi.exe`) are ignored by the root `.gitignore` (`*.o`, `*.a`, `*.exe`) and are never committed.
 - The library itself contains no IO, threads, ANSI/Windows-specific calls, or globals; the CLI's Windows-only `SetThreadAffinityMask`/`winmm` timer code lives outside this library, so the archive compiles on Linux as well.
 
 ## Files
@@ -18,14 +19,28 @@ ea-FRDT core algorithm as a standalone static library, with C ABI.
 | `eafrdt.cpp` | Encoders/multipliers plus the 17 walk entry points (no IO/threads/globals) |
 | `walk_core.h` | Internal generic step loop: terminal check, 16-step identity check, timeout; not part of the public API |
 | `eafrdt.cppm` | C++23 module interface (`import eafrdt;`) |
-| `c_api.h` | `extern "C"` ABI for C/Rust/other languages |
+| `c_api.h` | `extern "C"` ABI for C/Rust/other languages; DLL consumers define `EAFRDT_USE_DLL` |
 | `c_api.cpp` | C ABI dispatch |
+| `cli_main.cpp` | Minimal DLL-linked host (`eafrdt-cli`): format/start/multiplier/timeout |
 | `test_capi.cpp` | C ABI baseline verification (17 formats + identity/underflow/NaN guards) |
-| `libeafrdt.a` | Build output (git-ignored, not committed); produced by the Build section below |
+| `libeafrdt.dll` / `eafrdt-cli.exe` / `test_capi.exe` | CMake build outputs (git-ignored, not committed) |
+| `libeafrdt.a` | Legacy manual static-archive output (git-ignored, not committed) |
 
 ## Build
 
-The library is built manually (it is not part of the root CMake target). Run the commands below from inside the `libeafrdt/` directory, then compile the two translation units and archive them:
+The shared build is the normal path. From the repository root:
+
+```bash
+cmake -B build -DEAFRDT_BUILD_SHARED=ON
+cmake --build build -j
+# build/libeafrdt.dll
+# build/eafrdt-cli.exe
+# build/test_capi.exe
+```
+
+`eafrdt-cli.exe` and `test_capi.exe` must stay next to `libeafrdt.dll`. Windows consumers include `c_api.h` with `EAFRDT_USE_DLL` defined; the DLL itself is compiled with `EAFRDT_BUILD_DLL`.
+
+The legacy static archive can still be built manually from inside `libeafrdt/`. Compile the two translation units and archive them:
 
 ```bash
 # Windows (MSYS2 clang64)
@@ -49,7 +64,7 @@ g++ -std=c++23 -O2 test_capi.cpp libeafrdt.a -o test_capi
 ./test_capi
 ```
 
-`eafrdt.cppm` declares a C++23 module interface (`import eafrdt;`) for future use; the archive above is built from the traditional TU pair (`eafrdt.cpp` + `c_api.cpp`) and does not compile the module interface.
+`eafrdt.cppm` declares a C++23 module interface (`import eafrdt;`) for future use; both the DLL and the static archive are built from the traditional TU pair (`eafrdt.cpp` + `c_api.cpp`) and do not compile the module interface.
 
 ## C usage
 
